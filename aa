@@ -4713,11 +4713,11 @@ local function startFarm()
     print("🚀 [Event-Driven Farm] Starting...")
     print("⏳ [Event-Driven Farm] Waiting 5 seconds for all functions to load...")
 
-    farmThread = task.spawn(function()
-        -- Wait 5 seconds BEFORE starting first cycle to ensure all functions are loaded
-        task.wait(5)
-        print("✅ [Event-Driven Farm] Initialization complete! Starting farm cycles...")
+    -- Wait 5 seconds BEFORE starting farm thread (only once, not every cycle)
+    task.wait(5)
+    print("✅ [Event-Driven Farm] Initialization complete! Starting farm cycles...")
 
+    farmThread = task.spawn(function()
         while isAutoFarmOn do
             executeCycle()
 
