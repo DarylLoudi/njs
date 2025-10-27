@@ -43,8 +43,6 @@ local function validateScriptLoader()
     end
 
     -- All checks passed
-    -- print removed
-    -- print removed")
 
     -- Clear auth keys after validation untuk keamanan
     _G[SCRIPT_AUTH_KEY] = nil
@@ -210,7 +208,7 @@ local function destroyWorkspace3DObjects()
             end
         end
 
-        -- print removed)
+        -- print removed
     end)
 end
 
@@ -238,7 +236,7 @@ local function optimizeMaterials()
             end)
         end
 
-        -- print removed)
+        -- print removed
     end)
 end
 
@@ -259,7 +257,7 @@ local function removeTextures()
             end)
         end
 
-        -- print removed)
+        -- print removed
     end)
 end
 
@@ -285,7 +283,7 @@ local function destroyParticlesAndEffects()
             end)
         end
 
-        -- print removed)
+        -- print removed
     end)
 end
 
@@ -311,7 +309,7 @@ local function optimizeMeshes()
             end)
         end
 
-        -- print removed)
+        -- print removed
     end)
 end
 
@@ -364,7 +362,7 @@ local function applyMaximumVRAMOptimization()
     destroyParticlesAndEffects()
 
     -- Phase 4: Workspace cleanup - DISABLED (too extreme, prevents game from loading)
-    -- print removed")
+    -- print removed
     -- destroyWorkspace3DObjects() -- COMMENTED OUT
 
     -- print removed
@@ -676,13 +674,13 @@ do
             if uuid then
                 -- Check if already favorited
                 if isItemFavorited(uuid) then
-                    -- print removed)
+                    -- print removed
                     favoritedItems[fullName] = true -- Mark as handled
                     return
                 end
 
                 -- Favorite the NEW item
-                -- print removed)
+                -- print removed
 
                 local success = pcall(function()
                     local FavoriteItemEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net:WaitForChild("RE/FavoriteItem")
@@ -690,7 +688,7 @@ do
                 end)
 
                 if success then
-                    -- print removed)
+                    -- print removed
                     favoritedItems[fullName] = true -- Mark as favorited
                 else
                     warn(string.format("[Auto Favorite] ❌ Failed to favorite: %s", foundName))
@@ -905,7 +903,7 @@ do
                     local itemName = itemData.Data.Name
                     -- Exact match - must match exactly (case-insensitive)
                     if itemName:lower() == artifactName:lower() then
-                        -- print removed)
+                        -- print removed
                         return item.UUID, itemName
                     end
                 end
@@ -932,14 +930,14 @@ do
             initializeModules()
         end
 
-        -- print removed", artifactName, artifactUUID))
+        -- print removed
 
         local success = pcall(function()
             FavoriteItemEvent:FireServer(artifactUUID)
         end)
 
         if success then
-            -- print removed)
+            -- print removed
             return true
         else
             warn(string.format("[Auto Artifact] ❌ Failed to favorite: %s", artifactName))
@@ -983,7 +981,7 @@ do
             if uuid then
                 -- Check if already favorited
                 if AutoArtifact.isItemFavorited(uuid) then
-                    -- print removed)
+                    -- print removed
                     skipped = skipped + 1
                 else
                     task.wait(0.5) -- Small delay between favorites
@@ -996,11 +994,11 @@ do
         end
 
         if favorited > 0 then
-            -- print removed!", favorited))
+            -- print removed
         end
 
         if skipped > 0 then
-            -- print removed", skipped))
+            -- print removed
         end
 
         if favorited == 0 and skipped == 0 then
@@ -1130,7 +1128,7 @@ do
 
                 -- Only log check status every 60 seconds to prevent log spam
                 if tick() - lastCheckLog >= LOG_INTERVAL then
-                    -- print removed",
+                    -- print removed
                         currentConfig.targetArtifact,
                         currentConfig.templeName,
                         artifactCurrentTemple))
@@ -1143,8 +1141,8 @@ do
 
                     if hasArtifact then
                         -- print removed
-                        -- print removed)
-                        -- print removed)
+                        -- print removed
+                        -- print removed
                         -- print removed
 
                         -- Mark as collected
@@ -1158,9 +1156,9 @@ do
                         if artifactUUID then
                             -- Check if already favorited first
                             if AutoArtifact.isItemFavorited(artifactUUID) then
-                                -- print removed)
+                                -- print removed
                             else
-                                -- print removed)
+                                -- print removed
                                 AutoArtifact.favoriteArtifact(artifactUUID, artifactFullName or fullName)
                             end
                         else
@@ -1187,8 +1185,8 @@ do
                         if artifactCurrentTemple <= 4 then
                             local nextConfig = ARTIFACT_CONFIG[artifactCurrentTemple]
                             -- print removed
-                            -- print removed)
-                            -- print removed)
+                            -- print removed
+                            -- print removed
                             -- print removed
 
                             -- Teleport to next temple
@@ -1230,7 +1228,7 @@ do
     -- Initialize and start system if enabled
     function AutoArtifact.initialize()
         if not isAutoArtifactOn then
-            -- print removed")
+            -- print removed
             return
         end
 
@@ -1253,7 +1251,7 @@ do
 
         -- Teleport to current temple (or first if just starting)
         local currentConfig = ARTIFACT_CONFIG[artifactCurrentTemple]
-        -- print removed)
+        -- print removed
 
         task.wait(1)
         AutoArtifact.teleportToTemple(currentConfig.cframe)
@@ -1412,7 +1410,7 @@ local function detectAndEquipBestRod()
         return false
     end
 
-    -- print removed)
+    -- print removed
 
     -- Scan ALL owned rods and find the best one
     local ownedRods = {}
@@ -1424,7 +1422,7 @@ local function detectAndEquipBestRod()
             local rodUUID = rodItem.UUID
             local rodID = rodItem.Id
 
-            -- print removed", i, #fishingRods, rodName, rodID, rodUUID))
+            -- print removed
 
             -- Check if this rod is in our upgrade list
             for rodIndex, listRodID in ipairs(rodIDs) do
@@ -1435,7 +1433,7 @@ local function detectAndEquipBestRod()
                         name = rodName,
                         priority = rodIndex
                     })
-                    -- print removed", rodName, rodIndex, #rodIDs))
+                    -- print removed
                     break
                 end
             end
@@ -1447,7 +1445,7 @@ local function detectAndEquipBestRod()
         return false
     end
 
-    -- print removed)
+    -- print removed
 
     -- Sort by priority (higher = better)
     table.sort(ownedRods, function(a, b)
@@ -1455,21 +1453,21 @@ local function detectAndEquipBestRod()
     end)
 
     local bestRod = ownedRods[1]
-    -- print removed",
+    -- print removed
         bestRod.name, bestRod.id, bestRod.priority, #rodIDs, bestRod.uuid))
 
     -- Check if already equipped
     local equippedItems = PlayerData:GetExpect("EquippedItems")
     for _, equippedUUID in ipairs(equippedItems) do
         if equippedUUID == bestRod.uuid then
-            -- print removed)
+            -- print removed
             -- print removed
             return true
         end
     end
 
     -- Equip the best rod
-    -- print removed", bestRod.name, bestRod.uuid))
+    -- print removed
 
     local equipSuccess = pcall(function()
         local EquipItemEvent = replicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net:WaitForChild("RE/EquipItem")
@@ -1477,7 +1475,7 @@ local function detectAndEquipBestRod()
     end)
 
     if equipSuccess then
-        -- print removed)
+        -- print removed
         -- print removed
         task.wait(2) -- Wait longer for equip to fully register
 
@@ -1492,7 +1490,7 @@ local function detectAndEquipBestRod()
         end
 
         if verified then
-            -- print removed)
+            -- print removed
 
             -- Apply rod-specific delays if auto upgrade is enabled
             if upgradeState.rod then
@@ -1510,7 +1508,7 @@ local function detectAndEquipBestRod()
 
             if retrySuccess then
                 task.wait(2)
-                -- print removed)
+                -- print removed
 
                 -- Apply delays after retry
                 if upgradeState.rod then
@@ -1555,7 +1553,7 @@ local function detectAndEquipBestBait()
         return false
     end
 
-    -- print removed)
+    -- print removed
 
     -- Scan ALL owned baits and find the best one
     local ownedBaits = {}
@@ -1566,7 +1564,7 @@ local function detectAndEquipBestBait()
             local baitName = trim(baitData.Data.Name)
             local baitID = baitData.Data.Id
 
-            -- print removed", i, #baits, baitName, baitID))
+            -- print removed
 
             -- Check if this bait is in our upgrade list
             for baitIndex, listBaitID in ipairs(baitIDs) do
@@ -1576,7 +1574,7 @@ local function detectAndEquipBestBait()
                         name = baitName,
                         priority = baitIndex
                     })
-                    -- print removed", baitName, baitIndex, #baitIDs))
+                    -- print removed
                     break
                 end
             end
@@ -1588,7 +1586,7 @@ local function detectAndEquipBestBait()
         return false
     end
 
-    -- print removed)
+    -- print removed
 
     -- Sort by priority (higher = better)
     table.sort(ownedBaits, function(a, b)
@@ -1596,19 +1594,19 @@ local function detectAndEquipBestBait()
     end)
 
     local bestBait = ownedBaits[1]
-    -- print removed",
+    -- print removed
         bestBait.name, bestBait.id, bestBait.priority, #baitIDs))
 
     -- Check if already equipped
     local equippedBaitId = PlayerData:GetExpect("EquippedBaitId")
     if equippedBaitId == bestBait.id then
-        -- print removed)
+        -- print removed
         -- print removed
         return true
     end
 
     -- Equip the best bait
-    -- print removed", bestBait.name, bestBait.id))
+    -- print removed
 
     local equipSuccess = pcall(function()
         local EquipBaitEvent = replicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net:WaitForChild("RE/EquipBait")
@@ -1616,7 +1614,7 @@ local function detectAndEquipBestBait()
     end)
 
     if equipSuccess then
-        -- print removed)
+        -- print removed
         -- print removed
         task.wait(2) -- Wait longer for equip to fully register
 
@@ -1628,7 +1626,7 @@ local function detectAndEquipBestBait()
         end
 
         if verified then
-            -- print removed)
+            -- print removed
         else
             warn(string.format("[Auto Equip Bait] ⚠️ Equip verification failed for '%s' - retrying...", bestBait.name))
 
@@ -1641,7 +1639,7 @@ local function detectAndEquipBestBait()
 
             if retrySuccess then
                 task.wait(2)
-                -- print removed)
+                -- print removed
             else
                 warn(string.format("[Auto Equip Bait] ❌ Retry failed for '%s'", bestBait.name))
             end
@@ -2119,21 +2117,21 @@ local function detectTotemUUID(totemName)
             return nil, nil
         end
 
-        -- print removed)
+        -- print removed
 
         for i, totemItem in ipairs(totems) do
             local totemData = ItemUtility.GetItemDataFromItemType("Totems", totemItem.Id)
             if totemData and totemData.Data then
                 local itemName = totemData.Data.Name
-                -- print removed", i, #totems, itemName, totemItem.UUID))
+                -- print removed
 
                 -- Match totem by name (exact or partial)
                 if totemName and string.find(itemName:lower(), totemName:lower()) then
-                    -- print removed", itemName, totemItem.UUID))
+                    -- print removed
                     return totemItem.UUID, itemName
                 elseif not totemName then
                     -- Return first totem if no specific name requested
-                    -- print removed", itemName, totemItem.UUID))
+                    -- print removed
                     return totemItem.UUID, itemName
                 end
             else
@@ -2164,7 +2162,7 @@ local function findTotemHotbarSlot(targetUUID)
         -- Search through hotbar slots (1-based index)
         for slotIndex, equippedUUID in ipairs(equippedItems) do
             if equippedUUID == targetUUID then
-                -- print removed)
+                -- print removed
                 return slotIndex
             end
         end
@@ -2185,12 +2183,12 @@ local function equipTotemToHotbar(totemUUID, totemName)
     -- Check if already in hotbar
     local currentSlot = findTotemHotbarSlot(totemUUID)
     if currentSlot then
-        -- print removed)
+        -- print removed
         return true, currentSlot
     end
 
     -- Equip to hotbar
-    -- print removed)
+    -- print removed
 
     local equipSuccess = pcall(function()
         local EquipItemEvent = replicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net:WaitForChild("RE/EquipItem")
@@ -2207,7 +2205,7 @@ local function equipTotemToHotbar(totemUUID, totemName)
     -- Verify equip and get slot
     local verifiedSlot = findTotemHotbarSlot(totemUUID)
     if verifiedSlot then
-        -- print removed)
+        -- print removed
         return true, verifiedSlot
     else
         warn("[Totem Equip] ⚠️ Equip verification failed")
@@ -2222,7 +2220,7 @@ local function spawnTotem(totemUUID, totemName)
         return false
     end
 
-    -- print removed...", totemName or "Unknown", totemUUID))
+    -- print removed
 
     local spawnSuccess = pcall(function()
         local net = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_net@0.2.0"].net
@@ -2268,10 +2266,10 @@ local function buyTotem()
         -- print removed
         task.wait(3)
 
-        -- print removed .. ")")
+        -- print removed
 
         -- Step 2: Spam sell all 3x to ensure everything is sold
-        -- print removed...")
+        -- print removed
 
         -- Sell attempt 1
         pcall(function()
@@ -2309,7 +2307,7 @@ local function buyTotem()
         -- Step 3: Check current coins
         -- print removed
         local currentCoins = getCurrentCoins()
-        -- print removed)
+        -- print removed
 
         if currentCoins < 2000000 then
             warn("[Buy Totem] ❌ Not enough coins! Need 2M, you have: " .. FormatCoins(currentCoins))
@@ -2329,7 +2327,7 @@ local function buyTotem()
         if networkEvents and networkEvents.purchaseMarketItemEvent then
             purchaseSuccess = pcall(function()
                 local result = networkEvents.purchaseMarketItemEvent:InvokeServer(5)
-                -- print removed)
+                -- print removed
             end)
         else
             -- Alternative method: Direct access
@@ -2338,7 +2336,7 @@ local function buyTotem()
                 local purchaseEvent = net:FindFirstChild("RF/PurchaseMarketItem")
                 if purchaseEvent then
                     local result = purchaseEvent:InvokeServer(5)
-                    -- print removed)
+                    -- print removed
                 end
             end)
         end
@@ -2378,7 +2376,7 @@ local function buyTotem()
             return
         end
 
-        -- print removed", totemName or "Unknown", totemUUID or "nil"))
+        -- print removed
 
         -- Step 6: Equip totem to hotbar and get slot number
         -- print removed
@@ -2395,7 +2393,7 @@ local function buyTotem()
             return
         end
 
-        -- print removed)
+        -- print removed
 
         -- Step 7: Spawn the totem
         -- print removed
@@ -2512,7 +2510,7 @@ local function applyRodDelays(rodID)
     -- Update delays
     autoFishMainDelay = delaySetting.fish
 
-    -- print removed)
+    -- print removed
 
     return true
 end
@@ -2523,7 +2521,7 @@ local function detectAndApplyRodDelays()
 
     if equippedRodID then
         local rodName = rodNames[equippedRodID] or "Unknown"
-        -- print removed", rodName, equippedRodID))
+        -- print removed
         applyRodDelays(equippedRodID)
         return true
     else
@@ -2556,7 +2554,7 @@ local function getNetworkEvents()
                     end
                 end
 
-                -- print removed .. "/" .. maxAttempts .. ")")
+                -- print removed
                 task.wait(1)
                 attempts = attempts + 1
             end
@@ -3538,7 +3536,7 @@ local function autoDetectMegalodon()
 
     -- Fallback to old detection method if new one fails
     if not eventFound then
-        if debugMode then -- print removed end
+        if debugMode then -- print removed
         
         -- Search for Megalodon event directly in Workspace (handle multiple Props folders)
         for _, child in ipairs(workspace:GetChildren()) do
@@ -3562,7 +3560,7 @@ local function autoDetectMegalodon()
     
     -- Fallback 2: Deeper search if still not found
     if not eventFound then
-        if debugMode then -- print removed end
+        if debugMode then -- print removed
         for _, child in ipairs(workspace:GetChildren()) do
             if string.lower(child.Name) == "props" then
                 for _, subChild in ipairs(child:GetChildren()) do
@@ -3974,7 +3972,7 @@ local function loadSessionData()
     if success then
         return sessionId, disconnectTime
     else
-        -- print removed)
+        -- print removed
         return nil, nil
     end
 end
@@ -4006,7 +4004,7 @@ local function saveSessionData(sessionId, disconnectTime)
 
     if success then
     else
-        -- print removed)
+        -- print removed
     end
 end
 
@@ -4035,7 +4033,7 @@ local function initializeReconnectDetection()
                 sendConnectionStatusWebhook("reconnected", "Reconnected after " .. math.floor(timeDiff/60) .. " minute(s) offline")
             end)
             if not success then
-                -- print removed)
+                -- print removed
             end
         else
             -- Within 1 minute threshold - check reconnect type
@@ -4046,7 +4044,7 @@ local function initializeReconnectDetection()
                     sendConnectionStatusWebhook("reconnected", "Quick reconnect detected (Session: " .. sessionPreview .. "..., Time: " .. tostring(timeDiff) .. "s)")
                 end)
                 if not success then
-                    -- print removed)
+                    -- print removed
                 end
             else
                 -- Different server session within threshold
@@ -4055,7 +4053,7 @@ local function initializeReconnectDetection()
                     sendConnectionStatusWebhook("reconnected", "Reconnected to different server (New Session: " .. sessionPreview .. "..., Time: " .. tostring(timeDiff) .. "s)")
                 end)
                 if not success then
-                    -- print removed)
+                    -- print removed
                 end
             end
         end
@@ -4114,7 +4112,7 @@ local function setupDisconnectNotifier()
     GuiService.ErrorMessageChanged:Connect(function(message)
         if hasSentDisconnectWebhook then return end -- Prevent multiple sends
 
-        -- print removed)
+        -- print removed
         local lowerMessage = string.lower(tostring(message))
         local reason = "Unknown"
 
@@ -4173,7 +4171,7 @@ local function setupDisconnectNotifier()
     --   - ScriptContext.Error event
     -- ====================================================================
 
-    -- print removed")
+    -- print removed
 
     -- Monitor for Roblox core errors
     local ScriptContext = game:GetService("ScriptContext")
@@ -4183,7 +4181,7 @@ local function setupDisconnectNotifier()
         local lowerMessage = string.lower(tostring(message))
         if lowerMessage:find("disconnect") or lowerMessage:find("network") or
            lowerMessage:find("timeout") or lowerMessage:find("connection") then
-            -- print removed)
+            -- print removed
             task.spawn(function()
                 sendDisconnectWebhook(username, "Script Error (Network/Connection): " .. tostring(message))
             end)
@@ -4208,7 +4206,7 @@ local function setupDisconnectNotifier()
 
             if timeSinceLastHeartbeat > 10 then -- If no heartbeat for 10 seconds
                 heartbeatFailureCount = heartbeatFailureCount + 1
-                -- print removed .. "s")
+                -- print removed
 
                 if heartbeatFailureCount >= 2 and not hasSentDisconnectWebhook then
                     task.spawn(function()
@@ -4301,7 +4299,7 @@ end
 
 -- ERROR HANDLING untuk webhook failures
 local function handleWebhookError(errorType, error)
-    -- print removed)
+    -- print removed
 
     -- Online status updates are disabled, no retry needed
     -- Only reconnect/disconnect webhooks are active
@@ -4382,7 +4380,7 @@ local useAutoUpgradeRod, useAutoUpgradeBait
 
 if configExists then
     -- Config exists, use saved settings from JSON (IGNORE main.lua completely)
-    -- print removed")
+    -- print removed
     useAutoFarm = config.autoFarm
     useAutoSell = config.autoSell
     useAutoWeather = config.autoWeather
@@ -4396,7 +4394,7 @@ if configExists then
     applyDelayConfig()
 else
     -- No config file, use settings from main_noui.lua and save them
-    -- print removed")
+    -- print removed
     useAutoFarm = AUTO_FARM or false
     useAutoSell = AUTO_SELL or false
     useAutoWeather = AUTO_WEATHER or false
@@ -4430,16 +4428,16 @@ end
 -- Print loaded settings summary
 -- print removed
 -- print removed
--- print removed)
--- print removed)
--- print removed)
--- print removed)
--- print removed)
--- print removed)
--- print removed .. "s")
--- print removed .. "s")
--- print removed .. "s")
--- print removed")
+-- print removed
+-- print removed
+-- print removed
+-- print removed
+-- print removed
+-- print removed
+-- print removed
+-- print removed
+-- print removed
+-- print removed
 -- print removed
 
 -- Set global variable for totem functions
@@ -4496,7 +4494,7 @@ local function purchaseInitialWeather()
 
     -- print removed
     if successCount == totalWeathers then
-        -- print removed")
+        -- print removed
     else
         -- print removed
     end
@@ -4508,7 +4506,7 @@ local function startManualConfig()
     task.wait(3)  -- Wait for everything to load
 
     -- Teleport first
-    -- print removed)
+    -- print removed
     teleportToNamedLocation(useTeleportLoc)
     task.wait(3)  -- Increased wait time after teleport for character to stabilize
 
@@ -4521,7 +4519,7 @@ local function startManualConfig()
 
     -- Enable Auto Farm if configured
     if useAutoFarm then
-        -- print removed")
+        -- print removed
         setAutoFarm(true)
         task.wait(1)  -- Give farm system time to initialize
     end
@@ -4573,7 +4571,7 @@ if newFishEvent then
     newFishEvent.OnClientEvent:Connect(function(fishId, metadata, inventoryData, isNew)
         if isAutoFarmOn and farmCycleActive then
             cycleComplete = true
-            -- print removed .. ")")
+            -- print removed
         end
     end)
 end
@@ -4590,10 +4588,10 @@ local function executeCycle()
     farmCycleActive = true
 
     local cycleStartTime = tick()
-    -- print removed)
+    -- print removed
 
     -- Step 1: Send Equip first (slot 1)
-    -- print removed...")
+    -- print removed
     if equipEvent then
         pcall(function()
             equipEvent:FireServer(1)
@@ -4683,7 +4681,7 @@ local function executeCycle()
     if cycleComplete then
         local cycleTime = tick() - cycleStartTime
         totalCyclesCompleted = totalCyclesCompleted + 1
-        -- print removed .. "s)")
+        -- print removed
 
         -- ISOLATED DELAY (not affected by other systems)
         local farmDelay = delayFarm or 0.6
@@ -4712,7 +4710,7 @@ local function startFarm()
 
     -- print removed
     -- print removed
-    -- print removed...")
+    -- print removed
     -- print removed
 
     -- Wait 5 seconds BEFORE starting (only once, not every cycle)
@@ -4772,7 +4770,7 @@ task.spawn(function()
     local wasAutoFarmOn = isAutoFarmOn
     -- print removed
     -- print removed
-    -- print removed)
+    -- print removed
     -- print removed
 
     while true do
@@ -4808,7 +4806,7 @@ task.spawn(function()
 
         if success and result then
             sellEvent = result
-            -- print removed")
+            -- print removed
         else
             -- Try method 2: WaitForChild
             local success2, result2 = pcall(function()
@@ -4817,7 +4815,7 @@ task.spawn(function()
 
             if success2 and result2 then
                 sellEvent = result2
-                -- print removed")
+                -- print removed
             else
                 warn("❌ [Auto Sell] Failed to initialize sellEvent. Auto Sell disabled.")
                 return
@@ -4825,7 +4823,7 @@ task.spawn(function()
         end
     end
 
-    -- print removed .. "s")
+    -- print removed
 
     while true do
         if isAutoSellOn then
@@ -4896,7 +4894,7 @@ task.spawn(function()
         pcall(function()
             if sellAllEvent then
                 sellAllEvent:InvokeServer()
-                -- print removed")
+                -- print removed
             end
         end)
 
@@ -4939,8 +4937,8 @@ task.spawn(function()
         end
     end
 
-    -- print removed)
-    -- print removed")
+    -- print removed
+    -- print removed
 
     while true do
         if isAutoWeatherOn then
@@ -5023,7 +5021,7 @@ task.spawn(function()
                     return -- Silent return
                 end
 
-                -- print removed .. " (price: " .. tostring(rodPrice) .. ", currency: " .. tostring(currentCurrency) .. ")")
+                -- print removed
 
                 -- Stop auto farm before purchase
                 if wasAutoFarmEnabled then
@@ -5038,21 +5036,21 @@ task.spawn(function()
                 local lastError = "unknown error"
 
                 for attempt = 1, 3 do
-                    -- print removed .. " purchase attempt " .. tostring(attempt) .. "/3")
+                    -- print removed
 
                     local pcallSuccess, result, errorMsg = pcall(networkEvents.purchaseRodEvent.InvokeServer, networkEvents.purchaseRodEvent, affordableRodId)
 
                     if pcallSuccess and result then
                         purchaseSuccess = true
                         guidOrErr = errorMsg
-                        -- print removed .. " purchase successful on attempt " .. tostring(attempt))
+                        -- print removed
                         break
                     elseif pcallSuccess then
                         lastError = tostring(errorMsg or "unknown error")
-                        -- print removed .. " purchase failed on attempt " .. tostring(attempt) .. ": " .. lastError)
+                        -- print removed
                     else
                         lastError = "invoke failed: " .. tostring(result)
-                        -- print removed .. " invoke failed on attempt " .. tostring(attempt) .. ": " .. lastError)
+                        -- print removed
                     end
 
                     if attempt < 3 then
@@ -5076,9 +5074,9 @@ task.spawn(function()
                     -- Move to next target
                     currentRodTarget = findNextRodTarget()
                     if currentRodTarget then
-                        -- print removed .. ". Next target: ID " .. tostring(currentRodTarget))
+                        -- print removed
                     else
-                        -- print removed .. ". All rods owned!")
+                        -- print removed
                     end
                 else
                     -- All 3 attempts failed - mark as owned
@@ -5087,9 +5085,9 @@ task.spawn(function()
                     -- Move to next target
                     currentRodTarget = findNextRodTarget()
                     if currentRodTarget then
-                        -- print removed .. " failed 3 attempts - marked as owned. Next target: ID " .. tostring(currentRodTarget))
+                        -- print removed
                     else
-                        -- print removed .. " failed 3 attempts - marked as owned. All rods completed!")
+                        -- print removed
                     end
                 end
 
@@ -5128,7 +5126,7 @@ task.spawn(function()
                     return -- Silent return
                 end
 
-                -- print removed .. " (price: " .. tostring(baitPrice) .. ", currency: " .. tostring(currentCurrency) .. ")")
+                -- print removed
 
                 -- Stop auto farm before purchase
                 if wasAutoFarmEnabled then
@@ -5143,21 +5141,21 @@ task.spawn(function()
                 local lastError = "unknown error"
 
                 for attempt = 1, 3 do
-                    -- print removed .. " purchase attempt " .. tostring(attempt) .. "/3")
+                    -- print removed
 
                     local pcallSuccess, result, errorMsg = pcall(networkEvents.purchaseBaitEvent.InvokeServer, networkEvents.purchaseBaitEvent, affordableBaitId)
 
                     if pcallSuccess and result then
                         purchaseSuccess = true
                         guidOrErr = errorMsg
-                        -- print removed .. " purchase successful on attempt " .. tostring(attempt))
+                        -- print removed
                         break
                     elseif pcallSuccess then
                         lastError = tostring(errorMsg or "unknown error")
-                        -- print removed .. " purchase failed on attempt " .. tostring(attempt) .. ": " .. lastError)
+                        -- print removed
                     else
                         lastError = "invoke failed: " .. tostring(result)
-                        -- print removed .. " invoke failed on attempt " .. tostring(attempt) .. ": " .. lastError)
+                        -- print removed
                     end
 
                     if attempt < 3 then
@@ -5181,9 +5179,9 @@ task.spawn(function()
                     -- Move to next target
                     currentBaitTarget = findNextBaitTarget()
                     if currentBaitTarget then
-                        -- print removed .. ". Next target: ID " .. tostring(currentBaitTarget))
+                        -- print removed
                     else
-                        -- print removed .. ". All baits owned!")
+                        -- print removed
                     end
                 else
                     -- All 3 attempts failed - mark as owned
@@ -5192,9 +5190,9 @@ task.spawn(function()
                     -- Move to next target
                     currentBaitTarget = findNextBaitTarget()
                     if currentBaitTarget then
-                        -- print removed .. " failed 3 attempts - marked as owned. Next target: ID " .. tostring(currentBaitTarget))
+                        -- print removed
                     else
-                        -- print removed .. " failed 3 attempts - marked as owned. All baits completed!")
+                        -- print removed
                     end
                 end
 
