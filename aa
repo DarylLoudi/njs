@@ -4553,6 +4553,7 @@ end
 -- ====================================================================
 
 -- ====== AUTO FARM SYSTEM (Event-Driven Signal Based) ======
+-- ISOLATED FARM CYCLE - Runs independently without interference from other loops
 
 -- Parameters for remote calls
 local CHARGE_POWER = 1755848498.4834
@@ -4563,43 +4564,65 @@ local REQUEST_PARAM2 = 1
 local cycleComplete = false
 local totalCyclesCompleted = 0
 
--- Fish notification listener
+-- Farm cycle lock (prevents other systems from interfering)
+local farmCycleLock = false
+local farmCycleActive = false
+
+-- Fish notification listener (ISOLATED - only responds during active farm cycle)
 if newFishEvent then
     newFishEvent.OnClientEvent:Connect(function(fishId, metadata, inventoryData, isNew)
-        if isAutoFarmOn then
+        if isAutoFarmOn and farmCycleActive then
             cycleComplete = true
             print("🐟 Fish obtained! (ID: " .. tostring(fishId) .. ")")
         end
     end)
 end
 
--- Main cycle function (Event-Driven)
+-- Main cycle function (Event-Driven) - ISOLATED EXECUTION
 local function executeCycle()
-    local cycleStartTime = tick()
-    print("\n🔄 Starting cycle #" .. (totalCyclesCompleted + 1))
-
-    -- Step 1: Send Equip first (slot 1)
-    print("📤 Sending: Equip (slot 1)...")
-    if equipEvent then
-        equipEvent:FireServer(1)
+    -- Lock farm cycle (prevent interference from other systems)
+    if farmCycleLock then
+        print("⚠️ [Farm Cycle] Already locked, skipping...")
+        return
     end
 
-    -- Wait 0.5 seconds
-    print("⏱️ Waiting 0.5s...")
+    farmCycleLock = true
+    farmCycleActive = true
+
+    local cycleStartTime = tick()
+    print("\n🔄 [ISOLATED FARM] Starting cycle #" .. (totalCyclesCompleted + 1))
+
+    -- Step 1: Send Equip first (slot 1)
+    print("📤 [Farm] Equip (slot 1)...")
+    if equipEvent then
+        pcall(function()
+            equipEvent:FireServer(1)
+        end)
+    end
+
+    -- Wait 0.5 seconds (ISOLATED - no interruption)
+    print("⏱️ [Farm] Wait 0.5s...")
     task.wait(0.5)
 
-    -- Step 2: Send Charge + Request in parallel
-    print("📤 Sending: Charge + Request...")
+    -- Step 2: Send Charge + Request in parallel (ISOLATED THREADS)
+    print("📤 [Farm] Charge + Request...")
 
     local signalReceived = false
     local signalResult = nil
+    local chargeComplete = false
+    local requestComplete = false
 
+    -- Isolated charge thread
     task.spawn(function()
         if chargeEvent then
-            chargeEvent:InvokeServer(CHARGE_POWER)
+            pcall(function()
+                chargeEvent:InvokeServer(CHARGE_POWER)
+            end)
         end
+        chargeComplete = true
     end)
 
+    -- Isolated request thread
     task.spawn(function()
         if requestMinigameEvent then
             local success, result = pcall(function()
@@ -4609,15 +4632,16 @@ local function executeCycle()
             if success and result == true then
                 signalReceived = true
                 signalResult = result
-                print("✅ Signal received: TRUE")
+                print("✅ [Farm] Signal TRUE")
             else
-                warn("⚠️ Request failed or signal not true:", result)
+                warn("⚠️ [Farm] Request failed:", result)
             end
         end
+        requestComplete = true
     end)
 
-    -- Step 3: Wait for signal from RequestFishingMinigameStarted
-    print("⏳ Waiting for signal...")
+    -- Step 3: Wait for signal (ISOLATED WAIT)
+    print("⏳ [Farm] Waiting signal...")
     local maxWait = 10
     local elapsed = 0
 
@@ -4627,27 +4651,31 @@ local function executeCycle()
     end
 
     if not signalReceived then
-        warn("❌ Signal timeout! Aborting cycle.")
+        warn("❌ [Farm] Signal timeout!")
+        farmCycleLock = false
+        farmCycleActive = false
         return
     end
 
-    -- Step 4: If signal TRUE, wait 1 second (hardcoded delay)
-    print("⏱️ Signal TRUE received! Waiting 1 second...")
+    -- Step 4: Wait 1 second (ISOLATED DELAY)
+    print("⏱️ [Farm] Wait 1s...")
     task.wait(1.0)
 
-    -- Step 5: Send FishingCompleted
-    print("🎣 Sending FishingCompleted...")
+    -- Step 5: Send FishingCompleted (ISOLATED)
+    print("🎣 [Farm] FishingCompleted...")
     if fishingEvent then
-        fishingEvent:FireServer()
+        pcall(function()
+            fishingEvent:FireServer()
+        end)
     end
 
-    -- Step 6: Wait for ObtainedNewFishNotification
-    print("⏳ Waiting for fish notification...")
+    -- Step 6: Wait for ObtainedNewFishNotification (ISOLATED WAIT)
+    print("⏳ [Farm] Waiting fish notification...")
     cycleComplete = false
     local notifWait = 0
     local maxNotifWait = 10
 
-    while not cycleComplete and notifWait < maxNotifWait do
+    while not cycleComplete and notifWait < maxNotifWait and farmCycleActive do
         task.wait(0.1)
         notifWait = notifWait + 0.1
     end
@@ -4655,68 +4683,109 @@ local function executeCycle()
     if cycleComplete then
         local cycleTime = tick() - cycleStartTime
         totalCyclesCompleted = totalCyclesCompleted + 1
-        print("✅ Cycle #" .. totalCyclesCompleted .. " complete! (Time: " .. string.format("%.2f", cycleTime) .. "s)")
-        -- Use DELAY_FARM from config (default 0.6s if not set)
-        task.wait(delayFarm or 0.6)
-        print("🔁 Repeating next cycle...")
+        print("✅ [ISOLATED FARM] Cycle #" .. totalCyclesCompleted .. " complete! (Time: " .. string.format("%.2f", cycleTime) .. "s)")
+
+        -- ISOLATED DELAY (not affected by other systems)
+        local farmDelay = delayFarm or 0.6
+        print("⏱️ [Farm] Cooldown: " .. farmDelay .. "s...")
+        task.wait(farmDelay)
+        print("🔁 [Farm] Ready for next cycle")
     else
-        warn("⚠️ Fish notification timeout!")
+        warn("⚠️ [Farm] Fish notification timeout!")
         totalCyclesCompleted = totalCyclesCompleted + 1
     end
+
+    -- Unlock farm cycle
+    farmCycleLock = false
+    farmCycleActive = false
 end
 
--- Auto farm main loop
+-- ISOLATED AUTO FARM THREAD (Completely independent from other loops)
 local farmThread = nil
+local farmThreadActive = false
 
 local function startFarm()
-    if farmThread then
-        print("⚠️ [Event-Driven Farm] Already running!")
+    if farmThread or farmThreadActive then
+        print("⚠️ [ISOLATED FARM] Already running!")
         return
     end
 
-    print("🚀 [Event-Driven Farm] Starting...")
-    print("⏳ [Event-Driven Farm] Waiting 5 seconds for all functions to load...")
+    print("================================================")
+    print("🚀 [ISOLATED FARM] Starting ISOLATED farm system...")
+    print("⏳ [ISOLATED FARM] Initialization (5s)...")
+    print("================================================")
 
-    -- Wait 5 seconds BEFORE starting farm thread (only once, not every cycle)
+    -- Wait 5 seconds BEFORE starting (only once, not every cycle)
     task.wait(5)
-    print("✅ [Event-Driven Farm] Initialization complete! Starting farm cycles...")
+    print("✅ [ISOLATED FARM] Ready! Starting isolated cycles...")
+    print("================================================")
 
+    farmThreadActive = true
     farmThread = task.spawn(function()
-        while isAutoFarmOn do
-            executeCycle()
+        while isAutoFarmOn and farmThreadActive do
+            -- Execute cycle in ISOLATED environment
+            local cycleSuccess = pcall(function()
+                executeCycle()
+            end)
 
-            -- Small breathing room between cycles
-            task.wait(0.1)
+            if not cycleSuccess then
+                warn("⚠️ [ISOLATED FARM] Cycle error, recovering...")
+                task.wait(2) -- Recovery delay
+            end
+
+            -- NO EXTERNAL INTERFERENCE - Only internal breathing room
+            if isAutoFarmOn and farmThreadActive then
+                task.wait(0.05) -- Minimal breathing room (50ms)
+            end
         end
+
         farmThread = nil
+        farmThreadActive = false
+        farmCycleLock = false
+        farmCycleActive = false
+        print("================================================")
+        print("⏹️ [ISOLATED FARM] Stopped")
+        print("📊 Total cycles: " .. totalCyclesCompleted)
+        print("================================================")
     end)
 end
 
 local function stopFarm()
-    print("⏹️ [Event-Driven Farm] Stopping...")
+    print("⏹️ [ISOLATED FARM] Stopping...")
+    farmThreadActive = false
+    farmCycleLock = false
+    farmCycleActive = false
+
     if farmThread then
-        task.cancel(farmThread)
+        task.wait(0.5) -- Give time for current cycle to finish
+        pcall(function()
+            task.cancel(farmThread)
+        end)
         farmThread = nil
     end
-    print("📊 Total cycles completed: " .. totalCyclesCompleted)
+
+    print("📊 [ISOLATED FARM] Total cycles: " .. totalCyclesCompleted)
 end
 
--- Monitor isAutoFarmOn state and control the farm
+-- ISOLATED FARM MONITOR (Independent monitoring system)
 task.spawn(function()
     local wasAutoFarmOn = isAutoFarmOn
-    print("[Event-Driven Farm] Monitor loop started. Initial state: " .. tostring(isAutoFarmOn))
+    print("================================================")
+    print("🔍 [ISOLATED FARM] Monitor started")
+    print("📊 Initial state: " .. (isAutoFarmOn and "ON" or "OFF"))
+    print("================================================")
 
     while true do
         if isAutoFarmOn and not wasAutoFarmOn then
-            print("[Event-Driven Farm] State changed to ON - starting farm")
+            print("\n🟢 [ISOLATED FARM] State: OFF → ON")
             startFarm()
         elseif not isAutoFarmOn and wasAutoFarmOn then
-            print("[Event-Driven Farm] State changed to OFF - stopping farm")
+            print("\n🔴 [ISOLATED FARM] State: ON → OFF")
             stopFarm()
         end
 
         wasAutoFarmOn = isAutoFarmOn
-        task.wait(0.1)
+        task.wait(0.2) -- Check every 200ms (isolated from other loops)
     end
 end)
 
