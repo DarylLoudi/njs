@@ -2624,6 +2624,7 @@ local equipEvent = networkEvents.equipEvent
 local unequipEvent = networkEvents.unequipEvent
 local WeatherEvent = networkEvents.WeatherEvent
 local fishCaughtEvent = networkEvents.fishCaughtEvent
+local newFishEvent = networkEvents.newFishNotificationEvent  -- ✅ CRITICAL: Event for detecting fish caught
 
 -- ====== SIMPLIFIED GPU SAVER WITH CENTER LAYOUT ====== 
 local function createWhiteScreen()
@@ -4901,7 +4902,7 @@ task.spawn(function()
         end)
 
         -- HARDCODED 6 SECOND DELAY - CANNOT BE CHANGED
-        task.wait(44)
+        task.wait(6)
     end
 end)
 
