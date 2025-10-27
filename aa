@@ -43,8 +43,6 @@ local function validateScriptLoader()
     end
 
     -- All checks passed
-    -- print removed
-    -- print removed")
 
     -- Clear auth keys after validation untuk keamanan
     _G[SCRIPT_AUTH_KEY] = nil
