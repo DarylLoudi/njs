@@ -13,37 +13,37 @@ local function validateScriptLoader()
     if not _G[SCRIPT_AUTH_KEY] then
         warn("❌ [Script Protection] Unauthorized access detected!")
         warn("❌ [Script Protection] This script can only be run through main.lua")
-        warn("❌ [Script Protection] Script execution terminated.")
+        warn("❌ [Script Protection] Expected key: " .. SCRIPT_AUTH_KEY)
         return false
     end
 
     -- Check 2: Loader signature harus valid
     if _G[LOADER_SIGNATURE] ~= "AUTHORIZED_LOADER_2025" then
         warn("❌ [Script Protection] Invalid loader signature!")
-        warn("❌ [Script Protection] Script execution terminated.")
+        warn("❌ [Script Protection] Expected: AUTHORIZED_LOADER_2025")
+        warn("❌ [Script Protection] Got: " .. tostring(_G[LOADER_SIGNATURE]))
         return false
     end
 
-    -- Check 3: Timestamp validation (max 10 detik dari load time)
+    -- Check 3: Timestamp validation (max 30 detik untuk slow connections)
     local loadTime = _G[SCRIPT_AUTH_KEY]
     if type(loadTime) ~= "number" then
         warn("❌ [Script Protection] Invalid auth key format!")
-        warn("❌ [Script Protection] Script execution terminated.")
+        warn("❌ [Script Protection] Expected number, got: " .. type(loadTime))
         return false
     end
 
     local currentTime = tick()
     local timeDiff = currentTime - loadTime
 
-    if timeDiff > 10 or timeDiff < 0 then
+    -- Extended timeout to 30 seconds for slow HTTP loads
+    if timeDiff > 30 or timeDiff < 0 then
         warn("❌ [Script Protection] Auth key expired or invalid!")
-        warn("❌ [Script Protection] Time difference: " .. tostring(timeDiff) .. "s")
-        warn("❌ [Script Protection] Script execution terminated.")
+        warn("❌ [Script Protection] Time difference: " .. tostring(timeDiff) .. "s (max: 30s)")
         return false
     end
 
     -- All checks passed
-
     -- Clear auth keys after validation untuk keamanan
     _G[SCRIPT_AUTH_KEY] = nil
     _G[LOADER_SIGNATURE] = nil
