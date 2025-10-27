@@ -4539,11 +4539,19 @@ local farmCycleActive = false
 -- Fish notification listener (ISOLATED - only responds during active farm cycle)
 if newFishEvent then
     newFishEvent.OnClientEvent:Connect(function(fishId, metadata, inventoryData, isNew)
+        print("[DEBUG] 🔔 ObtainedNewFishNotification received! (fishId: " .. tostring(fishId) .. ")")
+        print("[DEBUG] isAutoFarmOn: " .. tostring(isAutoFarmOn) .. ", farmCycleActive: " .. tostring(farmCycleActive))
+
         if isAutoFarmOn and farmCycleActive then
             cycleComplete = true
-            print("🐟 Fish obtained! (ID: " .. tostring(fishId) .. ")")
+            print("🐟 [Farm] Fish obtained! (ID: " .. tostring(fishId) .. ") - Cycle marked complete!")
+        else
+            warn("[DEBUG] ⚠️ Event received but ignored (AutoFarm: " .. tostring(isAutoFarmOn) .. ", CycleActive: " .. tostring(farmCycleActive) .. ")")
         end
     end)
+    print("[Farm System] ✅ Fish notification listener connected successfully!")
+else
+    warn("[Farm System] ❌ newFishEvent is nil - notification listener NOT connected!")
 end
 
 -- Main cycle function (Event-Driven) - ISOLATED EXECUTION
