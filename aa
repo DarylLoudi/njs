@@ -4622,7 +4622,7 @@ local function executeCycle()
 
     -- Wait 0.5 seconds
     print("⏱️ Waiting 0.5s...")
-    task.wait(5)
+    task.wait(0.5)
 
     -- Step 2: Send Charge + Request in parallel
     print("📤 Sending: Charge + Request...")
@@ -4711,8 +4711,13 @@ local function startFarm()
     end
 
     print("🚀 [Event-Driven Farm] Starting...")
+    print("⏳ [Event-Driven Farm] Waiting 5 seconds for all functions to load...")
 
     farmThread = task.spawn(function()
+        -- Wait 5 seconds BEFORE starting first cycle to ensure all functions are loaded
+        task.wait(5)
+        print("✅ [Event-Driven Farm] Initialization complete! Starting farm cycles...")
+
         while isAutoFarmOn do
             executeCycle()
 
