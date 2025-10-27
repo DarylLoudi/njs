@@ -1364,12 +1364,15 @@ local function detectAndEquipBestRod()
     end)
 
     local bestRod = ownedRods[1]
+    print(string.format("[Auto Equip Rod] 🏆 Best owned rod: '%s' (ID: %d, Priority: %d/%d, UUID: %s)",
         bestRod.name, bestRod.id, bestRod.priority, #rodIDs, bestRod.uuid))
 
     -- Check if already equipped
     local equippedItems = PlayerData:GetExpect("EquippedItems")
     for _, equippedUUID in ipairs(equippedItems) do
         if equippedUUID == bestRod.uuid then
+            print(string.format("[Auto Equip Rod] ✅ '%s' already equipped!", bestRod.name))
+            print("[Auto Equip Rod] ================================================")
             return true
         end
     end
@@ -1489,11 +1492,14 @@ local function detectAndEquipBestBait()
     end)
 
     local bestBait = ownedBaits[1]
+    print(string.format("[Auto Equip Bait] 🏆 Best owned bait: '%s' (ID: %d, Priority: %d/%d)",
         bestBait.name, bestBait.id, bestBait.priority, #baitIDs))
 
     -- Check if already equipped
     local equippedBaitId = PlayerData:GetExpect("EquippedBaitId")
     if equippedBaitId == bestBait.id then
+        print(string.format("[Auto Equip Bait] ✅ '%s' already equipped!", bestBait.name))
+        print("[Auto Equip Bait] ================================================")
         return true
     end
 
@@ -2347,6 +2353,7 @@ local function applyRodDelays(rodID)
     -- Update delays
     autoFishMainDelay = delaySetting.fish
 
+    print(string.format("[Rod Delay] ✅ Delays updated for rod ID %d: Fish=%.1fs",
         rodID, autoFishMainDelay))
 
     return true
