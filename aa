@@ -175,22 +175,6 @@ end
 
 -- ====== NEW: MAXIMUM VRAM OPTIMIZATION FUNCTIONS ======
 
--- Function to disable 3D rendering completely (MASSIVE VRAM SAVE)
-local function disable3DRendering()
-    pcall(function()
-        RunService:Set3dRenderingEnabled(false)
-        print("[VRAM Optimizer] ✅ 3D Rendering DISABLED - Maximum VRAM saving active!")
-    end)
-end
-
--- Function to enable 3D rendering (for restore)
-local function enable3DRendering()
-    pcall(function()
-        RunService:Set3dRenderingEnabled(true)
-        print("[VRAM Optimizer] 🔄 3D Rendering ENABLED")
-    end)
-end
-
 -- Function to destroy all 3D objects in workspace (except essential fishing objects)
 local function destroyWorkspace3DObjects()
     print("[VRAM Optimizer] 🗑️ Destroying non-essential 3D objects...")
@@ -339,13 +323,6 @@ local function cleanupEnvironment()
     -- This remote is CRITICAL for v9.1 event-driven farm system
     -- Removing it will break the auto farm functionality completely
 
-    -- 1. delete path ini
-    pcall(function()
-        if workspace.CurrentCamera then
-             workspace.CurrentCamera:Destroy()
-        end
-    end)
-
     -- 4. delete seluruh children nya
     pcall(function()
         local waves = workspace:FindFirstChild("!! WAVES ")
@@ -389,10 +366,6 @@ local function applyMaximumVRAMOptimization()
     -- Phase 4: Workspace cleanup - DISABLED (too extreme, prevents game from loading)
     print("[VRAM Optimizer] ⏭️  Skipping workspace 3D object cleanup (too extreme)")
     -- destroyWorkspace3DObjects() -- COMMENTED OUT
-
-    -- Phase 5: DISABLE 3D RENDERING (Nuclear option - maximum VRAM save)
-    task.wait(2) -- Wait for cleanup to complete
-    disable3DRendering()
 
     print("[VRAM Optimizer] ================================================")
     print("[VRAM Optimizer] ✅ MAXIMUM VRAM OPTIMIZATION COMPLETED!")
@@ -3039,10 +3012,6 @@ function enableGPUSaver()
     pcall(optimizeMeshes)
     pcall(destroyParticlesAndEffects)
 
-    -- V3.3: Re-disable 3D rendering
-    task.wait(0.5)
-    pcall(disable3DRendering)
-
     -- Store original settings
     originalSettings.GlobalShadows = Lighting.GlobalShadows
     originalSettings.FogEnd = Lighting.FogEnd
@@ -3065,7 +3034,6 @@ function enableGPUSaver()
 
         pcall(function() setfpscap(GPU_FPS_LIMIT) end) -- Limit FPS based on GPU_FPS_LIMIT
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
-        -- workspace.CurrentCamera.FieldOfView is not set because cleanupEnvironment() destroys the camera.
     end)
 
     -- Create FPS cap monitor to ensure it stays at GPU_FPS_LIMIT
@@ -3098,16 +3066,13 @@ function disableGPUSaver()
     if not gpuSaverEnabled then return end
     gpuSaverEnabled = false
 
-    print("[VRAM Optimizer] 🔄 Disabling GPU Saver and restoring 3D rendering...")
+    print("[VRAM Optimizer] 🔄 Disabling GPU Saver and restoring settings...")
 
     -- Disconnect FPS cap monitor
     if fpsCapConnection then
         fpsCapConnection:Disconnect()
         fpsCapConnection = nil
     end
-
-    -- V3.3: Re-enable 3D rendering first
-    enable3DRendering()
 
     -- Restore settings
     pcall(function()
@@ -3125,7 +3090,6 @@ function disableGPUSaver()
         pcall(function() setfpscap(0) end) -- Remove FPS limit
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
 
-        -- Check if camera exists before restoring FieldOfView, as it may have been destroyed.
         if workspace.CurrentCamera then
             workspace.CurrentCamera.FieldOfView = 70
         end
