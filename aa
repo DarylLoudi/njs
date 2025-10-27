@@ -4901,7 +4901,7 @@ task.spawn(function()
         end)
 
         -- HARDCODED 6 SECOND DELAY - CANNOT BE CHANGED
-        task.wait(6)
+        task.wait(44)
     end
 end)
 
