@@ -4533,25 +4533,16 @@ local function executeCycle()
         end)
     end
 
-    -- Step 6: Wait for ObtainedNewFishNotification (with timeout)
-    cycleComplete = false
-    local notifWait = 0
-    local maxNotifWait = 5  -- 5 seconds max wait for fish notification
-
-    while not cycleComplete and notifWait < maxNotifWait and farmCycleActive do
-        task.wait(0.1)
-        notifWait = notifWait + 0.1
-    end
-
-    -- Mark cycle as completed
+    -- Step 6: Mark cycle as completed (fish notification will set cycleComplete flag)
+    -- DON'T WAIT for fish notification here - let it happen asynchronously
     totalCyclesCompleted = totalCyclesCompleted + 1
 
-    -- Wait CANCEL_TO_CHARGE_DELAY before next cycle
+    -- Step 7: Wait CANCEL_TO_CHARGE_DELAY before next cycle can start
     if isAutoFarmOn then
         task.wait(CANCEL_TO_CHARGE_DELAY)
     end
 
-    -- Unlock farm cycle
+    -- Unlock farm cycle immediately (next cycle can start right away)
     farmCycleLock = false
     farmCycleActive = false
 end
@@ -4612,8 +4603,8 @@ local function startFarm()
         equipLoopThread = task.spawn(equipLoopFunction)
     end
 
-    -- Wait 5 seconds BEFORE starting (only once, not every cycle)
-    task.wait(5)
+    -- Small delay to ensure animation loops are started
+    task.wait(0.2)
 
     farmThreadActive = true
     farmThread = task.spawn(function()
