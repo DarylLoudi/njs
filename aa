@@ -4423,128 +4423,68 @@ local COMPLETE_TO_CANCEL_DELAY = 0.1       -- Delay between COMPLETE and CANCEL 
 local CANCEL_TO_CHARGE_DELAY = 0.1         -- Delay before next cycle (customizable)
 
 -- Cycle tracking
-local cycleComplete = false
 local totalCyclesCompleted = 0
+local cycleStartTime = 0
 
--- Farm cycle lock (prevents other systems from interfering)
-local farmCycleLock = false
-local farmCycleActive = false
+-- Main fishing cycle (MATCHES EXACT PATTERN FROM REFERENCE SCRIPT)
+-- Pattern: CHARGE → (0.1s) → REQUEST → (1.0s) → COMPLETE → (0.1s) → CANCEL → (0.1s) → Loop
+-- EQUIP is handled by independent equipLoopThread - NOT part of main cycle
+-- Animation is handled by independent continuousAnimationLoop
+local function fishingCycle()
+    while isAutoFarmOn do
+        cycleStartTime = tick()
 
--- Fish notification listener (ISOLATED - only responds during active farm cycle)
-if newFishEvent then
-    newFishEvent.OnClientEvent:Connect(function(fishId, metadata, inventoryData, isNew)
-
-        if isAutoFarmOn and farmCycleActive then
-            cycleComplete = true
-        else
-            warn("[DEBUG] ⚠️ Event received but ignored (AutoFarm: " .. tostring(isAutoFarmOn) .. ", CycleActive: " .. tostring(farmCycleActive) .. ")")
-        end
-    end)
-else
-    warn("[Farm System] ❌ newFishEvent is nil - notification listener NOT connected!")
-end
-
--- Main cycle function (Event-Driven) - IMPROVED WITH CUSTOMIZABLE DELAYS
-local function executeCycle()
-    -- Lock farm cycle (prevent interference from other systems)
-    if farmCycleLock then
-        return
-    end
-
-    farmCycleLock = true
-    farmCycleActive = true
-
-    local cycleStartTime = tick()
-
-    -- Step 1: Send Equip (handled by independent equipLoopThread, but ensure it's sent)
-    -- This acts as a quick equip check without the full EQUIP_DELAY
-    if equipEvent then
+        -- STEP 1: CHARGE
         pcall(function()
-            equipEvent:FireServer(1)
+            if chargeEvent then
+                chargeEvent:InvokeServer(CHARGE_POWER)
+            end
         end)
-    end
 
-    -- Small wait for equip to register (much shorter than EQUIP_DELAY which is handled by equipLoopThread)
-    task.wait(0.1)
+        -- STEP 2: Wait 0.1s before REQUEST
+        task.wait(CHARGE_TO_REQUEST_DELAY)
 
-    if not isAutoFarmOn then
-        farmCycleLock = false
-        farmCycleActive = false
-        return
-    end
+        if not isAutoFarmOn then break end
 
-    -- Step 2: Send Charge
-    if chargeEvent then
+        -- STEP 3: REQUEST
         pcall(function()
-            chargeEvent:InvokeServer(CHARGE_POWER)
-        end)
-    end
-
-    -- Wait CHARGE_TO_REQUEST_DELAY before sending REQUEST
-    task.wait(CHARGE_TO_REQUEST_DELAY)
-
-    if not isAutoFarmOn then
-        farmCycleLock = false
-        farmCycleActive = false
-        return
-    end
-
-    -- Step 3: Send Request
-    local requestSuccess = false
-    if requestMinigameEvent then
-        local success, result = pcall(function()
-            return requestMinigameEvent:InvokeServer(REQUEST_PARAM1, REQUEST_PARAM2)
+            if requestMinigameEvent then
+                requestMinigameEvent:InvokeServer(REQUEST_PARAM1, REQUEST_PARAM2)
+            end
         end)
 
-        if success and result == true then
-            requestSuccess = true
-        end
-    end
+        -- STEP 4: Wait 1.0s before COMPLETE
+        task.wait(REQUEST_TO_COMPLETE_DELAY)
 
-    -- Wait REQUEST_TO_COMPLETE_DELAY before sending COMPLETE
-    task.wait(REQUEST_TO_COMPLETE_DELAY)
+        if not isAutoFarmOn then break end
 
-    if not isAutoFarmOn then
-        farmCycleLock = false
-        farmCycleActive = false
-        return
-    end
-
-    -- Step 4: Send FishingCompleted
-    if fishingEvent then
+        -- STEP 5: FISHING COMPLETED
         pcall(function()
-            fishingEvent:FireServer()
+            if fishingEvent then
+                fishingEvent:FireServer()
+            end
         end)
-    end
 
-    -- Wait COMPLETE_TO_CANCEL_DELAY before sending CANCEL
-    task.wait(COMPLETE_TO_CANCEL_DELAY)
+        -- STEP 6: Wait 0.1s before CANCEL
+        task.wait(COMPLETE_TO_CANCEL_DELAY)
 
-    if not isAutoFarmOn then
-        farmCycleLock = false
-        farmCycleActive = false
-        return
-    end
+        if not isAutoFarmOn then break end
 
-    -- Step 5: Send Cancel
-    if cancelEvent then
+        -- STEP 7: CANCEL INPUTS
         pcall(function()
-            cancelEvent:InvokeServer()
+            if cancelFishingEvent then
+                cancelFishingEvent:InvokeServer()
+            end
         end)
-    end
 
-    -- Step 6: Mark cycle as completed (fish notification will set cycleComplete flag)
-    -- DON'T WAIT for fish notification here - let it happen asynchronously
-    totalCyclesCompleted = totalCyclesCompleted + 1
-
-    -- Step 7: Wait CANCEL_TO_CHARGE_DELAY before next cycle can start
-    if isAutoFarmOn then
+        -- STEP 8: Wait 0.1s before loop back to CHARGE
         task.wait(CANCEL_TO_CHARGE_DELAY)
-    end
 
-    -- Unlock farm cycle immediately (next cycle can start right away)
-    farmCycleLock = false
-    farmCycleActive = false
+        totalCyclesCompleted = totalCyclesCompleted + 1
+        local cycleDuration = tick() - cycleStartTime
+
+        if not isAutoFarmOn then break end
+    end
 end
 
 -- ====================================================================
@@ -4607,35 +4547,20 @@ local function startFarm()
     task.wait(0.2)
 
     farmThreadActive = true
+    -- Spawn fishing cycle directly - it's already a while loop that checks isAutoFarmOn
     farmThread = task.spawn(function()
-        while isAutoFarmOn and farmThreadActive do
-            -- Execute cycle in ISOLATED environment
-            local cycleSuccess = pcall(function()
-                executeCycle()
-            end)
+        pcall(function()
+            fishingCycle()
+        end)
 
-            if not cycleSuccess then
-                warn("⚠️ [ISOLATED FARM] Cycle error, recovering...")
-                task.wait(2) -- Recovery delay
-            end
-
-            -- NO EXTERNAL INTERFERENCE - Only internal breathing room
-            if isAutoFarmOn and farmThreadActive then
-                task.wait(0.05) -- Minimal breathing room (50ms)
-            end
-        end
-
+        -- Cleanup when fishing cycle ends
         farmThread = nil
         farmThreadActive = false
-        farmCycleLock = false
-        farmCycleActive = false
     end)
 end
 
 local function stopFarm()
     farmThreadActive = false
-    farmCycleLock = false
-    farmCycleActive = false
 
     if farmThread then
         task.wait(0.5) -- Give time for current cycle to finish
