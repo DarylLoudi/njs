@@ -1278,6 +1278,39 @@ local Replion = require(replicatedStorage.Packages.Replion)
 local PlayerData = Replion.Client:WaitReplion("Data")
 
 -- ====================================================================
+--     ANIMATION CONTROLLER INITIALIZATION (For ReelIntermission)
+-- ====================================================================
+
+local AnimationController = nil
+local Animations = nil
+local reelIntermissionAnim = nil
+local animationSystemReady = false
+
+pcall(function()
+    AnimationController = require(replicatedStorage:WaitForChild("Controllers", 3):WaitForChild("AnimationController", 3))
+    if AnimationController then
+        AnimationController:Init()
+        AnimationController:Start()
+        animationSystemReady = true
+    end
+end)
+
+pcall(function()
+    if animationSystemReady then
+        Animations = require(replicatedStorage:WaitForChild("Modules", 3):WaitForChild("Animations", 3))
+        if Animations then
+            -- Find ReelIntermission animation
+            for animName, animData in pairs(Animations) do
+                if animData and not animData.Disabled and animName:lower():find("reelintermission") then
+                    reelIntermissionAnim = animName
+                    break
+                end
+            end
+        end
+    end
+end)
+
+-- ====================================================================
 --     BEST ROD & BAIT AUTO EQUIP SYSTEM (Using UUID Detection)
 -- ====================================================================
 
@@ -4412,15 +4445,16 @@ local function executeCycle()
 
     local cycleStartTime = tick()
 
-    -- Step 1: Send Equip first (slot 1)
+    -- Step 1: Send Equip (handled by independent equipLoopThread, but ensure it's sent)
+    -- This acts as a quick equip check without the full EQUIP_DELAY
     if equipEvent then
         pcall(function()
             equipEvent:FireServer(1)
         end)
     end
 
-    -- Wait EQUIP_DELAY before proceeding
-    task.wait(EQUIP_DELAY)
+    -- Small wait for equip to register (much shorter than EQUIP_DELAY which is handled by equipLoopThread)
+    task.wait(0.1)
 
     if not isAutoFarmOn then
         farmCycleLock = false
@@ -4511,7 +4545,43 @@ local function executeCycle()
     farmCycleActive = false
 end
 
--- ISOLATED AUTO FARM THREAD (Completely independent from other loops)
+-- ====================================================================
+--     ANIMATION LOOPS (Independent - do NOT interfere with farm cycle)
+-- ====================================================================
+
+-- State for animation loops
+local continuousAnimationThreadActive = false
+local equipLoopThreadActive = false
+local continuousAnimationThread = nil
+local equipLoopThread = nil
+
+-- Continuous ReelIntermission animation loop (applies constantly)
+local function continuousAnimationLoop()
+    while continuousAnimationThreadActive and isAutoFarmOn do
+        if AnimationController and reelIntermissionAnim then
+            pcall(function()
+                AnimationController:PlayAnimation(reelIntermissionAnim, false)
+            end)
+        end
+        task.wait(0.01)  -- 10ms yield to prevent freeze
+    end
+end
+
+-- Independent equip loop (runs continuously while farming)
+local function equipLoopThread()
+    while equipLoopThreadActive and isAutoFarmOn do
+        if equipEvent then
+            pcall(function()
+                equipEvent:FireServer(1)
+            end)
+        end
+        task.wait(EQUIP_DELAY)
+    end
+end
+
+-- ====================================================================
+--     ISOLATED AUTO FARM THREAD (Completely independent from other loops)
+-- ====================================================================
 local farmThread = nil
 local farmThreadActive = false
 
@@ -4520,6 +4590,16 @@ local function startFarm()
         return
     end
 
+    -- Start animation loops (independent from farm cycle)
+    if animationSystemReady and not continuousAnimationThread then
+        continuousAnimationThreadActive = true
+        continuousAnimationThread = task.spawn(continuousAnimationLoop)
+    end
+
+    if not equipLoopThread then
+        equipLoopThreadActive = true
+        equipLoopThread = task.spawn(equipLoopThread)
+    end
 
     -- Wait 5 seconds BEFORE starting (only once, not every cycle)
     task.wait(5)
@@ -4563,6 +4643,23 @@ local function stopFarm()
         farmThread = nil
     end
 
+    -- Stop animation loops
+    continuousAnimationThreadActive = false
+    equipLoopThreadActive = false
+
+    if continuousAnimationThread then
+        pcall(function()
+            task.cancel(continuousAnimationThread)
+        end)
+        continuousAnimationThread = nil
+    end
+
+    if equipLoopThread then
+        pcall(function()
+            task.cancel(equipLoopThread)
+        end)
+        equipLoopThread = nil
+    end
 end
 
 -- ISOLATED FARM MONITOR (Independent monitoring system)
