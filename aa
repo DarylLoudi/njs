@@ -1311,6 +1311,17 @@ pcall(function()
 end)
 
 -- ====================================================================
+--     DELETE RE/FISHCAUGHT PATH (Prevent interference with farm system)
+-- ====================================================================
+-- Delete FishCaught remote path to prevent interference with ObtainedNewFishNotification
+pcall(function()
+    local fishCaughtPath = replicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/FishCaught"]
+    if fishCaughtPath then
+        fishCaughtPath:Destroy()
+    end
+end)
+
+-- ====================================================================
 --     BEST ROD & BAIT AUTO EQUIP SYSTEM (Using UUID Detection)
 -- ====================================================================
 
@@ -4568,7 +4579,7 @@ local function continuousAnimationLoop()
 end
 
 -- Independent equip loop (runs continuously while farming)
-local function equipLoopThread()
+local function equipLoopFunction()
     while equipLoopThreadActive and isAutoFarmOn do
         if equipEvent then
             pcall(function()
@@ -4598,7 +4609,7 @@ local function startFarm()
 
     if not equipLoopThread then
         equipLoopThreadActive = true
-        equipLoopThread = task.spawn(equipLoopThread)
+        equipLoopThread = task.spawn(equipLoopFunction)
     end
 
     -- Wait 5 seconds BEFORE starting (only once, not every cycle)
