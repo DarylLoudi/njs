@@ -4236,9 +4236,12 @@ else
     useAutoUpgradeRod = AUTO_UPGRADE_ROD or false
     useAutoUpgradeBait = AUTO_UPGRADE_BAIT or false
 
-    -- Apply delays from main_noui.lua
-    -- DELAY_FARM now maps to REQUEST_TO_COMPLETE_DELAY (critical fishing timing)
-    REQUEST_TO_COMPLETE_DELAY = DELAY_FARM or 1
+    -- Apply delays from main.lua (v2 granular delay structure)
+    REQUEST_TO_COMPLETE_DELAY = REQUEST_TO_COMPLETE_DELAY or 1
+    CHARGE_TO_REQUEST_DELAY = CHARGE_TO_REQUEST_DELAY or 0.1
+    EQUIP_DELAY = EQUIP_DELAY or 1.4
+    COMPLETE_TO_CANCEL_DELAY = COMPLETE_TO_CANCEL_DELAY or 0.1
+    CANCEL_TO_CHARGE_DELAY = CANCEL_TO_CHARGE_DELAY or 0.1
     autoSellDelay = AUTO_SELL_DELAY or 34
     weatherCycleDelay = WEATHER_CYCLE_DELAY or 30
 
