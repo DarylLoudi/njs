@@ -1645,7 +1645,13 @@ local defaultConfig = {
     autoUpgradeBait = false,
     delayFarm = 0.6,
     autoSellDelay = 45,
-    weatherCycleDelay = 100
+    weatherCycleDelay = 100,
+    -- NEW v2 Farm Delay Structure
+    REQUEST_TO_COMPLETE_DELAY = 1,
+    CHARGE_TO_REQUEST_DELAY = 0.1,
+    EQUIP_DELAY = 1.4,
+    COMPLETE_TO_CANCEL_DELAY = 0.1,
+    CANCEL_TO_CHARGE_DELAY = 0.1
 }
 local config = {}
 for key, value in pairs(defaultConfig) do
@@ -1823,6 +1829,12 @@ local function syncConfigFromStates()
     config.delayFarm = delayFarm
     config.autoSellDelay = autoSellDelay
     config.weatherCycleDelay = weatherCycleDelay
+    -- Sync new v2 delay parameters
+    config.REQUEST_TO_COMPLETE_DELAY = REQUEST_TO_COMPLETE_DELAY
+    config.CHARGE_TO_REQUEST_DELAY = CHARGE_TO_REQUEST_DELAY
+    config.EQUIP_DELAY = EQUIP_DELAY
+    config.COMPLETE_TO_CANCEL_DELAY = COMPLETE_TO_CANCEL_DELAY
+    config.CANCEL_TO_CHARGE_DELAY = CANCEL_TO_CHARGE_DELAY
 end
 
 local function applyDelayConfig()
@@ -1850,7 +1862,14 @@ local function applyDelayConfig()
         return clamped
     end
 
-    delayFarm = applyField("delayFarm", 0.1, defaultConfig.delayFarm)
+    -- Load farm delays from config (NEW v2 structure)
+    REQUEST_TO_COMPLETE_DELAY = applyField("REQUEST_TO_COMPLETE_DELAY", 0.1, 1)
+    CHARGE_TO_REQUEST_DELAY = applyField("CHARGE_TO_REQUEST_DELAY", 0.05, 0.1)
+    EQUIP_DELAY = applyField("EQUIP_DELAY", 0.5, 1.4)
+    COMPLETE_TO_CANCEL_DELAY = applyField("COMPLETE_TO_CANCEL_DELAY", 0.05, 0.1)
+    CANCEL_TO_CHARGE_DELAY = applyField("CANCEL_TO_CHARGE_DELAY", 0.05, 0.1)
+
+    -- Load other delays
     autoSellDelay = applyField("autoSellDelay", 30, defaultConfig.autoSellDelay)
     weatherCycleDelay = applyField("weatherCycleDelay", 10, defaultConfig.weatherCycleDelay)
 
@@ -4218,7 +4237,8 @@ else
     useAutoUpgradeBait = AUTO_UPGRADE_BAIT or false
 
     -- Apply delays from main_noui.lua
-    delayFarm = DELAY_FARM or 0.6
+    -- DELAY_FARM now maps to REQUEST_TO_COMPLETE_DELAY (critical fishing timing)
+    REQUEST_TO_COMPLETE_DELAY = DELAY_FARM or 1
     autoSellDelay = AUTO_SELL_DELAY or 34
     weatherCycleDelay = WEATHER_CYCLE_DELAY or 30
 
@@ -4231,7 +4251,11 @@ else
     config.teleportLocation = useTeleportLoc
     config.autoUpgradeRod = useAutoUpgradeRod
     config.autoUpgradeBait = useAutoUpgradeBait
-    config.delayFarm = delayFarm
+    config.REQUEST_TO_COMPLETE_DELAY = REQUEST_TO_COMPLETE_DELAY
+    config.CHARGE_TO_REQUEST_DELAY = CHARGE_TO_REQUEST_DELAY
+    config.EQUIP_DELAY = EQUIP_DELAY
+    config.COMPLETE_TO_CANCEL_DELAY = COMPLETE_TO_CANCEL_DELAY
+    config.CANCEL_TO_CHARGE_DELAY = CANCEL_TO_CHARGE_DELAY
     config.autoSellDelay = autoSellDelay
     config.weatherCycleDelay = weatherCycleDelay
 
