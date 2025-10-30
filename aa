@@ -1278,50 +1278,6 @@ local Replion = require(replicatedStorage.Packages.Replion)
 local PlayerData = Replion.Client:WaitReplion("Data")
 
 -- ====================================================================
---     ANIMATION CONTROLLER INITIALIZATION (For ReelIntermission)
--- ====================================================================
-
-local AnimationController = nil
-local Animations = nil
-local reelIntermissionAnim = nil
-local animationSystemReady = false
-
-pcall(function()
-    AnimationController = require(replicatedStorage:WaitForChild("Controllers", 3):WaitForChild("AnimationController", 3))
-    if AnimationController then
-        AnimationController:Init()
-        AnimationController:Start()
-        animationSystemReady = true
-    end
-end)
-
-pcall(function()
-    if animationSystemReady then
-        Animations = require(replicatedStorage:WaitForChild("Modules", 3):WaitForChild("Animations", 3))
-        if Animations then
-            -- Find ReelIntermission animation
-            for animName, animData in pairs(Animations) do
-                if animData and not animData.Disabled and animName:lower():find("reelintermission") then
-                    reelIntermissionAnim = animName
-                    break
-                end
-            end
-        end
-    end
-end)
-
--- ====================================================================
---     DELETE RE/FISHCAUGHT PATH (Prevent interference with farm system)
--- ====================================================================
--- Delete FishCaught remote path to prevent interference with ObtainedNewFishNotification
-pcall(function()
-    local fishCaughtPath = replicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/FishCaught"]
-    if fishCaughtPath then
-        fishCaughtPath:Destroy()
-    end
-end)
-
--- ====================================================================
 --     BEST ROD & BAIT AUTO EQUIP SYSTEM (Using UUID Detection)
 -- ====================================================================
 
@@ -1689,13 +1645,7 @@ local defaultConfig = {
     autoUpgradeBait = false,
     delayFarm = 0.6,
     autoSellDelay = 45,
-    weatherCycleDelay = 100,
-    -- NEW v2 Farm Delay Structure
-    REQUEST_TO_COMPLETE_DELAY = 1,
-    CHARGE_TO_REQUEST_DELAY = 0.1,
-    EQUIP_DELAY = 1.4,
-    COMPLETE_TO_CANCEL_DELAY = 0.1,
-    CANCEL_TO_CHARGE_DELAY = 0.1
+    weatherCycleDelay = 100
 }
 local config = {}
 for key, value in pairs(defaultConfig) do
@@ -1873,12 +1823,6 @@ local function syncConfigFromStates()
     config.delayFarm = delayFarm
     config.autoSellDelay = autoSellDelay
     config.weatherCycleDelay = weatherCycleDelay
-    -- Sync new v2 delay parameters
-    config.REQUEST_TO_COMPLETE_DELAY = REQUEST_TO_COMPLETE_DELAY
-    config.CHARGE_TO_REQUEST_DELAY = CHARGE_TO_REQUEST_DELAY
-    config.EQUIP_DELAY = EQUIP_DELAY
-    config.COMPLETE_TO_CANCEL_DELAY = COMPLETE_TO_CANCEL_DELAY
-    config.CANCEL_TO_CHARGE_DELAY = CANCEL_TO_CHARGE_DELAY
 end
 
 local function applyDelayConfig()
@@ -1906,14 +1850,7 @@ local function applyDelayConfig()
         return clamped
     end
 
-    -- Load farm delays from config (NEW v2 structure)
-    REQUEST_TO_COMPLETE_DELAY = applyField("REQUEST_TO_COMPLETE_DELAY", 0.1, 1)
-    CHARGE_TO_REQUEST_DELAY = applyField("CHARGE_TO_REQUEST_DELAY", 0.05, 0.1)
-    EQUIP_DELAY = applyField("EQUIP_DELAY", 0.5, 1.4)
-    COMPLETE_TO_CANCEL_DELAY = applyField("COMPLETE_TO_CANCEL_DELAY", 0.05, 0.1)
-    CANCEL_TO_CHARGE_DELAY = applyField("CANCEL_TO_CHARGE_DELAY", 0.05, 0.1)
-
-    -- Load other delays
+    delayFarm = applyField("delayFarm", 0.1, defaultConfig.delayFarm)
     autoSellDelay = applyField("autoSellDelay", 30, defaultConfig.autoSellDelay)
     weatherCycleDelay = applyField("weatherCycleDelay", 10, defaultConfig.weatherCycleDelay)
 
@@ -4280,12 +4217,8 @@ else
     useAutoUpgradeRod = AUTO_UPGRADE_ROD or false
     useAutoUpgradeBait = AUTO_UPGRADE_BAIT or false
 
-    -- Apply delays from main.lua (v2 granular delay structure)
-    REQUEST_TO_COMPLETE_DELAY = REQUEST_TO_COMPLETE_DELAY or 1
-    CHARGE_TO_REQUEST_DELAY = CHARGE_TO_REQUEST_DELAY or 0.1
-    EQUIP_DELAY = EQUIP_DELAY or 1.4
-    COMPLETE_TO_CANCEL_DELAY = COMPLETE_TO_CANCEL_DELAY or 0.1
-    CANCEL_TO_CHARGE_DELAY = CANCEL_TO_CHARGE_DELAY or 0.1
+    -- Apply delays from main_noui.lua
+    delayFarm = DELAY_FARM or 0.6
     autoSellDelay = AUTO_SELL_DELAY or 34
     weatherCycleDelay = WEATHER_CYCLE_DELAY or 30
 
@@ -4298,11 +4231,7 @@ else
     config.teleportLocation = useTeleportLoc
     config.autoUpgradeRod = useAutoUpgradeRod
     config.autoUpgradeBait = useAutoUpgradeBait
-    config.REQUEST_TO_COMPLETE_DELAY = REQUEST_TO_COMPLETE_DELAY
-    config.CHARGE_TO_REQUEST_DELAY = CHARGE_TO_REQUEST_DELAY
-    config.EQUIP_DELAY = EQUIP_DELAY
-    config.COMPLETE_TO_CANCEL_DELAY = COMPLETE_TO_CANCEL_DELAY
-    config.CANCEL_TO_CHARGE_DELAY = CANCEL_TO_CHARGE_DELAY
+    config.delayFarm = delayFarm
     config.autoSellDelay = autoSellDelay
     config.weatherCycleDelay = weatherCycleDelay
 
@@ -4415,115 +4344,136 @@ local CHARGE_POWER = 1755848498.4834
 local REQUEST_PARAM1 = 1.2854545116425
 local REQUEST_PARAM2 = 1
 
--- ====== CUSTOMIZABLE FARM DELAYS ======
-local EQUIP_DELAY = 1.4                    -- Equip loop delay (customizable)
-local CHARGE_TO_REQUEST_DELAY = 0.1        -- Delay between CHARGE and REQUEST (customizable)
-local REQUEST_TO_COMPLETE_DELAY = 1        -- Delay between REQUEST and COMPLETE (customizable) - MAIN DELAY
-local COMPLETE_TO_CANCEL_DELAY = 0.1       -- Delay between COMPLETE and CANCEL (customizable)
-local CANCEL_TO_CHARGE_DELAY = 0.1         -- Delay before next cycle (customizable)
-
 -- Cycle tracking
+local cycleComplete = false
 local totalCyclesCompleted = 0
-local cycleStartTime = 0
 
--- Main fishing cycle (MATCHES EXACT PATTERN FROM REFERENCE SCRIPT)
--- Pattern: CHARGE → (0.1s) → REQUEST → (1.0s) → COMPLETE → (0.1s) → CANCEL → (0.1s) → Loop
--- EQUIP is handled by independent equipLoopThread - NOT part of main cycle
--- Animation is handled by independent continuousAnimationLoop
-local function fishingCycle()
-    while isAutoFarmOn do
-        cycleStartTime = tick()
+-- Farm cycle lock (prevents other systems from interfering)
+local farmCycleLock = false
+local farmCycleActive = false
 
-        -- STEP 1: CHARGE
+-- Fish notification listener (ISOLATED - only responds during active farm cycle)
+if newFishEvent then
+    newFishEvent.OnClientEvent:Connect(function(fishId, metadata, inventoryData, isNew)
+
+        if isAutoFarmOn and farmCycleActive then
+            cycleComplete = true
+        else
+            warn("[DEBUG] ⚠️ Event received but ignored (AutoFarm: " .. tostring(isAutoFarmOn) .. ", CycleActive: " .. tostring(farmCycleActive) .. ")")
+        end
+    end)
+else
+    warn("[Farm System] ❌ newFishEvent is nil - notification listener NOT connected!")
+end
+
+-- Main cycle function (Event-Driven) - ISOLATED EXECUTION
+local function executeCycle()
+    -- Lock farm cycle (prevent interference from other systems)
+    if farmCycleLock then
+        return
+    end
+
+    farmCycleLock = true
+    farmCycleActive = true
+
+    local cycleStartTime = tick()
+
+    -- Step 1: Send Equip first (slot 1)
+    if equipEvent then
         pcall(function()
-            if chargeEvent then
+            equipEvent:FireServer(1)
+        end)
+    end
+
+    -- Wait 0.5 seconds (ISOLATED - no interruption)
+    task.wait(0.5)
+
+    -- Step 2: Send Charge + Request in parallel (ISOLATED THREADS)
+
+    local signalReceived = false
+    local signalResult = nil
+    local chargeComplete = false
+    local requestComplete = false
+
+    -- Isolated charge thread
+    task.spawn(function()
+        if chargeEvent then
+            pcall(function()
                 chargeEvent:InvokeServer(CHARGE_POWER)
+            end)
+        end
+        chargeComplete = true
+    end)
+
+    -- Isolated request thread
+    task.spawn(function()
+        if requestMinigameEvent then
+            local success, result = pcall(function()
+                return requestMinigameEvent:InvokeServer(REQUEST_PARAM1, REQUEST_PARAM2)
+            end)
+
+            if success and result == true then
+                signalReceived = true
+                signalResult = result
+            else
+                warn("⚠️ [Farm] Request failed:", result)
             end
-        end)
+        end
+        requestComplete = true
+    end)
 
-        -- STEP 2: Wait 0.1s before REQUEST
-        task.wait(CHARGE_TO_REQUEST_DELAY)
+    -- Step 3: Wait for signal (ISOLATED WAIT) - No timeout, continue regardless
+    local maxWait = 10
+    local elapsed = 0
 
-        if not isAutoFarmOn then break end
+    while not signalReceived and elapsed < maxWait do
+        task.wait(0.1)
+        elapsed = elapsed + 0.1
+    end
 
-        -- STEP 3: REQUEST
+    -- Continue cycle even if signal not received (no return/break)
+    if not signalReceived then
+        warn("⚠️ [Farm] Signal timeout, but continuing cycle...")
+    end
+
+    -- Step 4: Wait 1 second (ISOLATED DELAY)
+    task.wait(1.0)
+
+    -- Step 5: Send FishingCompleted (ISOLATED)
+    if fishingEvent then
         pcall(function()
-            if requestMinigameEvent then
-                requestMinigameEvent:InvokeServer(REQUEST_PARAM1, REQUEST_PARAM2)
-            end
+            fishingEvent:FireServer()
         end)
+    end
 
-        -- STEP 4: Wait 1.0s before COMPLETE
-        task.wait(REQUEST_TO_COMPLETE_DELAY)
+    -- Step 6: Wait for ObtainedNewFishNotification (ISOLATED WAIT)
+    cycleComplete = false
+    local notifWait = 0
+    local maxNotifWait = 10
 
-        if not isAutoFarmOn then break end
+    while not cycleComplete and notifWait < maxNotifWait and farmCycleActive do
+        task.wait(0.1)
+        notifWait = notifWait + 0.1
+    end
 
-        -- STEP 5: FISHING COMPLETED
-        pcall(function()
-            if fishingEvent then
-                fishingEvent:FireServer()
-            end
-        end)
-
-        -- STEP 6: Wait 0.1s before CANCEL
-        task.wait(COMPLETE_TO_CANCEL_DELAY)
-
-        if not isAutoFarmOn then break end
-
-        -- STEP 7: CANCEL INPUTS
-        pcall(function()
-            if cancelFishingEvent then
-                cancelFishingEvent:InvokeServer()
-            end
-        end)
-
-        -- STEP 8: Wait 0.1s before loop back to CHARGE
-        task.wait(CANCEL_TO_CHARGE_DELAY)
-
+    if cycleComplete then
+        local cycleTime = tick() - cycleStartTime
         totalCyclesCompleted = totalCyclesCompleted + 1
-        local cycleDuration = tick() - cycleStartTime
 
-        if not isAutoFarmOn then break end
+        -- ISOLATED DELAY (not affected by other systems)
+        local farmDelay = delayFarm or 0.6
+        task.wait(farmDelay)
+    else
+        warn("⚠️ [Farm] Fish notification timeout!")
+        totalCyclesCompleted = totalCyclesCompleted + 1
     end
+
+    -- Unlock farm cycle
+    farmCycleLock = false
+    farmCycleActive = false
 end
 
--- ====================================================================
---     ANIMATION LOOPS (Independent - do NOT interfere with farm cycle)
--- ====================================================================
-
--- State for animation loops
-local continuousAnimationThreadActive = false
-local equipLoopThreadActive = false
-local continuousAnimationThread = nil
-local equipLoopThread = nil
-
--- Continuous ReelIntermission animation loop (applies constantly)
-local function continuousAnimationLoop()
-    while continuousAnimationThreadActive and isAutoFarmOn do
-        if AnimationController and reelIntermissionAnim then
-            pcall(function()
-                AnimationController:PlayAnimation(reelIntermissionAnim, false)
-            end)
-        end
-        task.wait(0.01)  -- 10ms yield to prevent freeze
-    end
-end
-
--- Independent equip loop (runs continuously while farming)
-local function equipLoopFunction()
-    while equipLoopThreadActive and isAutoFarmOn do
-        if equipEvent then
-            pcall(function()
-                equipEvent:FireServer(1)
-            end)
-        end
-        task.wait(EQUIP_DELAY)
-    end
-end
-
--- ====================================================================
---     ISOLATED AUTO FARM THREAD (Completely independent from other loops)
--- ====================================================================
+-- ISOLATED AUTO FARM THREAD (Completely independent from other loops)
 local farmThread = nil
 local farmThreadActive = false
 
@@ -4532,35 +4482,40 @@ local function startFarm()
         return
     end
 
-    -- Start animation loops (independent from farm cycle)
-    if animationSystemReady and not continuousAnimationThread then
-        continuousAnimationThreadActive = true
-        continuousAnimationThread = task.spawn(continuousAnimationLoop)
-    end
 
-    if not equipLoopThread then
-        equipLoopThreadActive = true
-        equipLoopThread = task.spawn(equipLoopFunction)
-    end
-
-    -- Small delay to ensure animation loops are started
-    task.wait(0.2)
+    -- Wait 5 seconds BEFORE starting (only once, not every cycle)
+    task.wait(5)
 
     farmThreadActive = true
-    -- Spawn fishing cycle directly - it's already a while loop that checks isAutoFarmOn
     farmThread = task.spawn(function()
-        pcall(function()
-            fishingCycle()
-        end)
+        while isAutoFarmOn and farmThreadActive do
+            -- Execute cycle in ISOLATED environment
+            local cycleSuccess = pcall(function()
+                executeCycle()
+            end)
 
-        -- Cleanup when fishing cycle ends
+            if not cycleSuccess then
+                warn("⚠️ [ISOLATED FARM] Cycle error, recovering...")
+                task.wait(2) -- Recovery delay
+            end
+
+            -- NO EXTERNAL INTERFERENCE - Only internal breathing room
+            if isAutoFarmOn and farmThreadActive then
+                task.wait(0.05) -- Minimal breathing room (50ms)
+            end
+        end
+
         farmThread = nil
         farmThreadActive = false
+        farmCycleLock = false
+        farmCycleActive = false
     end)
 end
 
 local function stopFarm()
     farmThreadActive = false
+    farmCycleLock = false
+    farmCycleActive = false
 
     if farmThread then
         task.wait(0.5) -- Give time for current cycle to finish
@@ -4570,23 +4525,6 @@ local function stopFarm()
         farmThread = nil
     end
 
-    -- Stop animation loops
-    continuousAnimationThreadActive = false
-    equipLoopThreadActive = false
-
-    if continuousAnimationThread then
-        pcall(function()
-            task.cancel(continuousAnimationThread)
-        end)
-        continuousAnimationThread = nil
-    end
-
-    if equipLoopThread then
-        pcall(function()
-            task.cancel(equipLoopThread)
-        end)
-        equipLoopThread = nil
-    end
 end
 
 -- ISOLATED FARM MONITOR (Independent monitoring system)
