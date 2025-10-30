@@ -4425,56 +4425,35 @@ local CANCEL_TO_CHARGE_DELAY = 0.1         -- Delay before next cycle (customiza
 -- Cycle tracking
 local totalCyclesCompleted = 0
 local cycleStartTime = 0
-local chargeRequestPattern = {2, 3, 2}  -- Pattern: 2x, 3x, 2x per cycle
-local patternIndex = 1
 
--- Main fishing cycle (ENHANCED WITH MULTIPLE CHARGE+REQUEST)
--- Pattern: CHARGE+REQUEST (2x/3x/2x) → (1.0s) → COMPLETE → (0.1s) → CANCEL → (0.1s) → Loop
+-- Main fishing cycle (MATCHES EXACT PATTERN FROM REFERENCE SCRIPT)
+-- Pattern: CHARGE → (0.1s) → REQUEST → (1.0s) → COMPLETE → (0.1s) → CANCEL → (0.1s) → Loop
 -- EQUIP is handled by independent equipLoopThread - NOT part of main cycle
 -- Animation is handled by independent continuousAnimationLoop
 local function fishingCycle()
     while isAutoFarmOn do
         cycleStartTime = tick()
 
-        -- Get current pattern count (2x, 3x, or 2x)
-        local chargeRequestCount = chargeRequestPattern[patternIndex]
-
-        -- STEP 1-3: CHARGE + REQUEST (multiple times based on pattern)
-        print(string.format("[Farm Cycle #%d] Starting with %dx CHARGE+REQUEST pattern", totalCyclesCompleted + 1, chargeRequestCount))
-
-        for i = 1, chargeRequestCount do
-            if not isAutoFarmOn then break end
-
-            -- CHARGE
-            pcall(function()
-                if chargeEvent then
-                    chargeEvent:InvokeServer(CHARGE_POWER)
-                    print(string.format("  [%d/%d] ⚡ CHARGE sent", i, chargeRequestCount))
-                end
-            end)
-
-            -- Wait before REQUEST
-            task.wait(CHARGE_TO_REQUEST_DELAY)
-
-            if not isAutoFarmOn then break end
-
-            -- REQUEST
-            pcall(function()
-                if requestMinigameEvent then
-                    requestMinigameEvent:InvokeServer(REQUEST_PARAM1, REQUEST_PARAM2)
-                    print(string.format("  [%d/%d] 🎣 REQUEST sent", i, chargeRequestCount))
-                end
-            end)
-
-            -- Only wait between multiple sends, not after the last one
-            if i < chargeRequestCount then
-                task.wait(CHARGE_TO_REQUEST_DELAY)
+        -- STEP 1: CHARGE
+        pcall(function()
+            if chargeEvent then
+                chargeEvent:InvokeServer(CHARGE_POWER)
             end
-        end
+        end)
 
-        print(string.format("[Farm Cycle #%d] Completed %dx CHARGE+REQUEST, moving to COMPLETE", totalCyclesCompleted + 1, chargeRequestCount))
+        -- STEP 2: Wait 0.1s before REQUEST
+        task.wait(CHARGE_TO_REQUEST_DELAY)
 
-        -- STEP 4: Wait before COMPLETE
+        if not isAutoFarmOn then break end
+
+        -- STEP 3: REQUEST
+        pcall(function()
+            if requestMinigameEvent then
+                requestMinigameEvent:InvokeServer(REQUEST_PARAM1, REQUEST_PARAM2)
+            end
+        end)
+
+        -- STEP 4: Wait 1.0s before COMPLETE
         task.wait(REQUEST_TO_COMPLETE_DELAY)
 
         if not isAutoFarmOn then break end
@@ -4503,16 +4482,6 @@ local function fishingCycle()
 
         totalCyclesCompleted = totalCyclesCompleted + 1
         local cycleDuration = tick() - cycleStartTime
-
-        -- Cycle pattern: 2x → 3x → 2x → repeat
-        patternIndex = patternIndex + 1
-        if patternIndex > #chargeRequestPattern then
-            patternIndex = 1
-            print("[Pattern] 🔄 Cycle complete! Restarting pattern: 2x → 3x → 2x")
-        end
-
-        local nextPattern = chargeRequestPattern[patternIndex]
-        print(string.format("[Pattern] Next cycle will use %dx CHARGE+REQUEST\n", nextPattern))
 
         if not isAutoFarmOn then break end
     end
