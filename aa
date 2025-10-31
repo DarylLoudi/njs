@@ -1278,6 +1278,50 @@ local Replion = require(replicatedStorage.Packages.Replion)
 local PlayerData = Replion.Client:WaitReplion("Data")
 
 -- ====================================================================
+--     ANIMATION CONTROLLER INITIALIZATION (For ReelIntermission)
+-- ====================================================================
+
+local AnimationController = nil
+local Animations = nil
+local reelIntermissionAnim = nil
+local animationSystemReady = false
+
+pcall(function()
+    AnimationController = require(replicatedStorage:WaitForChild("Controllers", 3):WaitForChild("AnimationController", 3))
+    if AnimationController then
+        AnimationController:Init()
+        AnimationController:Start()
+        animationSystemReady = true
+    end
+end)
+
+pcall(function()
+    if animationSystemReady then
+        Animations = require(replicatedStorage:WaitForChild("Modules", 3):WaitForChild("Animations", 3))
+        if Animations then
+            -- Find ReelIntermission animation
+            for animName, animData in pairs(Animations) do
+                if animData and not animData.Disabled and animName:lower():find("reelintermission") then
+                    reelIntermissionAnim = animName
+                    break
+                end
+            end
+        end
+    end
+end)
+
+-- ====================================================================
+--     DELETE RE/FISHCAUGHT PATH (Prevent interference with farm system)
+-- ====================================================================
+-- Delete FishCaught remote path to prevent interference with ObtainedNewFishNotification
+pcall(function()
+    local fishCaughtPath = replicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/FishCaught"]
+    if fishCaughtPath then
+        fishCaughtPath:Destroy()
+    end
+end)
+
+-- ====================================================================
 --     BEST ROD & BAIT AUTO EQUIP SYSTEM (Using UUID Detection)
 -- ====================================================================
 
@@ -1643,9 +1687,10 @@ local defaultConfig = {
     teleportLocation = "Sisyphus Statue",
     autoUpgradeRod = false,
     autoUpgradeBait = false,
-    delayFarm = 0.6,
     autoSellDelay = 45,
-    weatherCycleDelay = 100
+    weatherCycleDelay = 100,
+    -- v5 Simple Farm Delay
+    DelayComplete = 1
 }
 local config = {}
 for key, value in pairs(defaultConfig) do
@@ -1820,9 +1865,10 @@ local function syncConfigFromStates()
     config.autoWeather = isAutoWeatherOn
     config.autoMegalodon = isAutoMegalodonOn
     config.gpuSaver = gpuSaverEnabled
-    config.delayFarm = delayFarm
     config.autoSellDelay = autoSellDelay
     config.weatherCycleDelay = weatherCycleDelay
+    -- Sync v5 delay parameter
+    config.DelayComplete = DelayComplete
 end
 
 local function applyDelayConfig()
@@ -1850,7 +1896,10 @@ local function applyDelayConfig()
         return clamped
     end
 
-    delayFarm = applyField("delayFarm", 0.1, defaultConfig.delayFarm)
+    -- Load v5 simple farm delay from config
+    DelayComplete = applyField("DelayComplete", 0.5, 1)
+
+    -- Load other delays
     autoSellDelay = applyField("autoSellDelay", 30, defaultConfig.autoSellDelay)
     weatherCycleDelay = applyField("weatherCycleDelay", 10, defaultConfig.weatherCycleDelay)
 
@@ -1865,26 +1914,15 @@ local function roundDelay(value)
     return math.floor(value * 100 + 0.5) / 100
 end
 
-local function setDelayFarm(value)
-    local numeric = tonumber(value) or delayFarm
-    local clamped = math.max(0.1, numeric)
+local function setDelayComplete(value)
+    local numeric = tonumber(value) or DelayComplete
+    local clamped = math.max(0.5, numeric)
     clamped = roundDelay(clamped)
-    if math.abs(clamped - delayFarm) < 0.001 then
+    if math.abs(clamped - DelayComplete) < 0.001 then
         return
     end
-    delayFarm = clamped
-    updateConfigField("delayFarm", clamped)
-end
-
-local function setAutoFishMainDelay(value)
-    local numeric = tonumber(value) or autoFishMainDelay
-    local clamped = math.max(0.1, numeric)
-    clamped = roundDelay(clamped)
-    if math.abs(clamped - autoFishMainDelay) < 0.001 then
-        return
-    end
-    autoFishMainDelay = clamped
-    updateConfigField("autoFishMainDelay", clamped)
+    DelayComplete = clamped
+    updateConfigField("DelayComplete", clamped)
 end
 
 local function setAutoSellDelay(value)
@@ -1897,8 +1935,6 @@ local function setAutoSellDelay(value)
     autoSellDelay = clamped
     updateConfigField("autoSellDelay", clamped)
 end
-
-
 
 local function setWeatherCycleDelay(value)
     local numeric = tonumber(value) or weatherCycleDelay
@@ -2293,7 +2329,8 @@ local whiteScreenGui = nil
 local connections = {}
 local fpsCapConnection = nil
 
-local delayFarm = 0.6
+-- v5 Simple Farm Delay
+local DelayComplete = 1
 local autoSellDelay = 45
 local weatherCycleDelay = 100
 
@@ -4217,9 +4254,9 @@ else
     useAutoUpgradeRod = AUTO_UPGRADE_ROD or false
     useAutoUpgradeBait = AUTO_UPGRADE_BAIT or false
 
-    -- Apply delays from main_noui.lua
-    delayFarm = DELAY_FARM or 0.6
-    autoSellDelay = AUTO_SELL_DELAY or 34
+    -- Apply delays from main.lua (v5 simple sequential structure)
+    DelayComplete = DELAY_COMPLETE or 1
+    autoSellDelay = AUTO_SELL_DELAY or 45
     weatherCycleDelay = WEATHER_CYCLE_DELAY or 30
 
     -- Save to config for next time
@@ -4231,7 +4268,9 @@ else
     config.teleportLocation = useTeleportLoc
     config.autoUpgradeRod = useAutoUpgradeRod
     config.autoUpgradeBait = useAutoUpgradeBait
-    config.delayFarm = delayFarm
+
+    -- v5 Simple config
+    config.DelayComplete = DelayComplete
     config.autoSellDelay = autoSellDelay
     config.weatherCycleDelay = weatherCycleDelay
 
@@ -4344,133 +4383,164 @@ local CHARGE_POWER = 1755848498.4834
 local REQUEST_PARAM1 = 1.2854545116425
 local REQUEST_PARAM2 = 1
 
--- Cycle tracking
-local cycleComplete = false
+-- ====== v3 ENHANCED PARALLEL SYNC SYSTEM ======
+-- State Management for enhanced farm system
+local FarmState = {
+    firstCycle = true,
+    totalCycles = 0,
+    successfulCycles = 0,
+    failedCycles = 0,
+    currentDelay = OPTIMAL_COMPLETE_DELAY,
+    syncHistory = {},
+    activeCycles = 0,
+}
+
+-- Statistics tracking
+local FarmStats = {
+    startTime = 0,
+    fishCaught = 0,
+    cycleTimings = {},
+    lastSuccessDelay = OPTIMAL_COMPLETE_DELAY,
+}
+
+-- Cycle tracking (legacy compatibility)
 local totalCyclesCompleted = 0
+local cycleStartTime = 0
 
--- Farm cycle lock (prevents other systems from interfering)
-local farmCycleLock = false
-local farmCycleActive = false
+-- ====================================================================
+-- SIMPLE SEQUENTIAL FISHING CYCLE (v5 Final Optimized)
+-- ====================================================================
 
--- Fish notification listener (ISOLATED - only responds during active farm cycle)
-if newFishEvent then
-    newFishEvent.OnClientEvent:Connect(function(fishId, metadata, inventoryData, isNew)
-
-        if isAutoFarmOn and farmCycleActive then
-            cycleComplete = true
-        else
-            warn("[DEBUG] ⚠️ Event received but ignored (AutoFarm: " .. tostring(isAutoFarmOn) .. ", CycleActive: " .. tostring(farmCycleActive) .. ")")
-        end
-    end)
-else
-    warn("[Farm System] ❌ newFishEvent is nil - notification listener NOT connected!")
-end
-
--- Main cycle function (Event-Driven) - ISOLATED EXECUTION
-local function executeCycle()
-    -- Lock farm cycle (prevent interference from other systems)
-    if farmCycleLock then
-        return
-    end
-
-    farmCycleLock = true
-    farmCycleActive = true
-
-    local cycleStartTime = tick()
-
-    -- Step 1: Send Equip first (slot 1)
+-- Simple helper functions for fishing cycle
+local function equip_tool()
     if equipEvent then
         pcall(function()
             equipEvent:FireServer(1)
         end)
     end
+end
 
-    -- Wait 0.5 seconds (ISOLATED - no interruption)
-    task.wait(0.5)
-
-    -- Step 2: Send Charge + Request in parallel (ISOLATED THREADS)
-
-    local signalReceived = false
-    local signalResult = nil
-    local chargeComplete = false
-    local requestComplete = false
-
-    -- Isolated charge thread
-    task.spawn(function()
-        if chargeEvent then
-            pcall(function()
-                chargeEvent:InvokeServer(CHARGE_POWER)
-            end)
-        end
-        chargeComplete = true
-    end)
-
-    -- Isolated request thread
-    task.spawn(function()
-        if requestMinigameEvent then
-            local success, result = pcall(function()
-                return requestMinigameEvent:InvokeServer(REQUEST_PARAM1, REQUEST_PARAM2)
-            end)
-
-            if success and result == true then
-                signalReceived = true
-                signalResult = result
-            else
-                warn("⚠️ [Farm] Request failed:", result)
-            end
-        end
-        requestComplete = true
-    end)
-
-    -- Step 3: Wait for signal (ISOLATED WAIT) - No timeout, continue regardless
-    local maxWait = 10
-    local elapsed = 0
-
-    while not signalReceived and elapsed < maxWait do
-        task.wait(0.1)
-        elapsed = elapsed + 0.1
+local function charge_rod()
+    if chargeEvent then
+        pcall(function()
+            chargeEvent:InvokeServer(nil, nil, nil, time())
+        end)
     end
+end
 
-    -- Continue cycle even if signal not received (no warning, no break)
+local function request_fishing()
+    if requestMinigameEvent then
+        local success, result = pcall(function()
+            return requestMinigameEvent:InvokeServer(math.random(), math.random(), time())
+        end)
+        return success and result
+    end
+    return false
+end
 
-    -- Step 4: Wait 1 second (ISOLATED DELAY)
-    task.wait(1.0)
-
-    -- Step 5: Send FishingCompleted (ISOLATED)
+local function fishing_completed()
     if fishingEvent then
         pcall(function()
             fishingEvent:FireServer()
         end)
     end
-
-    -- Step 6: Wait for ObtainedNewFishNotification (ISOLATED WAIT)
-    cycleComplete = false
-    local notifWait = 0
-    local maxNotifWait = 10
-
-    while not cycleComplete and notifWait < maxNotifWait and farmCycleActive do
-        task.wait(0.1)
-        notifWait = notifWait + 0.1
-    end
-
-    if cycleComplete then
-        local cycleTime = tick() - cycleStartTime
-        totalCyclesCompleted = totalCyclesCompleted + 1
-
-        -- ISOLATED DELAY (not affected by other systems)
-        local farmDelay = delayFarm or 0.6
-        task.wait(farmDelay)
-    else
-        -- Continue without warning
-        totalCyclesCompleted = totalCyclesCompleted + 1
-    end
-
-    -- Unlock farm cycle
-    farmCycleLock = false
-    farmCycleActive = false
 end
 
--- ISOLATED AUTO FARM THREAD (Completely independent from other loops)
+local function cancel_inputs_bypass()
+    -- Fire-and-forget bypass - sends cancel but doesn't wait for response
+    task.spawn(function()
+        if cancelFishingEvent then
+            pcall(function()
+                cancelFishingEvent:InvokeServer()
+            end)
+        end
+    end)
+end
+
+-- Main fishing cycle - Simple Sequential Loop
+local function fishingCycle()
+    FarmStats.startTime = tick()
+
+    -- Statistics
+    local cycleCount = 0
+    local successCount = 0
+
+    print(string.rep("=", 70))
+    print("🚀 AUTO FISHING STARTED - Simple Sequential Mode")
+    print(string.rep("=", 70))
+    print("\n📋 FLOW SEQUENCE:")
+    print("  1. EquipToolFromHotbar")
+    print("  2. ChargeFishingRod")
+    print("  3. RequestFishingMinigame")
+    print("  4. Wait " .. DelayComplete .. "s")
+    print("  5. FishingCompleted")
+    print("  6. CancelFishingInputs (fire-and-forget)")
+    print(string.rep("=", 70) .. "\n")
+
+    while isAutoFarmOn do
+        cycleCount = cycleCount + 1
+        FarmState.totalCycles = cycleCount
+
+        -- 1. Prepare the cycle
+        equip_tool()
+        charge_rod()
+        task.wait(0.01)
+
+        -- 2. Execute the request
+        local success, result = request_fishing()
+
+        -- 3. Handle a successful request
+        if success then
+            successCount = successCount + 1
+            FarmStats.fishCaught = FarmStats.fishCaught + 1
+            task.wait(DelayComplete) -- Wait based on config
+            fishing_completed()
+        end
+
+        -- 4. Clean up the cycle
+        task.wait(0.2)
+        cancel_inputs_bypass() -- Fire-and-forget bypass
+
+        task.wait(0.01) -- Final delay before looping
+
+        -- Print stats every 10 cycles
+        if cycleCount % 10 == 0 then
+            local successRate = (successCount / cycleCount) * 100
+            print(string.format("\n📊 [STATS] Cycles: %d | Success: %d (%.1f%%) | Fish Caught: %d\n",
+                cycleCount,
+                successCount,
+                successRate,
+                FarmStats.fishCaught
+            ))
+        end
+    end
+
+    print("\n🛑 AUTO FISHING STOPPED")
+end
+
+-- ====================================================================
+--     ANIMATION LOOP (ReelIntermission - Independent from farm cycle)
+-- ====================================================================
+
+-- State for animation loop
+local continuousAnimationThreadActive = false
+local continuousAnimationThread = nil
+
+-- Continuous ReelIntermission animation loop (applies constantly)
+local function continuousAnimationLoop()
+    while continuousAnimationThreadActive and isAutoFarmOn do
+        if AnimationController and reelIntermissionAnim then
+            pcall(function()
+                AnimationController:PlayAnimation(reelIntermissionAnim, false)
+            end)
+        end
+        task.wait(0.01)  -- 10ms yield to prevent freeze
+    end
+end
+
+-- ====================================================================
+--     ISOLATED AUTO FARM THREAD (Completely independent from other loops)
+-- ====================================================================
 local farmThread = nil
 local farmThreadActive = false
 
@@ -4479,40 +4549,30 @@ local function startFarm()
         return
     end
 
+    -- Start animation loop (independent from farm cycle)
+    if animationSystemReady and not continuousAnimationThread then
+        continuousAnimationThreadActive = true
+        continuousAnimationThread = task.spawn(continuousAnimationLoop)
+    end
 
-    -- Wait 5 seconds BEFORE starting (only once, not every cycle)
-    task.wait(5)
+    -- Small delay to ensure animation loop is started
+    task.wait(0.2)
 
     farmThreadActive = true
+    -- Spawn fishing cycle directly - it's already a while loop that checks isAutoFarmOn
     farmThread = task.spawn(function()
-        while isAutoFarmOn and farmThreadActive do
-            -- Execute cycle in ISOLATED environment
-            local cycleSuccess = pcall(function()
-                executeCycle()
-            end)
+        pcall(function()
+            fishingCycle()
+        end)
 
-            if not cycleSuccess then
-                warn("⚠️ [ISOLATED FARM] Cycle error, recovering...")
-                task.wait(2) -- Recovery delay
-            end
-
-            -- NO EXTERNAL INTERFERENCE - Only internal breathing room
-            if isAutoFarmOn and farmThreadActive then
-                task.wait(0.05) -- Minimal breathing room (50ms)
-            end
-        end
-
+        -- Cleanup when fishing cycle ends
         farmThread = nil
         farmThreadActive = false
-        farmCycleLock = false
-        farmCycleActive = false
     end)
 end
 
 local function stopFarm()
     farmThreadActive = false
-    farmCycleLock = false
-    farmCycleActive = false
 
     if farmThread then
         task.wait(0.5) -- Give time for current cycle to finish
@@ -4522,6 +4582,19 @@ local function stopFarm()
         farmThread = nil
     end
 
+    -- Reset farm state for fresh start next time
+    FarmState.firstCycle = true
+    FarmState.activeCycles = 0
+
+    -- Stop animation loop
+    continuousAnimationThreadActive = false
+
+    if continuousAnimationThread then
+        pcall(function()
+            task.cancel(continuousAnimationThread)
+        end)
+        continuousAnimationThread = nil
+    end
 end
 
 -- ISOLATED FARM MONITOR (Independent monitoring system)
