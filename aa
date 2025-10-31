@@ -1281,6 +1281,8 @@ local PlayerData = Replion.Client:WaitReplion("Data")
 --     ANIMATION CONTROLLER INITIALIZATION (For ReelIntermission)
 -- ====================================================================
 
+print("🎬 Initializing ReelIntermission Animation System...")
+
 local AnimationController = nil
 local Animations = nil
 local reelIntermissionAnim = nil
@@ -1289,9 +1291,12 @@ local animationSystemReady = false
 pcall(function()
     AnimationController = require(replicatedStorage:WaitForChild("Controllers", 3):WaitForChild("AnimationController", 3))
     if AnimationController then
+        print("✅ AnimationController loaded")
         AnimationController:Init()
         AnimationController:Start()
+        task.wait(2) -- Wait for animations to preload
         animationSystemReady = true
+        print("✅ AnimationController initialized")
     end
 end)
 
@@ -1299,27 +1304,51 @@ pcall(function()
     if animationSystemReady then
         Animations = require(replicatedStorage:WaitForChild("Modules", 3):WaitForChild("Animations", 3))
         if Animations then
+            print("✅ Animations module loaded")
             -- Find ReelIntermission animation
             for animName, animData in pairs(Animations) do
                 if animData and not animData.Disabled and animName:lower():find("reelintermission") then
                     reelIntermissionAnim = animName
+                    print("✅ Found ReelIntermission animation: " .. animName)
                     break
                 end
+            end
+            if not reelIntermissionAnim then
+                warn("⚠️ ReelIntermission animation not found!")
             end
         end
     end
 end)
 
+if animationSystemReady and reelIntermissionAnim then
+    print("✅ ReelIntermission animation system ready!\n")
+else
+    warn("⚠️ Animation system initialization failed - continuing without animation\n")
+end
+
 -- ====================================================================
---     DELETE RE/FISHCAUGHT PATH (Prevent interference with farm system)
+--     DELETE FISHCAUGHT GUI (Prevent interference with farm system)
 -- ====================================================================
--- Delete FishCaught remote path to prevent interference with ObtainedNewFishNotification
-pcall(function()
-    local fishCaughtPath = replicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/FishCaught"]
-    if fishCaughtPath then
-        fishCaughtPath:Destroy()
+-- Delete FishCaught GUI to prevent popup interference
+local function deleteFishCaughtGUI()
+    pcall(function()
+        local playerGui = player:WaitForChild("PlayerGui")
+        if playerGui:FindFirstChild("FishCaught") then
+            playerGui.FishCaught:Destroy()
+            print("🗑️ Deleted FishCaught GUI")
+        end
+    end)
+end
+
+-- Monitor and continuously delete FishCaught GUI
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        deleteFishCaughtGUI()
     end
 end)
+
+print("✅ FishCaught GUI deletion system active\n")
 
 -- ====================================================================
 --     BEST ROD & BAIT AUTO EQUIP SYSTEM (Using UUID Detection)
