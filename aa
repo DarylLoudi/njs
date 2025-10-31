@@ -4404,37 +4404,18 @@ end
 --                    AUTO LOOPS (CORE FISHING LOGIC) (NEW FARM)
 -- ====================================================================
 
--- ====== AUTO FARM SYSTEM (Event-Driven Signal Based) ======
+-- ====== AUTO FARM SYSTEM (Simple Sequential) ======
 -- ISOLATED FARM CYCLE - Runs independently without interference from other loops
 
--- Parameters for remote calls
-local CHARGE_POWER = 1755848498.4834
-local REQUEST_PARAM1 = 1.2854545116425
-local REQUEST_PARAM2 = 1
-
--- ====== v3 ENHANCED PARALLEL SYNC SYSTEM ======
--- State Management for enhanced farm system
-local FarmState = {
-    firstCycle = true,
-    totalCycles = 0,
-    successfulCycles = 0,
-    failedCycles = 0,
-    currentDelay = OPTIMAL_COMPLETE_DELAY,
-    syncHistory = {},
-    activeCycles = 0,
-}
-
--- Statistics tracking
+-- Statistics tracking (minimal)
 local FarmStats = {
     startTime = 0,
     fishCaught = 0,
-    cycleTimings = {},
-    lastSuccessDelay = OPTIMAL_COMPLETE_DELAY,
 }
 
--- Cycle tracking (legacy compatibility)
-local totalCyclesCompleted = 0
-local cycleStartTime = 0
+local FarmState = {
+    totalCycles = 0,
+}
 
 -- ====================================================================
 -- SIMPLE SEQUENTIAL FISHING CYCLE (v5 Final Optimized)
@@ -4610,10 +4591,6 @@ local function stopFarm()
         end)
         farmThread = nil
     end
-
-    -- Reset farm state for fresh start next time
-    FarmState.firstCycle = true
-    FarmState.activeCycles = 0
 
     -- Stop animation loop
     continuousAnimationThreadActive = false
