@@ -1719,7 +1719,7 @@ local defaultConfig = {
     autoSellDelay = 45,
     weatherCycleDelay = 100,
     -- v5 Simple Farm Delay
-    DelayComplete = 1
+    DelayComplete = 1.2
 }
 local config = {}
 for key, value in pairs(defaultConfig) do
@@ -2359,7 +2359,7 @@ local connections = {}
 local fpsCapConnection = nil
 
 -- v5 Simple Farm Delay
-local DelayComplete = 1
+local DelayComplete = 1.2
 local autoSellDelay = 45
 local weatherCycleDelay = 100
 
@@ -4284,7 +4284,7 @@ else
     useAutoUpgradeBait = AUTO_UPGRADE_BAIT or false
 
     -- Apply delays from main.lua (v5 simple sequential structure)
-    DelayComplete = DELAY_COMPLETE or 1
+    DelayComplete = DELAY_COMPLETE or 1.2
     autoSellDelay = AUTO_SELL_DELAY or 45
     weatherCycleDelay = WEATHER_CYCLE_DELAY or 30
 
