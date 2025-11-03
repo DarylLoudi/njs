@@ -549,6 +549,8 @@ do
             ["Mosasaur Shark"] = true,
             ["Thin Armor Shark"] = true,
             ["Arrow Artifact"] = true,
+            ["Yello Damselfish"] = true,
+            ["Gar Fish"] = true,
             ["Crescent Artifact"] = true,
             ["Diamond Artifact"] = true,
             ["Hourglass Diamond Artifact"] = true
@@ -3154,21 +3156,21 @@ local WeatherIDs = {"Cloudy", "Storm","Wind"}
     --end)
 --end
 
---local function equipRod()
-    --pcall(function() 
-        --if equipEvent then 
-            --equipEvent:FireServer(1)
-       --end 
-    --end)
---end
+local function equipRod()
+    pcall(function()
+        if equipEvent then
+            equipEvent:FireServer(1)
+        end
+    end)
+end
 
---local function unequipRod()
-    --pcall(function() 
-        --if unequipEvent then 
-            --unequipEvent:FireServer()
-        --end 
-    ----end)
---end
+local function unequipRod()
+    pcall(function()
+        if unequipEvent then
+            unequipEvent:FireServer()
+        end
+    end)
+end
 
 
 -- ====== MEGALODON HUNT FUNCTIONS (BODYVELOCITY LOCK) ======
@@ -4619,6 +4621,11 @@ local function startFarm()
 
     -- Small delay to ensure animation loop is started
     task.wait(0.2)
+
+    -- Equip fishing tool before starting farm
+    print("🎣 Equipping fishing tool before starting farm...")
+    equip_tool()
+    task.wait(0.5)
 
     farmThreadActive = true
     -- Spawn fishing cycle directly - it's already a while loop that checks isAutoFarmOn
