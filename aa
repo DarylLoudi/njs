@@ -1981,6 +1981,7 @@ local function applyDelayConfig()
 
     -- Load v5 simple farm delay from config
     DelayComplete = applyField("DelayComplete", 0.5, 1)
+    print(string.format("⏱️ [Config] DelayComplete loaded from config: %.2fs", DelayComplete))
 
     -- Load other delays
     autoSellDelay = applyField("autoSellDelay", 30, defaultConfig.autoSellDelay)
@@ -4315,6 +4316,7 @@ local useAutoUpgradeRod, useAutoUpgradeBait
 
 if configExists then
     -- Config exists, use saved settings from JSON (IGNORE main.lua completely)
+    print("📂 [Config] Loading from config.json (DelayComplete from JSON: " .. tostring(config.DelayComplete) .. ")")
     useAutoFarm = config.autoFarm
     useAutoSell = config.autoSell
     useAutoWeather = config.autoWeather
@@ -4326,8 +4328,10 @@ if configExists then
 
     -- Apply delays from config (using applyDelayConfig)
     applyDelayConfig()
+    print("✅ [Config] DelayComplete after applyDelayConfig: " .. tostring(DelayComplete) .. "s")
 else
     -- No config file, use settings from main_noui.lua and save them
+    print("🆕 [Config] No config found, using loader values (DELAY_COMPLETE from loader: " .. tostring(DELAY_COMPLETE) .. ")")
     useAutoFarm = AUTO_FARM or false
     useAutoSell = AUTO_SELL or false
     useAutoWeather = AUTO_WEATHER or false
@@ -4341,6 +4345,7 @@ else
     DelayComplete = DELAY_COMPLETE or 1.2
     autoSellDelay = AUTO_SELL_DELAY or 45
     weatherCycleDelay = WEATHER_CYCLE_DELAY or 30
+    print("✅ [Config] DelayComplete set from loader: " .. tostring(DelayComplete) .. "s")
 
     -- Save to config for next time
     config.autoFarm = useAutoFarm
