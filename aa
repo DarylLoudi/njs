@@ -4532,18 +4532,6 @@ local function fishingCycle()
     local cycleCount = 0
     local successCount = 0
 
-    print(string.rep("=", 70))
-    print("🚀 AUTO FISHING STARTED - Simple Sequential Mode")
-    print(string.rep("=", 70))
-    print("\n📋 FLOW SEQUENCE:")
-    print("  1. EquipToolFromHotbar")
-    print("  2. ChargeFishingRod")
-    print("  3. RequestFishingMinigame")
-    print("  4. Wait " .. DelayComplete .. "s")
-    print("  5. FishingCompleted")
-    print("  6. CancelFishingInputs (fire-and-forget)")
-    print(string.rep("=", 70) .. "\n")
-
     while isAutoFarmOn do
         cycleCount = cycleCount + 1
         FarmState.totalCycles = cycleCount
@@ -4569,20 +4557,7 @@ local function fishingCycle()
         cancel_inputs_bypass() -- Fire-and-forget bypass
 
         task.wait(0.01) -- Final delay before looping
-
-        -- Print stats every 10 cycles
-        if cycleCount % 10 == 0 then
-            local successRate = (successCount / cycleCount) * 100
-            print(string.format("\n📊 [STATS] Cycles: %d | Success: %d (%.1f%%) | Fish Caught: %d\n",
-                cycleCount,
-                successCount,
-                successRate,
-                FarmStats.fishCaught
-            ))
-        end
     end
-
-    print("\n🛑 AUTO FISHING STOPPED")
 end
 
 -- ====================================================================
