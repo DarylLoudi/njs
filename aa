@@ -518,7 +518,14 @@ local DiscordNotifier = {}
 do
     local HttpService = game:GetService("HttpService")
     local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local LocalPlayer = Players.LocalPlayer
+
+    -- Load required modules for PlayerData-based inventory access
+    local ItemUtility = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ItemUtility"))
+    local VendorUtility = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("VendorUtility"))
+    local Replion = require(ReplicatedStorage:WaitForChild("Packages"):WaitForChild("Replion"))
+    local PlayerData = Replion.Client:WaitReplion("Data")
 
     -- Use webhook2 from main.lua if available, otherwise use fallback
     local WEBHOOK_URL = webhook2
@@ -542,6 +549,8 @@ do
             ["Mosasaur Shark"] = true,
             ["Thin Armor Shark"] = true,
             ["Arrow Artifact"] = true,
+            ["Yello Damselfish"] = true,
+            ["Gar Fish"] = true,
             ["Crescent Artifact"] = true,
             ["Diamond Artifact"] = true,
             ["Hourglass Diamond Artifact"] = true
@@ -683,63 +692,108 @@ do
     end
 
     function DiscordNotifier.scanInventory()
-        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-        local invContainer = playerGui and playerGui:FindFirstChild("Inventory")
-        invContainer = invContainer and invContainer:FindFirstChild("Main")
-        invContainer = invContainer and invContainer:FindFirstChild("Content")
-        invContainer = invContainer and invContainer:FindFirstChild("Pages")
-        invContainer = invContainer and invContainer:FindFirstChild("Inventory")
-        if not invContainer then return end
+        -- Use PlayerData API instead of GUI-based scanning
+        if not PlayerData then
+            warn("[Discord Notifier] PlayerData not available")
+            return
+        end
+
+        local success, inventory = pcall(function()
+            return PlayerData:Get("Inventory")
+        end)
+
+        if not success or not inventory then
+            warn("[Discord Notifier] Failed to get inventory from PlayerData")
+            return
+        end
+
+        local itemsCategory = inventory["Items"]
+        if not itemsCategory or type(itemsCategory) ~= "table" then
+            warn("[Discord Notifier] 'Items' category not found in inventory")
+            return
+        end
 
         local currentItemCounts = {}
-        for _, tile in ipairs(invContainer:GetChildren()) do
-            if tile.Name == "Tile" and tile:FindFirstChild("ItemName") then
-                local fullName = tile.ItemName.Text
-                
-                -- Lakukan pengecekan parsial terhadap whitelist
-                for baseName, _ in pairs(CONFIG.WHITELIST) do
-                    if string.find(fullName, baseName) then
-                        -- Item ada di whitelist, kumpulkan data lengkap
-                        local weight = "N/A"
-                        if tile:FindFirstChild("WeightFrame") and tile.WeightFrame:FindFirstChild("Weight") then
-                            weight = tile.WeightFrame.Weight.Text
-                        end
-                        
-                        local mutation = "None"
-                        if tile:FindFirstChild("Variant") and tile.Variant:FindFirstChild("ItemName") then
-                            local mutationText = tile.Variant.ItemName.Text
-                            if mutationText ~= "Ghoulish" then
-                                mutation = mutationText
-                            end
-                        end
 
-                        local itemKey = fullName .. "_" .. weight .. "_" .. mutation
-                        
-                        currentItemCounts[itemKey] = {
-                            count = (currentItemCounts[itemKey] and currentItemCounts[itemKey].count or 0) + 1,
-                            data = {
-                                fullName = fullName,
-                                baseName = baseName,
-                                weight = weight,
-                                mutation = mutation
+        -- Scan all items in inventory using PlayerData
+        for _, item in ipairs(itemsCategory) do
+            local itemSuccess, itemData = pcall(function()
+                return ItemUtility:GetItemData(item.Id)
+            end)
+
+            if itemSuccess and itemData and itemData.Data then
+                local itemType = itemData.Data.Type
+                local itemName = itemData.Data.Name
+
+                -- Only process fish items (skip artifacts, tools, etc.)
+                if itemType == "Fish" then
+                    -- Check if this fish is in whitelist
+                    for baseName, _ in pairs(CONFIG.WHITELIST) do
+                        if string.find(itemName, baseName) then
+                            -- Extract mutation data
+                            local mutation = "None"
+                            local originalName = itemName
+
+                            -- Check for mutation prefix (Big, Shiny, etc.)
+                            if string.find(itemName, "^Big ") then
+                                mutation = "Big"
+                                itemName = itemName:gsub("^Big ", "")
+                            elseif string.find(itemName, "^Shiny ") then
+                                mutation = "Shiny"
+                                itemName = itemName:gsub("^Shiny ", "")
+                            end
+
+                            -- If no prefix mutation, check Metadata.VariantId
+                            if mutation == "None" and item.Metadata and item.Metadata.VariantId then
+                                local variantSuccess, variantData = pcall(function()
+                                    return ItemUtility:GetVariantData(item.Metadata.VariantId)
+                                end)
+
+                                if variantSuccess and variantData and variantData.Data and variantData.Data.Name then
+                                    local variantName = variantData.Data.Name
+                                    if variantName ~= "Ghoulish" then
+                                        mutation = variantName
+                                    end
+                                end
+                            end
+
+                            -- Extract weight data
+                            local weight = "N/A"
+                            if item.Metadata and item.Metadata.Weight then
+                                weight = tostring(item.Metadata.Weight) .. " kg"
+                            end
+
+                            -- Create unique item key
+                            local itemKey = originalName .. "_" .. weight .. "_" .. mutation
+
+                            currentItemCounts[itemKey] = {
+                                count = (currentItemCounts[itemKey] and currentItemCounts[itemKey].count or 0) + 1,
+                                data = {
+                                    fullName = originalName,
+                                    baseName = baseName,
+                                    weight = weight,
+                                    mutation = mutation
+                                }
                             }
-                        }
-                        break -- Hentikan loop jika sudah ketemu match
+                            break -- Stop checking other whitelist entries
+                        end
                     end
                 end
             end
         end
 
+        -- Skip initial scan (prevent spam on script start)
         if isInitialScan then
             trackedItemCounts = currentItemCounts
             isInitialScan = false
             return
         end
 
+        -- Compare current counts with previous counts
         for itemKey, currentItem in pairs(currentItemCounts) do
             local previousCount = (trackedItemCounts[itemKey] and trackedItemCounts[itemKey].count) or 0
             if currentItem.count > previousCount then
-                -- Send webhook notification
+                -- Send webhook notification for NEW items
                 sendNotification(currentItem.data, currentItem.count - previousCount)
 
                 -- Auto-favorite NEW item (to prevent auto-sell)
