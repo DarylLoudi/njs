@@ -541,6 +541,8 @@ do
             ["Ghost Shark"] = true,
             ["Robot Kraken"] = true,
             ["Zombie Shark"] = true,
+            ["Scary Clownfish"] = true,
+            ["Witch Fish"] = true,
             ["Dead Zombie Shark"] = true,
             ["Zombie Megalodon"] = true,
             ["Bone Whale"] = true,
