@@ -541,8 +541,6 @@ do
             ["Ghost Shark"] = true,
             ["Robot Kraken"] = true,
             ["Zombie Shark"] = true,
-            ["Scary Clownfish"] = true,
-            ["Witch Fish"] = true,
             ["Dead Zombie Shark"] = true,
             ["Zombie Megalodon"] = true,
             ["Bone Whale"] = true,
@@ -551,8 +549,6 @@ do
             ["Mosasaur Shark"] = true,
             ["Thin Armor Shark"] = true,
             ["Arrow Artifact"] = true,
-            ["Yello Damselfish"] = true,
-            ["Gar Fish"] = true,
             ["Crescent Artifact"] = true,
             ["Diamond Artifact"] = true,
             ["Hourglass Diamond Artifact"] = true
