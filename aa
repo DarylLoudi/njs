@@ -4415,56 +4415,8 @@ local function purchaseInitialWeather()
     end
 end
 
--- Manual configuration function
-local function startManualConfig()
-    task.wait(3)  -- Wait for everything to load
-
-    -- Teleport first
-    teleportToNamedLocation(useTeleportLoc)
-    task.wait(3)  -- Increased wait time after teleport for character to stabilize
-
-    -- ====================================================================
-    -- CRITICAL: Disable ALL animations BEFORE auto farm starts
-    -- ====================================================================
-    disableAllFishingAnimationsOnce()
-    task.wait(2)  -- Wait for animation disabler to complete all methods
-
-    -- Enable GPU Saver if configured
-    if useGPUSaver then
-        enableGPUSaver()
-        task.wait(0.5)
-    end
-
-    -- Enable Auto Farm if configured
-    if useAutoFarm then
-        setAutoFarm(true)
-        task.wait(1)  -- Give farm system time to initialize
-    end
-
-    -- Enable Auto Sell if configured
-    if useAutoSell then
-        setSell(true)
-        task.wait(0.5)
-    end
-
-    -- Enable Auto Weather if configured
-    if useAutoWeather then
-        setAutoWeather(true)
-        task.wait(0.5)
-    end
-
-    -- Enable Auto Megalodon if configured
-    if useAutoMegalodon then
-        setAutoMegalodon(true)
-        task.wait(0.5)
-    end
-
-    -- Auto Upgrade Rod/Bait already enabled in main startup sequence
-    -- (Initial equip runs BEFORE this function is called)
-end
-
 -- ====================================================================
---     ONE-TIME ANIMATION DISABLER (Executes Before Auto Farm Starts)
+--     ONE-TIME ANIMATION DISABLER (Must be defined BEFORE startManualConfig)
 -- ====================================================================
 -- System to disable ALL fishing animations ONCE before auto farm logic begins
 -- Based on auto_farm_v5 no animasi.lua methods
@@ -4663,6 +4615,54 @@ LocalPlayer.CharacterAdded:Connect(function()
     AnimationDisablerExecuted = false
     disableAllFishingAnimationsOnce()
 end)
+
+-- Manual configuration function
+local function startManualConfig()
+    task.wait(3)  -- Wait for everything to load
+
+    -- Teleport first
+    teleportToNamedLocation(useTeleportLoc)
+    task.wait(3)  -- Increased wait time after teleport for character to stabilize
+
+    -- ====================================================================
+    -- CRITICAL: Disable ALL animations BEFORE auto farm starts
+    -- ====================================================================
+    disableAllFishingAnimationsOnce()
+    task.wait(2)  -- Wait for animation disabler to complete all methods
+
+    -- Enable GPU Saver if configured
+    if useGPUSaver then
+        enableGPUSaver()
+        task.wait(0.5)
+    end
+
+    -- Enable Auto Farm if configured
+    if useAutoFarm then
+        setAutoFarm(true)
+        task.wait(1)  -- Give farm system time to initialize
+    end
+
+    -- Enable Auto Sell if configured
+    if useAutoSell then
+        setSell(true)
+        task.wait(0.5)
+    end
+
+    -- Enable Auto Weather if configured
+    if useAutoWeather then
+        setAutoWeather(true)
+        task.wait(0.5)
+    end
+
+    -- Enable Auto Megalodon if configured
+    if useAutoMegalodon then
+        setAutoMegalodon(true)
+        task.wait(0.5)
+    end
+
+    -- Auto Upgrade Rod/Bait already enabled in main startup sequence
+    -- (Initial equip runs BEFORE this function is called)
+end
 
 -- ====================================================================
 --                    AUTO LOOPS (CORE FISHING LOGIC) (NEW FARM)
