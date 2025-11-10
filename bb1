@@ -2270,8 +2270,8 @@ local fishCaughtEvent = networkEvents.fishCaughtEvent
 local newFishEvent = networkEvents.newFishNotificationEvent  -- ✅ CRITICAL: Event for detecting fish caught
 
 -- ====== WEBHOOK SETUP (before rare fish detection) ======
-local lastWebhookTime = 0
-local WEBHOOK_COOLDOWN = 15 -- 15 seconds cooldown between webhooks to prevent rate limiting
+local webhookLastSendTime = {} -- Per-webhook-type cooldown tracking
+local WEBHOOK_COOLDOWN = 1 -- 1 second cooldown between SAME webhook type to prevent rate limiting
 local webhookRetryDelay = 5 -- Base retry delay in seconds
 local maxRetryAttempts = 3
 local UNIFIED_WEBHOOK_URL = type(webhook2) == "string" and webhook2 or ""
@@ -2291,16 +2291,12 @@ local function setupRareFishDetection()
     print("[Rare Fish Detection] ⚠️  IMPORTANT: This ONLY detects fish caught by THIS player")
     print("[Rare Fish Detection] ⚠️  Other players' fish catches will NOT be detected")
 
-    local totalCaught = 0
     local rareFishCaught = 0
     local newSpeciesCaught = 0
 
     -- Hook the event to monitor fish catches
     local connection
     connection = newFishEvent.OnClientEvent:Connect(function(fishId, fishData, textNotif, isNewItem)
-        totalCaught = totalCaught + 1
-        print(string.format("[Rare Fish Detection] Fish #%d caught: %s", totalCaught, fishId))
-
         pcall(function()
             -- Get item utility to check rarity
             local itemUtility = require(replicatedStorage:WaitForChild("Shared", 5):WaitForChild("ItemUtility", 5))
@@ -2311,7 +2307,6 @@ local function setupRareFishDetection()
 
             local itemData = itemUtility:GetItemData(fishId)
             if not itemData then
-                warn(string.format("[Rare Fish Detection] ⚠️  No item data for %s", fishId))
                 return
             end
 
@@ -2327,16 +2322,21 @@ local function setupRareFishDetection()
                     local fishIcon = itemData.Data and itemData.Data.Icon or nil
 
                     -- Log rare fish catch
-                    local logMessage = string.format(
-                        "🎣 [RARE FISH] %s | Rarity: 1 in %.1f | Weight: %s kg | Variant: %s | New: %s | Total Rare: %d",
+                    print(string.format(
+                        "🎣 [RARE FISH] %s | Rarity: 1 in %.1f | Weight: %s kg | Variant: %s | New: %s",
                         fishId,
                         rarityRatio,
                         tostring(weight),
                         variant,
-                        tostring(isNewItem),
-                        rareFishCaught
-                    )
-                    print(logMessage)
+                        tostring(isNewItem)
+                    ))
+
+                    -- Debug: log fish icon
+                    if fishIcon then
+                        print(string.format("[Rare Fish Detection] 🖼️  Fish icon: %s", tostring(fishIcon)))
+                    else
+                        print("[Rare Fish Detection] ⚠️  Fish icon is nil or empty")
+                    end
 
                     -- Send webhook notification for rare fish
                     if UNIFIED_WEBHOOK_URL and UNIFIED_WEBHOOK_URL ~= "" then
@@ -2347,18 +2347,16 @@ local function setupRareFishDetection()
                             weight = weight,
                             variant = variant,
                             isNew = isNewItem,
-                            fishIcon = fishIcon  -- Add fish image icon
+                            fishIcon = fishIcon
                         })
                     else
-                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured. Skipping webhook send.")
-                        print("[Rare Fish Detection] Current UNIFIED_WEBHOOK_URL: " .. tostring(UNIFIED_WEBHOOK_URL))
+                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured")
                     end
 
                 elseif isNewItem then
                     newSpeciesCaught = newSpeciesCaught + 1
                     -- Log new species discovery
-                    local logMessage = string.format("✨ [NEW SPECIES #%d] %s caught for the first time!", newSpeciesCaught, fishId)
-                    print(logMessage)
+                    print(string.format("✨ [NEW SPECIES] %s caught for the first time!", fishId))
 
                     -- Send webhook notification for new species
                     if UNIFIED_WEBHOOK_URL and UNIFIED_WEBHOOK_URL ~= "" then
@@ -2368,14 +2366,11 @@ local function setupRareFishDetection()
                             fishId = fishId,
                             weight = fishData and fishData.Weight or "unknown",
                             variant = fishData and fishData.VariantId or "none",
-                            fishIcon = fishIcon  -- Add fish image icon
+                            fishIcon = fishIcon
                         })
                     else
-                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured. Skipping webhook send.")
+                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured")
                     end
-                else
-                    -- Regular fish (not rare, not new)
-                    print(string.format("[Rare Fish Detection] 🐟 Regular fish: %s (Chance: %.2E)", fishId, rarity.Chance))
                 end
             end
         end)
@@ -3139,13 +3134,15 @@ end
 local function sendUnifiedWebhook(webhookType, data)
     -- Check if webhook URL is configured
     if not UNIFIED_WEBHOOK_URL or UNIFIED_WEBHOOK_URL == "" then
-        warn('[Webhook] URL not configured! Please set UNIFIED_WEBHOOK_URL variable.')
+        warn('[Webhook] URL not configured!')
         return
     end
 
-    -- Rate limiting check
+    -- Rate limiting check (per webhook type)
     local currentTime = tick()
-    if currentTime - lastWebhookTime < WEBHOOK_COOLDOWN then
+    local lastTime = webhookLastSendTime[webhookType] or 0
+    if currentTime - lastTime < WEBHOOK_COOLDOWN then
+        -- Webhook type is rate limited, skip
         return
     end
 
@@ -3214,11 +3211,14 @@ local function sendUnifiedWebhook(webhookType, data)
         }
         -- Add fish thumbnail if available
         if data.fishIcon and data.fishIcon ~= "" then
+            print(string.format("[Webhook] Adding thumbnail for %s: %s", data.fishId, tostring(data.fishIcon)))
             embed.thumbnail = {
                 url = data.fishIcon,
                 height = 256,
                 width = 256
             }
+        else
+            print(string.format("[Webhook] No thumbnail for %s (fishIcon is nil/empty)", data.fishId))
         end
         -- Mention the Discord user for rare fish (if configured)
         if type(discordid) == "string" and discordid ~= "" then
@@ -3241,11 +3241,14 @@ local function sendUnifiedWebhook(webhookType, data)
         }
         -- Add fish thumbnail if available
         if data.fishIcon and data.fishIcon ~= "" then
+            print(string.format("[Webhook] Adding thumbnail for %s: %s", data.fishId, tostring(data.fishIcon)))
             embed.thumbnail = {
                 url = data.fishIcon,
                 height = 256,
                 width = 256
             }
+        else
+            print(string.format("[Webhook] No thumbnail for %s (fishIcon is nil/empty)", data.fishId))
         end
         -- Mention the Discord user for new species
         if type(discordid) == "string" and discordid ~= "" then
@@ -3286,14 +3289,14 @@ local function sendUnifiedWebhook(webhookType, data)
             end)
 
             if success then
-                lastWebhookTime = tick()
+                webhookLastSendTime[webhookType] = tick()
                 break
             else
                 warn('[Webhook] ' .. webhookType .. ' attempt ' .. attempt .. ' failed: ' .. tostring(err))
 
                 -- Handle specific rate limiting errors
                 if string.find(tostring(err):lower(), "429") or string.find(tostring(err):lower(), "rate") then
-                    lastWebhookTime = tick() + 60 -- Block webhooks for 60 seconds on rate limit
+                    webhookLastSendTime[webhookType] = tick() + 60 -- Block this webhook type for 60 seconds on rate limit
                     task.wait(60) -- Wait longer for rate limit recovery
                     break -- Don't retry immediately on rate limit
                 elseif string.find(tostring(err):lower(), "network") or string.find(tostring(err):lower(), "timeout") then
