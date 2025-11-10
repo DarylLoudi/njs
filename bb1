@@ -2278,73 +2278,115 @@ local UNIFIED_WEBHOOK_URL = type(webhook2) == "string" and webhook2 or ""
 
 -- ====== RARE FISH DETECTION SYSTEM (via notifcontroller.lua) ======
 -- Hook ObtainedNewFishNotification event to detect rare fish without inventory scanning
+-- NOTE: This ONLY catches fish from THIS player, not from other players
 local function setupRareFishDetection()
     if not newFishEvent then
         warn("[Rare Fish Detection] ❌ ObtainedNewFishNotification event not available")
+        warn("[Rare Fish Detection] Debug: newFishEvent is nil")
         return
     end
+
+    print("[Rare Fish Detection] 🎣 Initializing rare fish detection...")
+    print("[Rare Fish Detection] Listening for ObtainedNewFishNotification events...")
+    print("[Rare Fish Detection] ⚠️  IMPORTANT: This ONLY detects fish caught by THIS player")
+    print("[Rare Fish Detection] ⚠️  Other players' fish catches will NOT be detected")
+
+    local totalCaught = 0
+    local rareFishCaught = 0
+    local newSpeciesCaught = 0
 
     -- Hook the event to monitor fish catches
     local connection
     connection = newFishEvent.OnClientEvent:Connect(function(fishId, fishData, textNotif, isNewItem)
+        totalCaught = totalCaught + 1
+        print(string.format("[Rare Fish Detection] Fish #%d caught: %s", totalCaught, fishId))
+
         pcall(function()
             -- Get item utility to check rarity
             local itemUtility = require(replicatedStorage:WaitForChild("Shared", 5):WaitForChild("ItemUtility", 5))
+            if not itemUtility then
+                warn("[Rare Fish Detection] ❌ Could not load ItemUtility")
+                return
+            end
+
             local itemData = itemUtility:GetItemData(fishId)
+            if not itemData then
+                warn(string.format("[Rare Fish Detection] ⚠️  No item data for %s", fishId))
+                return
+            end
 
             if itemData and (itemData.Probability or itemData.ForcedProbability) then
                 local rarity = itemData.Probability or itemData.ForcedProbability
 
                 -- Check if fish is rare (Chance <= 0.0002 = 1 in 5000 or rarer)
                 if rarity.Chance and rarity.Chance <= 2.0E-4 then
+                    rareFishCaught = rareFishCaught + 1
                     local rarityRatio = math.round(1 / rarity.Chance * 10) / 10
                     local weight = fishData and fishData.Weight or "unknown"
                     local variant = fishData and fishData.VariantId or "none"
+                    local fishIcon = itemData.Data and itemData.Data.Icon or nil
 
                     -- Log rare fish catch
                     local logMessage = string.format(
-                        "🎣 [RARE FISH] %s | Rarity: 1 in %.1f | Weight: %s kg | Variant: %s | New: %s",
+                        "🎣 [RARE FISH] %s | Rarity: 1 in %.1f | Weight: %s kg | Variant: %s | New: %s | Total Rare: %d",
                         fishId,
                         rarityRatio,
                         tostring(weight),
                         variant,
-                        tostring(isNewItem)
+                        tostring(isNewItem),
+                        rareFishCaught
                     )
                     print(logMessage)
 
                     -- Send webhook notification for rare fish
                     if UNIFIED_WEBHOOK_URL and UNIFIED_WEBHOOK_URL ~= "" then
+                        print("[Rare Fish Detection] 📤 Sending webhook for rare fish...")
                         sendUnifiedWebhook("rare_fish_caught", {
                             fishId = fishId,
                             rarity = rarityRatio,
                             weight = weight,
                             variant = variant,
-                            isNew = isNewItem
+                            isNew = isNewItem,
+                            fishIcon = fishIcon  -- Add fish image icon
                         })
+                    else
+                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured. Skipping webhook send.")
+                        print("[Rare Fish Detection] Current UNIFIED_WEBHOOK_URL: " .. tostring(UNIFIED_WEBHOOK_URL))
                     end
 
                 elseif isNewItem then
+                    newSpeciesCaught = newSpeciesCaught + 1
                     -- Log new species discovery
-                    local logMessage = string.format("✨ [NEW SPECIES] %s caught for the first time!", fishId)
+                    local logMessage = string.format("✨ [NEW SPECIES #%d] %s caught for the first time!", newSpeciesCaught, fishId)
                     print(logMessage)
 
                     -- Send webhook notification for new species
                     if UNIFIED_WEBHOOK_URL and UNIFIED_WEBHOOK_URL ~= "" then
+                        print("[Rare Fish Detection] 📤 Sending webhook for new species...")
+                        local fishIcon = itemData.Data and itemData.Data.Icon or nil
                         sendUnifiedWebhook("new_species_caught", {
                             fishId = fishId,
                             weight = fishData and fishData.Weight or "unknown",
-                            variant = fishData and fishData.VariantId or "none"
+                            variant = fishData and fishData.VariantId or "none",
+                            fishIcon = fishIcon  -- Add fish image icon
                         })
+                    else
+                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured. Skipping webhook send.")
                     end
+                else
+                    -- Regular fish (not rare, not new)
+                    print(string.format("[Rare Fish Detection] 🐟 Regular fish: %s (Chance: %.2E)", fishId, rarity.Chance))
                 end
             end
         end)
     end)
 
-    print("[Rare Fish Detection] ✅ Hooked into ObtainedNewFishNotification event")
+    print("[Rare Fish Detection] ✅ Successfully hooked into ObtainedNewFishNotification event")
+    print("[Rare Fish Detection] Ready to detect rare fish!")
 end
 
 -- Initialize rare fish detection
+print("[Rare Fish Detection] Scheduling initialization in 2 seconds...")
 task.delay(2, setupRareFishDetection)
 
 -- ====== SIMPLIFIED GPU SAVER WITH CENTER LAYOUT ====== 
@@ -3170,6 +3212,14 @@ local function sendUnifiedWebhook(webhookType, data)
             },
             footer = { text = "Rare Fish Detector • Auto Fish" }
         }
+        -- Add fish thumbnail if available
+        if data.fishIcon and data.fishIcon ~= "" then
+            embed.thumbnail = {
+                url = data.fishIcon,
+                height = 256,
+                width = 256
+            }
+        end
         -- Mention the Discord user for rare fish (if configured)
         if type(discordid) == "string" and discordid ~= "" then
             embed.description = string.format("<@%s>\n**%s** has been caught!", discordid, data.fishId)
@@ -3189,6 +3239,14 @@ local function sendUnifiedWebhook(webhookType, data)
             },
             footer = { text = "Species Index • Auto Fish" }
         }
+        -- Add fish thumbnail if available
+        if data.fishIcon and data.fishIcon ~= "" then
+            embed.thumbnail = {
+                url = data.fishIcon,
+                height = 256,
+                width = 256
+            }
+        end
         -- Mention the Discord user for new species
         if type(discordid) == "string" and discordid ~= "" then
             embed.description = string.format("<@%s>\n**%s** has been caught for the first time!", discordid, data.fishId)
