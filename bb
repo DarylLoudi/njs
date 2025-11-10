@@ -1016,6 +1016,59 @@ end
 print("✅ Global animation overrides applied\n")
 
 -- ====================================================================
+-- CHARACTER FREEZE SYSTEM - Completely lock character from playing animations
+-- ====================================================================
+
+-- Monitor character and apply animation freeze
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+
+        pcall(function()
+            local character = player.Character
+            if character then
+                local humanoid = character:FindFirstChildWhichIsA("Humanoid")
+                local animator = humanoid and humanoid:FindFirstChildWhichIsA("Animator")
+
+                if animator then
+                    -- Override LoadAnimation to return dummy track
+                    if not animator._originalLoadAnimation then
+                        animator._originalLoadAnimation = animator.LoadAnimation
+                    end
+
+                    animator.LoadAnimation = function(self, animation)
+                        -- Return dummy track that does nothing
+                        return {
+                            Play = function() end,
+                            Stop = function() end,
+                            Destroy = function() end,
+                            TimePosition = 0,
+                            Length = 0,
+                            IsPlaying = false,
+                            Looped = false,
+                            Ended = {
+                                Connect = function() end,
+                                Once = function() end,
+                                Wait = function() end
+                            },
+                            Stopped = {
+                                Connect = function() end,
+                                Once = function() end,
+                                Wait = function() end
+                            },
+                            GetPropertyChangedSignal = function() return {Connect = function() end} end,
+                            Destroying = {Once = function() end}
+                        }
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+print("✅ Character animation freeze system active\n")
+
+-- ====================================================================
 --     DELETE FISHCAUGHT GUI (Prevent interference with farm system)
 -- ====================================================================
 -- Delete FishCaught GUI to prevent popup interference
