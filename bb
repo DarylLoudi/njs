@@ -920,53 +920,8 @@ local Replion = require(replicatedStorage.Packages.Replion)
 local PlayerData = Replion.Client:WaitReplion("Data")
 
 -- ====================================================================
---     ANIMATION CONTROLLER INITIALIZATION (For ReelIntermission)
+--     ANIMATION SYSTEM DISABLED - All animations removed for performance
 -- ====================================================================
-
-print("🎬 Initializing ReelIntermission Animation System...")
-
-local AnimationController = nil
-local Animations = nil
-local reelIntermissionAnim = nil
-local animationSystemReady = false
-
-pcall(function()
-    AnimationController = require(replicatedStorage:WaitForChild("Controllers", 3):WaitForChild("AnimationController", 3))
-    if AnimationController then
-        print("✅ AnimationController loaded")
-        AnimationController:Init()
-        AnimationController:Start()
-        task.wait(2) -- Wait for animations to preload
-        animationSystemReady = true
-        print("✅ AnimationController initialized")
-    end
-end)
-
-pcall(function()
-    if animationSystemReady then
-        Animations = require(replicatedStorage:WaitForChild("Modules", 3):WaitForChild("Animations", 3))
-        if Animations then
-            print("✅ Animations module loaded")
-            -- Find ReelIntermission animation
-            for animName, animData in pairs(Animations) do
-                if animData and not animData.Disabled and animName:lower():find("reelintermission") then
-                    reelIntermissionAnim = animName
-                    print("✅ Found ReelIntermission animation: " .. animName)
-                    break
-                end
-            end
-            if not reelIntermissionAnim then
-                warn("⚠️ ReelIntermission animation not found!")
-            end
-        end
-    end
-end)
-
-if animationSystemReady and reelIntermissionAnim then
-    print("✅ ReelIntermission animation system ready!\n")
-else
-    warn("⚠️ Animation system initialization failed - continuing without animation\n")
-end
 
 -- ====================================================================
 --     DELETE FISHCAUGHT GUI (Prevent interference with farm system)
@@ -4151,26 +4106,6 @@ local function fishingCycle()
 end
 
 -- ====================================================================
---     ANIMATION LOOP (ReelIntermission - Independent from farm cycle)
--- ====================================================================
-
--- State for animation loop
-local continuousAnimationThreadActive = false
-local continuousAnimationThread = nil
-
--- Continuous ReelIntermission animation loop (applies constantly)
-local function continuousAnimationLoop()
-    while continuousAnimationThreadActive and isAutoFarmOn do
-        if AnimationController and reelIntermissionAnim then
-            pcall(function()
-                AnimationController:PlayAnimation(reelIntermissionAnim, false)
-            end)
-        end
-        task.wait(0.01)  -- 10ms yield to prevent freeze
-    end
-end
-
--- ====================================================================
 --     ISOLATED AUTO FARM THREAD (Completely independent from other loops)
 -- ====================================================================
 local farmThread = nil
@@ -4180,15 +4115,6 @@ local function startFarm()
     if farmThread or farmThreadActive then
         return
     end
-
-    -- Start animation loop (independent from farm cycle)
-    if animationSystemReady and not continuousAnimationThread then
-        continuousAnimationThreadActive = true
-        continuousAnimationThread = task.spawn(continuousAnimationLoop)
-    end
-
-    -- Small delay to ensure animation loop is started
-    task.wait(0.2)
 
     -- Equip fishing tool before starting farm
     print("🎣 Equipping fishing tool before starting farm...")
@@ -4217,16 +4143,6 @@ local function stopFarm()
             task.cancel(farmThread)
         end)
         farmThread = nil
-    end
-
-    -- Stop animation loop
-    continuousAnimationThreadActive = false
-
-    if continuousAnimationThread then
-        pcall(function()
-            task.cancel(continuousAnimationThread)
-        end)
-        continuousAnimationThread = nil
     end
 end
 
