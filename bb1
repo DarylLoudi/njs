@@ -2312,7 +2312,6 @@ local function sendUnifiedWebhook(webhookType, data)
                 { name = "✨ Rarity", value = string.format("1 in %.1f", data.rarity), inline = true },
                 { name = "⚖️ Weight", value = tostring(data.weight) .. " kg", inline = true },
                 { name = "🎨 Variant", value = data.variant, inline = true },
-                { name = "📍 Status", value = data.isNew and "✅ NEW" or "🔄 DUPLICATE", inline = true },
                 { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = true },
                 { name = "👤 Player", value = player.DisplayName or player.Name or "Unknown", inline = false },
             },
@@ -2326,9 +2325,9 @@ local function sendUnifiedWebhook(webhookType, data)
             if string.match(data.fishIcon, "^rbxassetid://") then
                 local assetId = string.match(data.fishIcon, "rbxassetid://(%d+)")
                 if assetId then
-                    -- Method 1: Try to fetch actual image URL from Roblox API
+                    -- Method 1: Try to fetch actual image URL from Roblox API (768x432 for better quality)
                     local success, result = pcall(function()
-                        local apiUrl = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=420x420&format=Png&isCircular=false", assetId)
+                        local apiUrl = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=768x432&format=Png&isCircular=false", assetId)
 
                         local req = syn and syn.request or http_request or (fluxus and fluxus.request) or request
                         if req then
@@ -2374,10 +2373,6 @@ local function sendUnifiedWebhook(webhookType, data)
         else
             print(string.format("[Webhook] ⚠️ No fishIcon provided for %s", data.fishId or "unknown"))
         end
-        -- Mention the Discord user for rare fish (if configured)
-        if type(discordid) == "string" and discordid ~= "" then
-            embed.description = string.format("<@%s>\n**%s** has been caught!", discordid, data.fishId)
-        end
 
     elseif webhookType == "new_species_caught" then
         embed = {
@@ -2401,9 +2396,9 @@ local function sendUnifiedWebhook(webhookType, data)
             if string.match(data.fishIcon, "^rbxassetid://") then
                 local assetId = string.match(data.fishIcon, "rbxassetid://(%d+)")
                 if assetId then
-                    -- Method 1: Try to fetch actual image URL from Roblox API
+                    -- Method 1: Try to fetch actual image URL from Roblox API (768x432 for better quality)
                     local success, result = pcall(function()
-                        local apiUrl = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=420x420&format=Png&isCircular=false", assetId)
+                        local apiUrl = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=768x432&format=Png&isCircular=false", assetId)
 
                         local req = syn and syn.request or http_request or (fluxus and fluxus.request) or request
                         if req then
@@ -2615,6 +2610,12 @@ local function setupRareFishDetection()
     local newSpeciesCaught = 0
 
     -- Hook the event to monitor fish catches
+    -- Event parameters:
+    --   fishId = Fish ID (numeric, e.g., 1, 274)
+    --   fishData = Table with metadata: {Weight=number, VariantId=string, TimesCaught=number}
+    --   textNotif = Optional text notification object
+    --   isNewItem = Boolean - TRUE if this species is caught for FIRST TIME, FALSE if already caught before
+    --              (Server tracks TimesCaught per species - if TimesCaught==1 then isNewItem=true)
     local connection
     connection = newFishEvent.OnClientEvent:Connect(function(fishId, fishData, textNotif, isNewItem)
         pcall(function()
