@@ -2318,40 +2318,21 @@ local function sendUnifiedWebhook(webhookType, data)
             },
             footer = { text = "Rare Fish Detector • Auto Fish" }
         }
-        -- Add fish thumbnail using fish name with fisch.wiki CDN (most reliable)
+        -- Add fish thumbnail - use fisch.wiki CDN by fish name (most reliable for Discord)
         if data.fishId then
             local thumbnailUrl = nil
 
-            -- Try direct HTTP URL first (if fishIcon is already valid URL)
-            if data.fishIcon and data.fishIcon ~= "" and string.match(data.fishIcon, "^https?://") then
-                thumbnailUrl = data.fishIcon
-                print(string.format("[Webhook] Using direct icon URL: %s", thumbnailUrl))
-
-            -- Try converting rbxassetid to working URL
-            elseif data.fishIcon and string.match(data.fishIcon, "^rbxassetid://") then
-                local assetId = string.match(data.fishIcon, "rbxassetid://(%d+)")
-                if assetId then
-                    -- Use tr.rbxcdn.com which is more Discord-friendly
-                    thumbnailUrl = string.format("https://tr.rbxcdn.com/%s/420/420/Image/Png", assetId)
-                    print(string.format("[Webhook] Using rbxcdn for asset %s", assetId))
-                end
-
-            -- Fallback: Use fisch.wiki image CDN by fish name
-            else
-                local fishName = tostring(data.fishId):gsub(" ", "_") -- Replace spaces with underscores
-                -- fisch.wiki uses format: /images/items/{FishName}.png
-                thumbnailUrl = string.format("https://fisch.wiki/images/items/%s.png", fishName)
-                print(string.format("[Webhook] Using fisch.wiki: %s", fishName))
-            end
+            -- Primary method: Use fisch.wiki with fish name (best compatibility)
+            local fishName = tostring(data.fishId):gsub(" ", "_"):gsub("'", "") -- Clean fish name
+            thumbnailUrl = string.format("https://static.wikia.nocookie.net/roblox-fisch/images/%s.png", fishName)
+            print(string.format("[Webhook] Using wiki thumbnail: %s", fishName))
 
             -- Add thumbnail to embed
             if thumbnailUrl then
                 embed.thumbnail = {
                     url = thumbnailUrl
                 }
-                print(string.format("[Webhook] Thumbnail set for %s", data.fishId))
-            else
-                print(string.format("[Webhook] No thumbnail for %s", data.fishId))
+                print(string.format("[Webhook] ✅ Thumbnail set: %s", thumbnailUrl))
             end
         end
         -- Mention the Discord user for rare fish (if configured)
@@ -2373,40 +2354,21 @@ local function sendUnifiedWebhook(webhookType, data)
             },
             footer = { text = "Species Index • Auto Fish" }
         }
-        -- Add fish thumbnail using fish name with fisch.wiki CDN (most reliable)
+        -- Add fish thumbnail - use fisch.wiki CDN by fish name (most reliable for Discord)
         if data.fishId then
             local thumbnailUrl = nil
 
-            -- Try direct HTTP URL first (if fishIcon is already valid URL)
-            if data.fishIcon and data.fishIcon ~= "" and string.match(data.fishIcon, "^https?://") then
-                thumbnailUrl = data.fishIcon
-                print(string.format("[Webhook] Using direct icon URL: %s", thumbnailUrl))
-
-            -- Try converting rbxassetid to working URL
-            elseif data.fishIcon and string.match(data.fishIcon, "^rbxassetid://") then
-                local assetId = string.match(data.fishIcon, "rbxassetid://(%d+)")
-                if assetId then
-                    -- Use tr.rbxcdn.com which is more Discord-friendly
-                    thumbnailUrl = string.format("https://tr.rbxcdn.com/%s/420/420/Image/Png", assetId)
-                    print(string.format("[Webhook] Using rbxcdn for asset %s", assetId))
-                end
-
-            -- Fallback: Use fisch.wiki image CDN by fish name
-            else
-                local fishName = tostring(data.fishId):gsub(" ", "_") -- Replace spaces with underscores
-                -- fisch.wiki uses format: /images/items/{FishName}.png
-                thumbnailUrl = string.format("https://fisch.wiki/images/items/%s.png", fishName)
-                print(string.format("[Webhook] Using fisch.wiki: %s", fishName))
-            end
+            -- Primary method: Use fisch.wiki with fish name (best compatibility)
+            local fishName = tostring(data.fishId):gsub(" ", "_"):gsub("'", "") -- Clean fish name
+            thumbnailUrl = string.format("https://static.wikia.nocookie.net/roblox-fisch/images/%s.png", fishName)
+            print(string.format("[Webhook] Using wiki thumbnail: %s", fishName))
 
             -- Add thumbnail to embed
             if thumbnailUrl then
                 embed.thumbnail = {
                     url = thumbnailUrl
                 }
-                print(string.format("[Webhook] Thumbnail set for %s", data.fishId))
-            else
-                print(string.format("[Webhook] No thumbnail for %s", data.fishId))
+                print(string.format("[Webhook] ✅ Thumbnail set: %s", thumbnailUrl))
             end
         end
         -- Mention the Discord user for new species
@@ -2601,10 +2563,13 @@ local function setupRareFishDetection()
                     local variant = fishData and fishData.VariantId or "none"
                     local fishIcon = itemData.Data and itemData.Data.Icon or nil
 
+                    -- Get fish NAME (not ID!)
+                    local fishName = itemData.Data and itemData.Data.Name or tostring(fishId)
+
                     -- Log rare fish catch
                     print(string.format(
                         "🎣 [RARE FISH] %s | Rarity: 1 in %.1f | Weight: %s kg | Variant: %s | New: %s",
-                        fishId,
+                        fishName,
                         rarityRatio,
                         tostring(weight),
                         variant,
@@ -2621,9 +2586,9 @@ local function setupRareFishDetection()
                     -- Send webhook notification for rare fish
                     local webhookURL = getWebhookURL()
                     if webhookURL and webhookURL ~= "" then
-                        print("[Rare Fish Detection] 📤 Sending webhook for rare fish...")
+                        print(string.format("[Rare Fish Detection] 📤 Sending webhook for: %s", fishName))
                         sendUnifiedWebhook("rare_fish_caught", {
-                            fishId = fishId,
+                            fishId = fishName,  -- Use fish NAME instead of ID
                             rarity = rarityRatio,
                             weight = weight,
                             variant = variant,
@@ -2636,16 +2601,20 @@ local function setupRareFishDetection()
 
                 elseif isNewItem then
                     newSpeciesCaught = newSpeciesCaught + 1
+
+                    -- Get fish NAME (not ID!)
+                    local fishName = itemData.Data and itemData.Data.Name or tostring(fishId)
+
                     -- Log new species discovery
-                    print(string.format("✨ [NEW SPECIES] %s caught for the first time!", fishId))
+                    print(string.format("✨ [NEW SPECIES] %s caught for the first time!", fishName))
 
                     -- Send webhook notification for new species
                     local webhookURL = getWebhookURL()
                     if webhookURL and webhookURL ~= "" then
-                        print("[Rare Fish Detection] 📤 Sending webhook for new species...")
+                        print(string.format("[Rare Fish Detection] 📤 Sending webhook for new species: %s", fishName))
                         local fishIcon = itemData.Data and itemData.Data.Icon or nil
                         sendUnifiedWebhook("new_species_caught", {
-                            fishId = fishId,
+                            fishId = fishName,  -- Use fish NAME instead of ID
                             weight = fishData and fishData.Weight or "unknown",
                             variant = fishData and fishData.VariantId or "none",
                             fishIcon = fishIcon
