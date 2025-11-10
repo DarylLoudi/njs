@@ -3270,55 +3270,47 @@ local function sendUnifiedWebhook(webhookType, data)
     end
 
     local body = HttpService:JSONEncode({ embeds = {embed} })
+    print(string.format("[Webhook] Prepared webhook for %s with URL: %s", webhookType, UNIFIED_WEBHOOK_URL:sub(1, 50) .. "..."))
 
-    -- Send webhook with exponential backoff retry logic
-    task.spawn(function()
-        local attempt = 1
-        local success = false
+    -- Send webhook directly without task.spawn to avoid async issues
+    local success, err = pcall(function()
+        print("[Webhook] Attempting to send webhook...")
 
-        while attempt <= maxRetryAttempts and not success do
-            local currentRetryDelay = webhookRetryDelay * (2 ^ (attempt - 1)) -- Exponential backoff
-
-            if attempt > 1 then
-                task.wait(currentRetryDelay)
+        if syn and syn.request then
+            print("[Webhook] Using syn.request")
+            local response = syn.request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
+            if response then
+                print(string.format("[Webhook] syn.request response: %s", tostring(response.StatusCode)))
             end
-
-            success, err = pcall(function()
-                if syn and syn.request then
-                    syn.request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-                elseif http_request then
-                    http_request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-                elseif fluxus and fluxus.request then
-                    fluxus.request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-                elseif request then
-                    request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-                else
-                    error("Executor tidak support HTTP requests")
-                end
-            end)
-
-            if success then
-                webhookLastSendTime[webhookType] = tick()
-                break
-            else
-                warn('[Webhook] ' .. webhookType .. ' attempt ' .. attempt .. ' failed: ' .. tostring(err))
-
-                -- Handle specific rate limiting errors
-                if string.find(tostring(err):lower(), "429") or string.find(tostring(err):lower(), "rate") then
-                    webhookLastSendTime[webhookType] = tick() + 60 -- Block this webhook type for 60 seconds on rate limit
-                    task.wait(60) -- Wait longer for rate limit recovery
-                    break -- Don't retry immediately on rate limit
-                elseif string.find(tostring(err):lower(), "network") or string.find(tostring(err):lower(), "timeout") then
-                end
-
-                attempt = attempt + 1
+        elseif http_request then
+            print("[Webhook] Using http_request")
+            local response = http_request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
+            if response then
+                print(string.format("[Webhook] http_request response: %s", tostring(response.StatusCode)))
             end
-        end
-
-        if not success then
-            warn('[Webhook] All ' .. webhookType .. ' attempts failed')
+        elseif fluxus and fluxus.request then
+            print("[Webhook] Using fluxus.request")
+            local response = fluxus.request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
+            if response then
+                print(string.format("[Webhook] fluxus.request response: %s", tostring(response.StatusCode)))
+            end
+        elseif request then
+            print("[Webhook] Using request")
+            local response = request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
+            if response then
+                print(string.format("[Webhook] request response: %s", tostring(response.StatusCode)))
+            end
+        else
+            error("❌ No HTTP library found (syn, http_request, fluxus, or request)")
         end
     end)
+
+    if success then
+        print(string.format("[Webhook] ✅ %s webhook sent successfully!", webhookType))
+        webhookLastSendTime[webhookType] = tick()
+    else
+        warn(string.format("[Webhook] ❌ %s webhook failed: %s", webhookType, tostring(err)))
+    end
 end
 
 -- Legacy function for compatibility
