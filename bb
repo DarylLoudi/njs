@@ -923,6 +923,98 @@ local PlayerData = Replion.Client:WaitReplion("Data")
 --     ANIMATION SYSTEM DISABLED - All animations removed for performance
 -- ====================================================================
 
+-- Load and stub AnimationController to completely disable all animations
+pcall(function()
+    local AnimController = require(replicatedStorage:WaitForChild("Controllers", 3):WaitForChild("AnimationController", 3))
+
+    if AnimController then
+        print("🔇 Disabling all animations (AnimationController stubbed)...")
+
+        -- Create a dummy animation track object
+        local function createDummyTrack()
+            return {
+                Play = function() end,
+                Stop = function() end,
+                Destroy = function() end,
+                GetPropertyChangedSignal = function() return {Connect = function() end} end,
+                Ended = {
+                    Connect = function(_, callback) end,
+                    Once = function(_, callback) end,
+                    Wait = function() end
+                },
+                Stopped = {
+                    Connect = function(_, callback) end,
+                    Once = function(_, callback) end,
+                    Wait = function() end
+                },
+                TimePosition = 0,
+                Length = 0,
+                IsPlaying = false,
+                Looped = false,
+                Destroying = {
+                    Once = function(_, callback) end
+                }
+            }
+        end
+
+        -- Stub PlayAnimation - no animations will play
+        AnimController.PlayAnimation = function(self, animationName, waitForEnd)
+            return createDummyTrack(), animationName
+        end
+
+        -- Stub StopAnimation - no-op
+        AnimController.StopAnimation = function(self, animationName)
+            return
+        end
+
+        -- Stub AddAnimation - return dummy track
+        AnimController.AddAnimation = function(self, animationName)
+            return createDummyTrack()
+        end
+
+        -- Stub _preloadTracks - skip preloading
+        AnimController._preloadTracks = function(self)
+            return
+        end
+
+        -- Stub DestroyActiveAnimationTracks - no-op
+        AnimController.DestroyActiveAnimationTracks = function(self, excludeList)
+            return
+        end
+
+        -- Make IsDisabled always return true (marks all animations as disabled)
+        AnimController.IsDisabled = function(self, animationName)
+            return true
+        end
+
+        -- Keep GetAnimationData functional (other systems may depend on it)
+        -- Keep Init and Start functional (character lifecycle needs it)
+
+        print("✅ All animations completely disabled!")
+    end
+end)
+
+-- ====================================================================
+-- GLOBAL ANIMATION BYPASS - Override animation-related globals
+-- ====================================================================
+
+-- Stub RefreshIdle to prevent idle animations
+_G.RefreshIdle = function()
+    return
+end
+
+-- Stub RefreshMobileFishing to prevent mobile animations
+_G.RefreshMobileFishing = function()
+    return
+end
+
+-- Stub RefreshEquippedId to prevent equip animations
+_G.RefreshEquippedId = function()
+    return
+end
+
+print("✅ Global animation overrides applied\n")
+
 -- ====================================================================
 --     DELETE FISHCAUGHT GUI (Prevent interference with farm system)
 -- ====================================================================
