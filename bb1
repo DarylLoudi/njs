@@ -2274,7 +2274,11 @@ local webhookLastSendTime = {} -- Per-webhook-type cooldown tracking
 local WEBHOOK_COOLDOWN = 1 -- 1 second cooldown between SAME webhook type to prevent rate limiting
 local webhookRetryDelay = 5 -- Base retry delay in seconds
 local maxRetryAttempts = 3
-local UNIFIED_WEBHOOK_URL = type(webhook2) == "string" and webhook2 or ""
+
+-- Function to get webhook URL (lazy-loaded from global webhook2)
+local function getWebhookURL()
+    return type(webhook2) == "string" and webhook2 or ""
+end
 
 -- ====== RARE FISH DETECTION SYSTEM (via notifcontroller.lua) ======
 -- Hook ObtainedNewFishNotification event to detect rare fish without inventory scanning
@@ -2339,7 +2343,8 @@ local function setupRareFishDetection()
                     end
 
                     -- Send webhook notification for rare fish
-                    if UNIFIED_WEBHOOK_URL and UNIFIED_WEBHOOK_URL ~= "" then
+                    local webhookURL = getWebhookURL()
+                    if webhookURL and webhookURL ~= "" then
                         print("[Rare Fish Detection] 📤 Sending webhook for rare fish...")
                         sendUnifiedWebhook("rare_fish_caught", {
                             fishId = fishId,
@@ -2350,7 +2355,7 @@ local function setupRareFishDetection()
                             fishIcon = fishIcon
                         })
                     else
-                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured")
+                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured (webhook2 is empty)")
                     end
 
                 elseif isNewItem then
@@ -2359,7 +2364,8 @@ local function setupRareFishDetection()
                     print(string.format("✨ [NEW SPECIES] %s caught for the first time!", fishId))
 
                     -- Send webhook notification for new species
-                    if UNIFIED_WEBHOOK_URL and UNIFIED_WEBHOOK_URL ~= "" then
+                    local webhookURL = getWebhookURL()
+                    if webhookURL and webhookURL ~= "" then
                         print("[Rare Fish Detection] 📤 Sending webhook for new species...")
                         local fishIcon = itemData.Data and itemData.Data.Icon or nil
                         sendUnifiedWebhook("new_species_caught", {
@@ -2369,7 +2375,7 @@ local function setupRareFishDetection()
                             fishIcon = fishIcon
                         })
                     else
-                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured")
+                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured (webhook2 is empty)")
                     end
                 end
             end
@@ -3132,9 +3138,12 @@ end
 
 -- ====== UNIFIED WEBHOOK FUNCTION ======
 local function sendUnifiedWebhook(webhookType, data)
+    -- Get webhook URL (lazy-loaded)
+    local UNIFIED_WEBHOOK_URL = getWebhookURL()
+
     -- Check if webhook URL is configured
     if not UNIFIED_WEBHOOK_URL or UNIFIED_WEBHOOK_URL == "" then
-        warn('[Webhook] URL not configured!')
+        warn('[Webhook] URL not configured (webhook2 is empty)!')
         return
     end
 
