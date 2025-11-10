@@ -2318,14 +2318,31 @@ local function sendUnifiedWebhook(webhookType, data)
             },
             footer = { text = "Rare Fish Detector • Auto Fish" }
         }
-        -- Add fish thumbnail if available
+        -- Add fish thumbnail if available (convert rbxasset to HTTP URL)
         if data.fishIcon and data.fishIcon ~= "" then
-            print(string.format("[Webhook] Adding thumbnail for %s: %s", data.fishId, tostring(data.fishIcon)))
-            embed.thumbnail = {
-                url = data.fishIcon,
-                height = 256,
-                width = 256
-            }
+            local thumbnailUrl = data.fishIcon
+
+            -- Convert rbxassetid:// to Roblox CDN URL
+            if string.match(thumbnailUrl, "^rbxassetid://") then
+                local assetId = string.match(thumbnailUrl, "rbxassetid://(%d+)")
+                if assetId then
+                    thumbnailUrl = string.format("https://assetdelivery.roblox.com/v1/asset/?id=%s", assetId)
+                    print(string.format("[Webhook] Converted rbxasset to CDN: %s", thumbnailUrl))
+                else
+                    print(string.format("[Webhook] Failed to extract asset ID from: %s", thumbnailUrl))
+                    thumbnailUrl = nil
+                end
+            end
+
+            -- Only add thumbnail if we have valid HTTP/HTTPS URL
+            if thumbnailUrl and (string.match(thumbnailUrl, "^https?://")) then
+                print(string.format("[Webhook] Adding thumbnail for %s: %s", data.fishId, thumbnailUrl))
+                embed.thumbnail = {
+                    url = thumbnailUrl
+                }
+            else
+                print(string.format("[Webhook] Skipping invalid thumbnail URL for %s", data.fishId))
+            end
         else
             print(string.format("[Webhook] No thumbnail for %s (fishIcon is nil/empty)", data.fishId))
         end
@@ -2348,14 +2365,31 @@ local function sendUnifiedWebhook(webhookType, data)
             },
             footer = { text = "Species Index • Auto Fish" }
         }
-        -- Add fish thumbnail if available
+        -- Add fish thumbnail if available (convert rbxasset to HTTP URL)
         if data.fishIcon and data.fishIcon ~= "" then
-            print(string.format("[Webhook] Adding thumbnail for %s: %s", data.fishId, tostring(data.fishIcon)))
-            embed.thumbnail = {
-                url = data.fishIcon,
-                height = 256,
-                width = 256
-            }
+            local thumbnailUrl = data.fishIcon
+
+            -- Convert rbxassetid:// to Roblox CDN URL
+            if string.match(thumbnailUrl, "^rbxassetid://") then
+                local assetId = string.match(thumbnailUrl, "rbxassetid://(%d+)")
+                if assetId then
+                    thumbnailUrl = string.format("https://assetdelivery.roblox.com/v1/asset/?id=%s", assetId)
+                    print(string.format("[Webhook] Converted rbxasset to CDN: %s", thumbnailUrl))
+                else
+                    print(string.format("[Webhook] Failed to extract asset ID from: %s", thumbnailUrl))
+                    thumbnailUrl = nil
+                end
+            end
+
+            -- Only add thumbnail if we have valid HTTP/HTTPS URL
+            if thumbnailUrl and (string.match(thumbnailUrl, "^https?://")) then
+                print(string.format("[Webhook] Adding thumbnail for %s: %s", data.fishId, thumbnailUrl))
+                embed.thumbnail = {
+                    url = thumbnailUrl
+                }
+            else
+                print(string.format("[Webhook] Skipping invalid thumbnail URL for %s", data.fishId))
+            end
         else
             print(string.format("[Webhook] No thumbnail for %s (fishIcon is nil/empty)", data.fishId))
         end
@@ -2364,52 +2398,145 @@ local function sendUnifiedWebhook(webhookType, data)
             embed.description = string.format("<@%s>\n**%s** has been caught for the first time!", discordid, data.fishId)
         end
 
+    elseif webhookType == "megalodon_missing" then
+        embed = {
+            title = '[Megalodon] Event Missing',
+            description = 'No Megalodon Hunt props detected in this server.',
+            color = 16711680, -- Red
+            fields = {
+                { name = "👤 Player", value = (player.DisplayName or player.Name or "Unknown"), inline = true },
+                { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = true }
+            },
+            footer = { text = 'Megalodon Watch - Auto Fish' }
+        }
+
+    elseif webhookType == "megalodon_ended" then
+        local endedAt = data and data.endedAt or os.time()
+        local startedAt = data and data.startedAt or 0
+        local duration = data and data.duration
+        if (not duration or duration <= 0) and startedAt > 0 then
+            duration = math.max(0, endedAt - startedAt)
+        end
+
+        embed = {
+            title = '[Megalodon] Event Ended',
+            description = 'Megalodon Hunt props removed. Resuming farming routine.',
+            color = 3447003, -- Blue
+            fields = {
+                { name = "Player", value = (player.DisplayName or player.Name or "Unknown"), inline = true },
+                { name = "Ended At", value = os.date("%H:%M:%S", endedAt), inline = true },
+                { name = "Duration", value = formatDuration(duration), inline = true },
+            },
+            footer = { text = 'Megalodon Watch - Auto Fish' }
+        }
+
+    elseif webhookType == "fish_found" then
+        embed = {
+            title = "🎣 SECRET Fish Found",
+            description = data.description or "Fish detected in inventory",
+            color = 3066993, -- Blue-green
+            fields = {
+                { name = "🕒 Waktu",  value = os.date("%H:%M:%S"), inline = true },
+                { name = "👤 Player", value = player.DisplayName or player.Name or "Unknown", inline = true },
+                { name = "📦 Total (whitelist)", value = tostring(data.totalWhitelistCount or 0) .. " fish", inline = true },
+            },
+            footer = { text = "Inventory Notifier • Auto Fish" }
+        }
+
     else
         warn('[Webhook] Unknown webhook type: ' .. tostring(webhookType))
         return
     end
 
-    local body = HttpService:JSONEncode({ embeds = {embed} })
-    print(string.format("[Webhook] Prepared webhook for %s with URL: %s", webhookType, UNIFIED_WEBHOOK_URL:sub(1, 50) .. "..."))
+    -- Prepare payload with wait=true (like webhook3 for reliable delivery)
+    local payload = { embeds = {embed}, wait = true }
 
-    -- Send webhook directly without task.spawn to avoid async issues
-    local success, err = pcall(function()
-        print("[Webhook] Attempting to send webhook...")
+    -- Add Discord mention if needed (with allowed_mentions to ensure ping works)
+    if embed.description and string.find(embed.description, "<@") then
+        payload.allowed_mentions = {users = {tostring(discordid)}}
+    end
 
-        if syn and syn.request then
-            print("[Webhook] Using syn.request")
-            local response = syn.request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-            if response then
-                print(string.format("[Webhook] syn.request response: %s", tostring(response.StatusCode)))
+    local body = HttpService:JSONEncode(payload)
+    print(string.format("[Webhook] Prepared %s webhook", webhookType))
+
+    -- Retry logic (like webhook3 for reliable delivery)
+    local maxRetries = 3
+    local retryDelay = 2 -- seconds
+    local overallSuccess = false
+    local lastError = nil
+
+    for attempt = 1, maxRetries do
+        if attempt > 1 then
+            print(string.format("[Webhook] Retry %d/%d after %ds...", attempt, maxRetries, retryDelay))
+            task.wait(retryDelay)
+        end
+
+        local sendSuccess, response = pcall(function()
+            local httpMethod = nil
+            local result = nil
+
+            if syn and syn.request then
+                httpMethod = "syn.request"
+                result = syn.request({
+                    Url = UNIFIED_WEBHOOK_URL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = body
+                })
+            elseif http_request then
+                httpMethod = "http_request"
+                result = http_request({
+                    Url = UNIFIED_WEBHOOK_URL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = body
+                })
+            elseif fluxus and fluxus.request then
+                httpMethod = "fluxus.request"
+                result = fluxus.request({
+                    Url = UNIFIED_WEBHOOK_URL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = body
+                })
+            elseif request then
+                httpMethod = "request"
+                result = request({
+                    Url = UNIFIED_WEBHOOK_URL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = body
+                })
+            else
+                error("No HTTP library available")
             end
-        elseif http_request then
-            print("[Webhook] Using http_request")
-            local response = http_request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-            if response then
-                print(string.format("[Webhook] http_request response: %s", tostring(response.StatusCode)))
-            end
-        elseif fluxus and fluxus.request then
-            print("[Webhook] Using fluxus.request")
-            local response = fluxus.request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-            if response then
-                print(string.format("[Webhook] fluxus.request response: %s", tostring(response.StatusCode)))
-            end
-        elseif request then
-            print("[Webhook] Using request")
-            local response = request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-            if response then
-                print(string.format("[Webhook] request response: %s", tostring(response.StatusCode)))
+
+            print(string.format("[Webhook] Using %s", httpMethod))
+            return result
+        end)
+
+        if sendSuccess and response then
+            local statusCode = response.StatusCode or response.status_code or 0
+            print(string.format("[Webhook] Response: %d", statusCode))
+
+            -- Check if webhook was successful (200 or 204)
+            if statusCode == 200 or statusCode == 204 then
+                print(string.format("[Webhook] ✅ %s sent! (status: %d)", webhookType, statusCode))
+                webhookLastSendTime[webhookType] = tick()
+                overallSuccess = true
+                break
+            else
+                lastError = string.format("HTTP %d", statusCode)
+                warn(string.format("[Webhook] ⚠️ Status %d (attempt %d/%d)", statusCode, attempt, maxRetries))
             end
         else
-            error("❌ No HTTP library found (syn, http_request, fluxus, or request)")
+            lastError = tostring(response)
+            warn(string.format("[Webhook] ⚠️ Failed: %s (attempt %d/%d)", lastError, attempt, maxRetries))
         end
-    end)
+    end
 
-    if success then
-        print(string.format("[Webhook] ✅ %s webhook sent successfully!", webhookType))
-        webhookLastSendTime[webhookType] = tick()
-    else
-        warn(string.format("[Webhook] ❌ %s webhook failed: %s", webhookType, tostring(err)))
+    if not overallSuccess then
+        warn(string.format("[Webhook] ❌ %s failed after %d attempts: %s", webhookType, maxRetries, tostring(lastError)))
     end
 end
 
@@ -3268,183 +3395,7 @@ end
 
 -- ====== MEGALODON WEBHOOK ======
 -- (Webhook variables moved earlier to line 2272-2277 for rare fish detection)
-
--- ====== UNIFIED WEBHOOK FUNCTION ======
-local function sendUnifiedWebhook(webhookType, data)
-    -- Get webhook URL (lazy-loaded)
-    local UNIFIED_WEBHOOK_URL = getWebhookURL()
-
-    -- Check if webhook URL is configured
-    if not UNIFIED_WEBHOOK_URL or UNIFIED_WEBHOOK_URL == "" then
-        warn('[Webhook] URL not configured (webhook2 is empty)!')
-        return
-    end
-
-    -- Rate limiting check (per webhook type)
-    local currentTime = tick()
-    local lastTime = webhookLastSendTime[webhookType] or 0
-    if currentTime - lastTime < WEBHOOK_COOLDOWN then
-        -- Webhook type is rate limited, skip
-        return
-    end
-
-    local embed = {}
-
-    -- Configure embed based on webhook type
-    if webhookType == "megalodon_missing" then
-        embed = {
-            title = '[Megalodon] Event Missing',
-            description = 'No Megalodon Hunt props detected in this server.',
-            color = 16711680, -- Red
-            fields = {
-                { name = "👤 Player", value = (player.DisplayName or player.Name or "Unknown"), inline = true },
-                { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = true }
-            },
-            footer = { text = 'Megalodon Watch - Auto Fish' }
-        }
-    elseif webhookType == "megalodon_ended" then
-        local endedAt = data and data.endedAt or os.time()
-        local startedAt = data and data.startedAt or 0
-        local duration = data and data.duration
-        if (not duration or duration <= 0) and startedAt > 0 then
-            duration = math.max(0, endedAt - startedAt)
-        end
-
-        embed = {
-            title = '[Megalodon] Event Ended',
-            description = 'Megalodon Hunt props removed. Resuming farming routine.',
-            color = 3447003, -- Blue
-            fields = {
-                { name = "Player", value = (player.DisplayName or player.Name or "Unknown"), inline = true },
-                { name = "Ended At", value = os.date("%H:%M:%S", endedAt), inline = true },
-                { name = "Duration", value = formatDuration(duration), inline = true },
-            },
-            footer = { text = 'Megalodon Watch - Auto Fish' }
-        }
-
-    elseif webhookType == "fish_found" then
-        embed = {
-            title = "🎣 SECRET Fish Found",
-            description = data.description or "Fish detected in inventory",
-            color = 3066993, -- Blue-green
-            fields = {
-                { name = "🕒 Waktu",  value = os.date("%H:%M:%S"), inline = true },
-                { name = "👤 Player", value = player.DisplayName or player.Name or "Unknown", inline = true },
-                { name = "📦 Total (whitelist)", value = tostring(data.totalWhitelistCount or 0) .. " fish", inline = true },
-            },
-            footer = { text = "Inventory Notifier • Auto Fish" }
-        }
-
-    elseif webhookType == "rare_fish_caught" then
-        embed = {
-            title = "🎣 RARE FISH CAUGHT!",
-            description = string.format("**%s** has been caught!", data.fishId),
-            color = 16711680, -- Red for rare
-            fields = {
-                { name = "🐟 Fish", value = data.fishId, inline = true },
-                { name = "✨ Rarity", value = string.format("1 in %.1f", data.rarity), inline = true },
-                { name = "⚖️ Weight", value = tostring(data.weight) .. " kg", inline = true },
-                { name = "🎨 Variant", value = data.variant, inline = true },
-                { name = "📍 Status", value = data.isNew and "✅ NEW" or "🔄 DUPLICATE", inline = true },
-                { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = true },
-                { name = "👤 Player", value = player.DisplayName or player.Name or "Unknown", inline = false },
-            },
-            footer = { text = "Rare Fish Detector • Auto Fish" }
-        }
-        -- Add fish thumbnail if available
-        if data.fishIcon and data.fishIcon ~= "" then
-            print(string.format("[Webhook] Adding thumbnail for %s: %s", data.fishId, tostring(data.fishIcon)))
-            embed.thumbnail = {
-                url = data.fishIcon,
-                height = 256,
-                width = 256
-            }
-        else
-            print(string.format("[Webhook] No thumbnail for %s (fishIcon is nil/empty)", data.fishId))
-        end
-        -- Mention the Discord user for rare fish (if configured)
-        if type(discordid) == "string" and discordid ~= "" then
-            embed.description = string.format("<@%s>\n**%s** has been caught!", discordid, data.fishId)
-        end
-
-    elseif webhookType == "new_species_caught" then
-        embed = {
-            title = "✨ NEW SPECIES DISCOVERED!",
-            description = string.format("**%s** has been caught for the first time!", data.fishId),
-            color = 16711935, -- Magenta for new species
-            fields = {
-                { name = "🐟 Fish", value = data.fishId, inline = true },
-                { name = "⚖️ Weight", value = tostring(data.weight) .. " kg", inline = true },
-                { name = "🎨 Variant", value = data.variant, inline = true },
-                { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = true },
-                { name = "👤 Player", value = player.DisplayName or player.Name or "Unknown", inline = false },
-            },
-            footer = { text = "Species Index • Auto Fish" }
-        }
-        -- Add fish thumbnail if available
-        if data.fishIcon and data.fishIcon ~= "" then
-            print(string.format("[Webhook] Adding thumbnail for %s: %s", data.fishId, tostring(data.fishIcon)))
-            embed.thumbnail = {
-                url = data.fishIcon,
-                height = 256,
-                width = 256
-            }
-        else
-            print(string.format("[Webhook] No thumbnail for %s (fishIcon is nil/empty)", data.fishId))
-        end
-        -- Mention the Discord user for new species
-        if type(discordid) == "string" and discordid ~= "" then
-            embed.description = string.format("<@%s>\n**%s** has been caught for the first time!", discordid, data.fishId)
-        end
-
-    else
-        warn('[Webhook] Unknown webhook type: ' .. tostring(webhookType))
-        return
-    end
-
-    local body = HttpService:JSONEncode({ embeds = {embed} })
-    print(string.format("[Webhook] Prepared webhook for %s with URL: %s", webhookType, UNIFIED_WEBHOOK_URL:sub(1, 50) .. "..."))
-
-    -- Send webhook directly without task.spawn to avoid async issues
-    local success, err = pcall(function()
-        print("[Webhook] Attempting to send webhook...")
-
-        if syn and syn.request then
-            print("[Webhook] Using syn.request")
-            local response = syn.request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-            if response then
-                print(string.format("[Webhook] syn.request response: %s", tostring(response.StatusCode)))
-            end
-        elseif http_request then
-            print("[Webhook] Using http_request")
-            local response = http_request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-            if response then
-                print(string.format("[Webhook] http_request response: %s", tostring(response.StatusCode)))
-            end
-        elseif fluxus and fluxus.request then
-            print("[Webhook] Using fluxus.request")
-            local response = fluxus.request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-            if response then
-                print(string.format("[Webhook] fluxus.request response: %s", tostring(response.StatusCode)))
-            end
-        elseif request then
-            print("[Webhook] Using request")
-            local response = request({ Url=UNIFIED_WEBHOOK_URL, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body })
-            if response then
-                print(string.format("[Webhook] request response: %s", tostring(response.StatusCode)))
-            end
-        else
-            error("❌ No HTTP library found (syn, http_request, fluxus, or request)")
-        end
-    end)
-
-    if success then
-        print(string.format("[Webhook] ✅ %s webhook sent successfully!", webhookType))
-        webhookLastSendTime[webhookType] = tick()
-    else
-        warn(string.format("[Webhook] ❌ %s webhook failed: %s", webhookType, tostring(err)))
-    end
-end
+-- (sendUnifiedWebhook function moved to line 2284 for proper function ordering)
 
 -- Legacy function for compatibility
 local sendMegalodonEventWebhook = function(status, data)
