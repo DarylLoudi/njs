@@ -2318,22 +2318,61 @@ local function sendUnifiedWebhook(webhookType, data)
             },
             footer = { text = "Rare Fish Detector • Auto Fish" }
         }
-        -- Add fish thumbnail - use fisch.wiki CDN by fish name (most reliable for Discord)
-        if data.fishId then
+        -- Add fish thumbnail - convert rbxassetid to direct image URL
+        if data.fishIcon and data.fishIcon ~= "" then
             local thumbnailUrl = nil
 
-            -- Primary method: Use fisch.wiki with fish name (best compatibility)
-            local fishName = tostring(data.fishId):gsub(" ", "_"):gsub("'", "") -- Clean fish name
-            thumbnailUrl = string.format("https://static.wikia.nocookie.net/roblox-fisch/images/%s.png", fishName)
-            print(string.format("[Webhook] Using wiki thumbnail: %s", fishName))
+            -- Extract asset ID from rbxassetid://
+            if string.match(data.fishIcon, "^rbxassetid://") then
+                local assetId = string.match(data.fishIcon, "rbxassetid://(%d+)")
+                if assetId then
+                    -- Method 1: Try to fetch actual image URL from Roblox API
+                    local success, result = pcall(function()
+                        local apiUrl = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=420x420&format=Png&isCircular=false", assetId)
+
+                        local req = syn and syn.request or http_request or (fluxus and fluxus.request) or request
+                        if req then
+                            local response = req({
+                                Url = apiUrl,
+                                Method = "GET"
+                            })
+
+                            if response and response.StatusCode == 200 and response.Body then
+                                local data = HttpService:JSONDecode(response.Body)
+                                if data and data.data and data.data[1] and data.data[1].imageUrl then
+                                    return data.data[1].imageUrl
+                                end
+                            end
+                        end
+                        return nil
+                    end)
+
+                    if success and result then
+                        thumbnailUrl = result
+                        print(string.format("[Webhook] ✅ Fetched thumbnail from API: %s", thumbnailUrl))
+                    else
+                        -- Fallback: Use assetdelivery direct link
+                        thumbnailUrl = string.format("https://assetdelivery.roblox.com/v1/asset/?id=%s", assetId)
+                        print(string.format("[Webhook] Using assetdelivery fallback for %s", assetId))
+                    end
+                end
+            elseif string.match(data.fishIcon, "^https?://") then
+                -- Already a valid URL
+                thumbnailUrl = data.fishIcon
+                print(string.format("[Webhook] Using direct URL: %s", thumbnailUrl))
+            end
 
             -- Add thumbnail to embed
             if thumbnailUrl then
                 embed.thumbnail = {
                     url = thumbnailUrl
                 }
-                print(string.format("[Webhook] ✅ Thumbnail set: %s", thumbnailUrl))
+                print(string.format("[Webhook] ✅ Thumbnail added for %s", data.fishId))
+            else
+                print(string.format("[Webhook] ⚠️ No thumbnail URL generated for %s", data.fishId))
             end
+        else
+            print(string.format("[Webhook] ⚠️ No fishIcon provided for %s", data.fishId or "unknown"))
         end
         -- Mention the Discord user for rare fish (if configured)
         if type(discordid) == "string" and discordid ~= "" then
@@ -2354,22 +2393,61 @@ local function sendUnifiedWebhook(webhookType, data)
             },
             footer = { text = "Species Index • Auto Fish" }
         }
-        -- Add fish thumbnail - use fisch.wiki CDN by fish name (most reliable for Discord)
-        if data.fishId then
+        -- Add fish thumbnail - convert rbxassetid to direct image URL
+        if data.fishIcon and data.fishIcon ~= "" then
             local thumbnailUrl = nil
 
-            -- Primary method: Use fisch.wiki with fish name (best compatibility)
-            local fishName = tostring(data.fishId):gsub(" ", "_"):gsub("'", "") -- Clean fish name
-            thumbnailUrl = string.format("https://static.wikia.nocookie.net/roblox-fisch/images/%s.png", fishName)
-            print(string.format("[Webhook] Using wiki thumbnail: %s", fishName))
+            -- Extract asset ID from rbxassetid://
+            if string.match(data.fishIcon, "^rbxassetid://") then
+                local assetId = string.match(data.fishIcon, "rbxassetid://(%d+)")
+                if assetId then
+                    -- Method 1: Try to fetch actual image URL from Roblox API
+                    local success, result = pcall(function()
+                        local apiUrl = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=420x420&format=Png&isCircular=false", assetId)
+
+                        local req = syn and syn.request or http_request or (fluxus and fluxus.request) or request
+                        if req then
+                            local response = req({
+                                Url = apiUrl,
+                                Method = "GET"
+                            })
+
+                            if response and response.StatusCode == 200 and response.Body then
+                                local data = HttpService:JSONDecode(response.Body)
+                                if data and data.data and data.data[1] and data.data[1].imageUrl then
+                                    return data.data[1].imageUrl
+                                end
+                            end
+                        end
+                        return nil
+                    end)
+
+                    if success and result then
+                        thumbnailUrl = result
+                        print(string.format("[Webhook] ✅ Fetched thumbnail from API: %s", thumbnailUrl))
+                    else
+                        -- Fallback: Use assetdelivery direct link
+                        thumbnailUrl = string.format("https://assetdelivery.roblox.com/v1/asset/?id=%s", assetId)
+                        print(string.format("[Webhook] Using assetdelivery fallback for %s", assetId))
+                    end
+                end
+            elseif string.match(data.fishIcon, "^https?://") then
+                -- Already a valid URL
+                thumbnailUrl = data.fishIcon
+                print(string.format("[Webhook] Using direct URL: %s", thumbnailUrl))
+            end
 
             -- Add thumbnail to embed
             if thumbnailUrl then
                 embed.thumbnail = {
                     url = thumbnailUrl
                 }
-                print(string.format("[Webhook] ✅ Thumbnail set: %s", thumbnailUrl))
+                print(string.format("[Webhook] ✅ Thumbnail added for %s", data.fishId))
+            else
+                print(string.format("[Webhook] ⚠️ No thumbnail URL generated for %s", data.fishId))
             end
+        else
+            print(string.format("[Webhook] ⚠️ No fishIcon provided for %s", data.fishId or "unknown"))
         end
         -- Mention the Discord user for new species
         if type(discordid) == "string" and discordid ~= "" then
