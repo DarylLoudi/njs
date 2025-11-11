@@ -1948,7 +1948,7 @@ end
 -- Helper: Get current coins
 local function getCurrentCoinsUpgrade()
     local success, coins = pcall(function()
-        local playerGui = player:WaitForChild("PlayerGui", 5)
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
         if not playerGui then return 0 end
 
         local events = playerGui:FindFirstChild("Events")
@@ -1963,10 +1963,18 @@ local function getCurrentCoinsUpgrade()
         local counter = currencyCounter:FindFirstChild("Counter")
         if not counter then return 0 end
 
-        return parseCurrency(counter.Text)
+        local coinsText = counter.Text
+        local parsedCoins = parseCurrency(coinsText)
+
+        return parsedCoins
     end)
 
-    return success and coins or 0
+    if not success then
+        warn("[getCurrentCoins] ⚠️ Failed to get coins: " .. tostring(coins))
+        return 0
+    end
+
+    return coins or 0
 end
 
 -- Helper: Detect owned rods from inventory
@@ -2264,6 +2272,10 @@ local function initialSetupUpgrade()
     print("🔍 INITIAL SETUP - Preparing Auto Upgrade")
     print(string.rep("=", 70))
 
+    -- Debug: Check coins detection
+    local testCoins = getCurrentCoinsUpgrade()
+    print(string.format("[Initial Setup] 💰 Current Coins Detected: %s", FormatNumber(testCoins)))
+
     -- Step 1: Check if Auto Farm is ON
     local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
     local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
@@ -2385,123 +2397,156 @@ local function autoUpgradeRodLoop()
 
             if not _G.AUTO_UPGRADE_ROD_ENABLED then break end
 
-            -- Step 1: Detect owned rods
+            -- Step 1: Get current coins first
+            local currentCoins = getCurrentCoinsUpgrade()
+
+            -- Step 2: Detect owned rods
             upgradeState.rod.ownedRods = detectOwnedRods()
 
-            -- Step 2: Find ALL affordable rods (batch purchase)
-            local currentCoins = getCurrentCoinsUpgrade()
+            -- Step 3: Find ALL affordable rods (batch purchase)
             local affordableRods, totalCost = findAffordableRods(currentCoins, upgradeState.rod.ownedRods)
 
+            -- Check if all rods purchased
             if #affordableRods == 0 then
-                print("[Auto Upgrade Rod] ✅ All rods purchased! Auto upgrade complete.")
-                _G.AUTO_UPGRADE_ROD_ENABLED = false
-                break
-            end
+                -- Check if truly all purchased or just no coins
+                local allRodsPurchased = true
+                for _, rod in ipairs(rodPrices) do
+                    local isOwned = false
+                    for _, ownedId in ipairs(upgradeState.rod.ownedRods) do
+                        if rod.id == ownedId then
+                            isOwned = true
+                            break
+                        end
+                    end
+                    if not isOwned then
+                        allRodsPurchased = false
+                        upgradeState.rod.currentTarget = rod
+                        break
+                    end
+                end
 
-            print(string.format("[Auto Upgrade Rod] 🎯 Found %d affordable rods | Total Cost: %s",
-                #affordableRods,
-                FormatNumber(totalCost)))
-
-            -- Show list of rods to purchase
-            for i, rod in ipairs(affordableRods) do
-                print(string.format("  %d. %s - %s coins", i, rod.name, FormatNumber(rod.price)))
-            end
-
-            -- Step 3: Wait until we have enough coins for batch purchase
-            while currentCoins < totalCost and _G.AUTO_UPGRADE_ROD_ENABLED do
-                print(string.format("[Auto Upgrade Rod] 💰 Farming... Current: %s | Need: %s",
-                    FormatCoins(currentCoins),
-                    FormatCoins(totalCost)))
-
-                task.wait(10) -- Check every 10 seconds
-                currentCoins = getCurrentCoinsUpgrade()
-
-                -- Re-calculate affordable rods in case prices changed
-                affordableRods, totalCost = findAffordableRods(currentCoins, upgradeState.rod.ownedRods)
-            end
-
-            if not _G.AUTO_UPGRADE_ROD_ENABLED then break end
-
-            -- Lock purchasing
-            upgradeState.isPurchasing = true
-
-            -- Step 4: We have enough coins, pause auto farm
-            print(string.format("[Auto Upgrade Rod] ✅ Enough coins! Purchasing %d rods...", #affordableRods))
-
-            local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
-            local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
-
-            if autoFarmWasEnabled then
-                _G.AUTO_FARM_ENABLED = false
-                task.wait(3)
-            end
-
-            if autoFarmV2WasEnabled then
-                _G.AUTO_FARM_V2_ENABLED = false
-                task.wait(3)
-            end
-
-            task.wait(2)
-
-            -- Step 5: Unequip tool
-            unequipTool()
-            task.wait(1.5)
-
-            -- Step 6: BATCH PURCHASE - Buy all affordable rods
-            local purchasedCount = 0
-            local lastPurchasedRod = nil
-
-            for _, rod in ipairs(affordableRods) do
-                print(string.format("[Auto Upgrade Rod] 🛒 Purchasing %d/%d: %s...",
-                    purchasedCount + 1, #affordableRods, rod.name))
-
-                local success = buyRod(rod.id, rod.name)
-                if success then
-                    purchasedCount = purchasedCount + 1
-                    lastPurchasedRod = rod
-                    task.wait(2) -- Wait between purchases
+                if allRodsPurchased then
+                    print("[Auto Upgrade Rod] ✅ All rods purchased! Auto upgrade complete.")
+                    _G.AUTO_UPGRADE_ROD_ENABLED = false
+                    break
                 else
-                    warn(string.format("[Auto Upgrade Rod] ⚠️ Failed to purchase %s, skipping...", rod.name))
+                    -- Still have rods to buy but not enough coins, wait
+                    print(string.format("[Auto Upgrade Rod] 💰 Farming... Current: %s | Next Target: %s (%s)",
+                        FormatNumber(currentCoins),
+                        upgradeState.rod.currentTarget.name,
+                        FormatNumber(upgradeState.rod.currentTarget.price)))
+                    task.wait(10)
+                    continue
                 end
             end
 
-            print(string.format("[Auto Upgrade Rod] ✅ Batch Purchase Complete: %d/%d rods purchased",
-                purchasedCount, #affordableRods))
+            -- Step 4: Check if we have enough coins for batch purchase
+            if currentCoins >= totalCost then
+                print(string.format("[Auto Upgrade Rod] 🎯 Found %d affordable rods | Total Cost: %s | Current Coins: %s",
+                    #affordableRods,
+                    FormatNumber(totalCost),
+                    FormatNumber(currentCoins)))
 
-            task.wait(2)
+                -- Show list of rods to purchase
+                for i, rod in ipairs(affordableRods) do
+                    print(string.format("  %d. %s - %s coins", i, rod.name, FormatNumber(rod.price)))
+                end
 
-            -- Step 7: Equip BEST rod (most expensive owned)
-            local bestRod = getBestOwnedRod()
-            if bestRod then
-                print(string.format("[Auto Upgrade Rod] 🎣 Equipping Best Rod: %s", bestRod.name))
+                -- Lock purchasing
+                upgradeState.isPurchasing = true
 
-                local rodUUID = getLatestRodUUID(bestRod.id)
-                if rodUUID then
-                    equipSpecificRod(rodUUID)
+                -- Step 5: Pause auto farm
+                print(string.format("[Auto Upgrade Rod] ⏸️ Pausing auto farm..."))
+
+                local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
+                local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
+
+                if autoFarmWasEnabled then
+                    _G.AUTO_FARM_ENABLED = false
+                    print("[Auto Upgrade Rod] 🛑 Auto Farm V1 disabled")
+                    task.wait(3)
+                end
+
+                if autoFarmV2WasEnabled then
+                    _G.AUTO_FARM_V2_ENABLED = false
+                    print("[Auto Upgrade Rod] 🛑 Auto Farm V2 disabled")
+                    task.wait(3)
+                end
+
+                task.wait(2)
+
+                -- Step 6: Unequip tool
+                print("[Auto Upgrade Rod] 🔓 Unequipping rod...")
+                unequipTool()
+                task.wait(1.5)
+
+                -- Step 7: BATCH PURCHASE - Buy all affordable rods
+                print(string.format("[Auto Upgrade Rod] 🛒 Starting batch purchase of %d rods...", #affordableRods))
+                local purchasedCount = 0
+                local lastPurchasedRod = nil
+
+                for _, rod in ipairs(affordableRods) do
+                    print(string.format("[Auto Upgrade Rod] 💸 Purchasing %d/%d: %s...",
+                        purchasedCount + 1, #affordableRods, rod.name))
+
+                    local success = buyRod(rod.id, rod.name)
+                    if success then
+                        purchasedCount = purchasedCount + 1
+                        lastPurchasedRod = rod
+                        task.wait(2) -- Wait between purchases
+                    else
+                        warn(string.format("[Auto Upgrade Rod] ⚠️ Failed to purchase %s, skipping...", rod.name))
+                    end
+                end
+
+                print(string.format("[Auto Upgrade Rod] ✅ Batch Purchase Complete: %d/%d rods purchased",
+                    purchasedCount, #affordableRods))
+
+                task.wait(2)
+
+                -- Step 8: Equip BEST rod (most expensive owned)
+                local bestRod = getBestOwnedRod()
+                if bestRod then
+                    print(string.format("[Auto Upgrade Rod] 🎣 Equipping Best Rod: %s", bestRod.name))
+
+                    local rodUUID = getLatestRodUUID(bestRod.id)
+                    if rodUUID then
+                        equipSpecificRod(rodUUID)
+                    else
+                        equipRodHotbar()
+                    end
+                    task.wait(1.5)
                 else
+                    print("[Auto Upgrade Rod] ⚠️ No best rod found, using hotbar")
                     equipRodHotbar()
+                    task.wait(1.5)
                 end
-                task.wait(1.5)
+
+                -- Step 9: Resume auto farm
+                print("[Auto Upgrade Rod] ♻️ Resuming auto farm...")
+
+                if autoFarmWasEnabled then
+                    _G.AUTO_FARM_ENABLED = true
+                    print("[Auto Upgrade Rod] ▶️ Auto Farm V1 re-enabled")
+                end
+
+                if autoFarmV2WasEnabled then
+                    _G.AUTO_FARM_V2_ENABLED = true
+                    print("[Auto Upgrade Rod] ▶️ Auto Farm V2 re-enabled")
+                end
+
+                -- Unlock purchasing
+                upgradeState.isPurchasing = false
+
+                print("[Auto Upgrade Rod] ✅ Purchase cycle complete, waiting 10s before next check...")
+                task.wait(10)
             else
-                equipRodHotbar()
-                task.wait(1.5)
+                -- Not enough coins yet, wait and check again
+                print(string.format("[Auto Upgrade Rod] 💰 Not enough coins. Current: %s | Need: %s",
+                    FormatNumber(currentCoins),
+                    FormatNumber(totalCost)))
+                task.wait(10)
             end
-
-            -- Step 8: Resume auto farm
-            print("[Auto Upgrade Rod] ♻️ Resuming auto farm...")
-
-            if autoFarmWasEnabled then
-                _G.AUTO_FARM_ENABLED = true
-            end
-
-            if autoFarmV2WasEnabled then
-                _G.AUTO_FARM_V2_ENABLED = true
-            end
-
-            -- Unlock purchasing
-            upgradeState.isPurchasing = false
-
-            task.wait(10)
         end
 
         upgradeState.rod.running = false
@@ -2532,129 +2577,164 @@ local function autoUpgradeBaitLoop()
 
             if not _G.AUTO_UPGRADE_BAIT_ENABLED then break end
 
-            -- Step 1: Detect owned baits
+            -- Step 1: Get current coins first
+            local currentCoins = getCurrentCoinsUpgrade()
+
+            -- Step 2: Detect owned baits
             upgradeState.bait.ownedBaits = detectOwnedBaits()
 
-            -- Step 2: Find ALL affordable baits (batch purchase)
-            local currentCoins = getCurrentCoinsUpgrade()
+            -- Step 3: Find ALL affordable baits (batch purchase)
             local affordableBaits, totalCost = findAffordableBaits(currentCoins, upgradeState.bait.ownedBaits)
 
+            -- Check if all baits purchased
             if #affordableBaits == 0 then
-                print("[Auto Upgrade Bait] ✅ All baits purchased! Auto upgrade complete.")
-                _G.AUTO_UPGRADE_BAIT_ENABLED = false
-                break
-            end
+                -- Check if truly all purchased or just no coins
+                local allBaitsPurchased = true
+                for _, bait in ipairs(baitPrices) do
+                    local isOwned = false
+                    for _, ownedId in ipairs(upgradeState.bait.ownedBaits) do
+                        if bait.id == ownedId then
+                            isOwned = true
+                            break
+                        end
+                    end
+                    if not isOwned then
+                        allBaitsPurchased = false
+                        upgradeState.bait.currentTarget = bait
+                        break
+                    end
+                end
 
-            print(string.format("[Auto Upgrade Bait] 🎯 Found %d affordable baits | Total Cost: %s",
-                #affordableBaits,
-                FormatNumber(totalCost)))
-
-            -- Show list of baits to purchase
-            for i, bait in ipairs(affordableBaits) do
-                print(string.format("  %d. %s - %s coins", i, bait.name, FormatNumber(bait.price)))
-            end
-
-            -- Step 3: Wait until we have enough coins for batch purchase
-            while currentCoins < totalCost and _G.AUTO_UPGRADE_BAIT_ENABLED do
-                print(string.format("[Auto Upgrade Bait] 💰 Farming... Current: %s | Need: %s",
-                    FormatCoins(currentCoins),
-                    FormatCoins(totalCost)))
-
-                task.wait(10) -- Check every 10 seconds
-                currentCoins = getCurrentCoinsUpgrade()
-
-                -- Re-calculate affordable baits
-                affordableBaits, totalCost = findAffordableBaits(currentCoins, upgradeState.bait.ownedBaits)
-            end
-
-            if not _G.AUTO_UPGRADE_BAIT_ENABLED then break end
-
-            -- Lock purchasing
-            upgradeState.isPurchasing = true
-
-            -- Step 4: We have enough coins, pause auto farm
-            print(string.format("[Auto Upgrade Bait] ✅ Enough coins! Purchasing %d baits...", #affordableBaits))
-
-            local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
-            local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
-
-            if autoFarmWasEnabled then
-                _G.AUTO_FARM_ENABLED = false
-                task.wait(3)
-            end
-
-            if autoFarmV2WasEnabled then
-                _G.AUTO_FARM_V2_ENABLED = false
-                task.wait(3)
-            end
-
-            task.wait(2)
-
-            -- Step 5: Unequip tool
-            unequipTool()
-            task.wait(1.5)
-
-            -- Step 6: BATCH PURCHASE - Buy all affordable baits
-            local purchasedCount = 0
-
-            for _, bait in ipairs(affordableBaits) do
-                print(string.format("[Auto Upgrade Bait] 🛒 Purchasing %d/%d: %s...",
-                    purchasedCount + 1, #affordableBaits, bait.name))
-
-                local success = buyBait(bait.id, bait.name)
-                if success then
-                    purchasedCount = purchasedCount + 1
-                    task.wait(2) -- Wait between purchases
+                if allBaitsPurchased then
+                    print("[Auto Upgrade Bait] ✅ All baits purchased! Auto upgrade complete.")
+                    _G.AUTO_UPGRADE_BAIT_ENABLED = false
+                    break
                 else
-                    warn(string.format("[Auto Upgrade Bait] ⚠️ Failed to purchase %s, skipping...", bait.name))
+                    -- Still have baits to buy but not enough coins, wait
+                    print(string.format("[Auto Upgrade Bait] 💰 Farming... Current: %s | Next Target: %s (%s)",
+                        FormatNumber(currentCoins),
+                        upgradeState.bait.currentTarget.name,
+                        FormatNumber(upgradeState.bait.currentTarget.price)))
+                    task.wait(10)
+                    continue
                 end
             end
 
-            print(string.format("[Auto Upgrade Bait] ✅ Batch Purchase Complete: %d/%d baits purchased",
-                purchasedCount, #affordableBaits))
+            -- Step 4: Check if we have enough coins for batch purchase
+            if currentCoins >= totalCost then
+                print(string.format("[Auto Upgrade Bait] 🎯 Found %d affordable baits | Total Cost: %s | Current Coins: %s",
+                    #affordableBaits,
+                    FormatNumber(totalCost),
+                    FormatNumber(currentCoins)))
 
-            task.wait(2)
+                -- Show list of baits to purchase
+                for i, bait in ipairs(affordableBaits) do
+                    print(string.format("  %d. %s - %s coins", i, bait.name, FormatNumber(bait.price)))
+                end
 
-            -- Step 7: Equip BEST bait (most expensive owned)
-            local bestBait = getBestOwnedBait()
-            if bestBait then
-                print(string.format("[Auto Upgrade Bait] 🪱 Equipping Best Bait: %s", bestBait.name))
-                equipSpecificBait(bestBait.id)
+                -- Lock purchasing
+                upgradeState.isPurchasing = true
+
+                -- Step 5: Pause auto farm
+                print(string.format("[Auto Upgrade Bait] ⏸️ Pausing auto farm..."))
+
+                local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
+                local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
+
+                if autoFarmWasEnabled then
+                    _G.AUTO_FARM_ENABLED = false
+                    print("[Auto Upgrade Bait] 🛑 Auto Farm V1 disabled")
+                    task.wait(3)
+                end
+
+                if autoFarmV2WasEnabled then
+                    _G.AUTO_FARM_V2_ENABLED = false
+                    print("[Auto Upgrade Bait] 🛑 Auto Farm V2 disabled")
+                    task.wait(3)
+                end
+
+                task.wait(2)
+
+                -- Step 6: Unequip tool
+                print("[Auto Upgrade Bait] 🔓 Unequipping rod...")
+                unequipTool()
                 task.wait(1.5)
-            else
-                task.wait(1.5)
-            end
 
-            -- Step 8: Equip best rod
-            local bestRod = getBestOwnedRod()
-            if bestRod then
-                local rodUUID = getLatestRodUUID(bestRod.id)
-                if rodUUID then
-                    equipSpecificRod(rodUUID)
+                -- Step 7: BATCH PURCHASE - Buy all affordable baits
+                print(string.format("[Auto Upgrade Bait] 🛒 Starting batch purchase of %d baits...", #affordableBaits))
+                local purchasedCount = 0
+
+                for _, bait in ipairs(affordableBaits) do
+                    print(string.format("[Auto Upgrade Bait] 💸 Purchasing %d/%d: %s...",
+                        purchasedCount + 1, #affordableBaits, bait.name))
+
+                    local success = buyBait(bait.id, bait.name)
+                    if success then
+                        purchasedCount = purchasedCount + 1
+                        task.wait(2) -- Wait between purchases
+                    else
+                        warn(string.format("[Auto Upgrade Bait] ⚠️ Failed to purchase %s, skipping...", bait.name))
+                    end
+                end
+
+                print(string.format("[Auto Upgrade Bait] ✅ Batch Purchase Complete: %d/%d baits purchased",
+                    purchasedCount, #affordableBaits))
+
+                task.wait(2)
+
+                -- Step 8: Equip BEST bait (most expensive owned)
+                local bestBait = getBestOwnedBait()
+                if bestBait then
+                    print(string.format("[Auto Upgrade Bait] 🪱 Equipping Best Bait: %s", bestBait.name))
+                    equipSpecificBait(bestBait.id)
+                    task.wait(1.5)
                 else
+                    print("[Auto Upgrade Bait] ⚠️ No best bait found")
+                    task.wait(1.5)
+                end
+
+                -- Step 9: Equip best rod
+                local bestRod = getBestOwnedRod()
+                if bestRod then
+                    print(string.format("[Auto Upgrade Bait] 🎣 Re-equipping Best Rod: %s", bestRod.name))
+                    local rodUUID = getLatestRodUUID(bestRod.id)
+                    if rodUUID then
+                        equipSpecificRod(rodUUID)
+                    else
+                        equipRodHotbar()
+                    end
+                    task.wait(1.5)
+                else
+                    print("[Auto Upgrade Bait] ⚠️ No best rod found, using hotbar")
                     equipRodHotbar()
+                    task.wait(1.5)
                 end
-                task.wait(1.5)
+
+                -- Step 10: Resume auto farm
+                print("[Auto Upgrade Bait] ♻️ Resuming auto farm...")
+
+                if autoFarmWasEnabled then
+                    _G.AUTO_FARM_ENABLED = true
+                    print("[Auto Upgrade Bait] ▶️ Auto Farm V1 re-enabled")
+                end
+
+                if autoFarmV2WasEnabled then
+                    _G.AUTO_FARM_V2_ENABLED = true
+                    print("[Auto Upgrade Bait] ▶️ Auto Farm V2 re-enabled")
+                end
+
+                -- Unlock purchasing
+                upgradeState.isPurchasing = false
+
+                print("[Auto Upgrade Bait] ✅ Purchase cycle complete, waiting 10s before next check...")
+                task.wait(10)
             else
-                equipRodHotbar()
-                task.wait(1.5)
+                -- Not enough coins yet, wait and check again
+                print(string.format("[Auto Upgrade Bait] 💰 Not enough coins. Current: %s | Need: %s",
+                    FormatNumber(currentCoins),
+                    FormatNumber(totalCost)))
+                task.wait(10)
             end
-
-            -- Step 9: Resume auto farm
-            print("[Auto Upgrade Bait] ♻️ Resuming auto farm...")
-
-            if autoFarmWasEnabled then
-                _G.AUTO_FARM_ENABLED = true
-            end
-
-            if autoFarmV2WasEnabled then
-                _G.AUTO_FARM_V2_ENABLED = true
-            end
-
-            -- Unlock purchasing
-            upgradeState.isPurchasing = false
-
-            task.wait(10)
         end
 
         upgradeState.bait.running = false
