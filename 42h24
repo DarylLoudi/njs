@@ -2777,6 +2777,7 @@ local teleportLocations = {
 
 local function teleportToNamedLocation(targetName)
     if not targetName then
+        warn("[Teleport] ⚠️ Target name is nil!")
         return
     end
 
@@ -2784,20 +2785,32 @@ local function teleportToNamedLocation(targetName)
         targetName = "Sisyphus Statue"
     end
 
-    pcall(function()
+    local success, errorMsg = pcall(function()
         local character = player.Character or player.CharacterAdded:Wait()
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
         if not rootPart then
+            warn("[Teleport] ⚠️ No HumanoidRootPart found!")
             return
         end
 
+        local found = false
         for _, location in ipairs(teleportLocations) do
             if location.Name == targetName and location.CFrame then
                 rootPart.CFrame = location.CFrame
+                found = true
+                print(string.format("[Teleport] ✅ Teleported to: %s", targetName))
                 break
             end
         end
+
+        if not found then
+            warn(string.format("[Teleport] ⚠️ Location '%s' not found in teleportLocations!", targetName))
+        end
     end)
+
+    if not success then
+        warn("[Teleport] ❌ Error: " .. tostring(errorMsg))
+    end
 end
 
 -- ====== DAFTAR IDS ====== 
@@ -4079,16 +4092,22 @@ end
 local function onQuestCompleted(trackerName, labelName)
     if not autoQuestRunning then return end
 
+    print(string.format("[Auto Quest] 🔔 Quest completed: %s %s", trackerName, labelName))
+
     -- Get all incomplete quests
     local incompleteQuests = getIncompleteQuests()
+
+    print(string.format("[Auto Quest] 📊 Remaining incomplete quests: %d", #incompleteQuests))
 
     -- Check if all quests are complete
     if #incompleteQuests == 0 then
         -- All quests complete!
+        print("[Auto Quest] 🎉 All quests completed!")
         if not isInitialStart then
             sendQuestWebhook(nil, nil, true)
         end
 
+        print(string.format("[Auto Quest] 🏠 Teleporting to final location: %s", useTeleportLoc or "Sisyphus Statue"))
         teleportToNamedLocation(useTeleportLoc or "Sisyphus Statue")
         autoQuestRunning = false
         isAutoQuestOn = false
@@ -4108,8 +4127,11 @@ local function onQuestCompleted(trackerName, labelName)
     end
 
     if not nextQuest then
+        print("[Auto Quest] ⏳ Only Element Rod Label1 remains (auto-complete)")
         return -- No valid next quest
     end
+
+    print(string.format("[Auto Quest] 🎯 Next quest: %s → Location: %s", nextQuest.name, nextQuest.location))
 
     -- Get the completed quest info
     local completedQuest = {
@@ -4119,15 +4141,21 @@ local function onQuestCompleted(trackerName, labelName)
 
     -- Only send webhook if not initial start and different from last completed
     if not isInitialStart and lastCompletedQuest ~= (trackerName .. labelName) then
+        print("[Auto Quest] 📤 Sending webhook notification...")
         sendQuestWebhook(completedQuest, nextQuest, false)
         lastCompletedQuest = trackerName .. labelName
+    else
+        print("[Auto Quest] 🚫 Skipping webhook (initial start or duplicate)")
     end
 
     -- Teleport to next quest location if different
     if currentQuestLocation ~= nextQuest.location then
+        print(string.format("[Auto Quest] 🚀 Teleporting from '%s' to '%s'", currentQuestLocation or "nowhere", nextQuest.location))
         teleportToNamedLocation(nextQuest.location)
         currentQuestLocation = nextQuest.location
         task.wait(3)
+    else
+        print(string.format("[Auto Quest] ✅ Already at location: %s", nextQuest.location))
     end
 end
 
@@ -4226,15 +4254,27 @@ local function startAutoQuest()
     isAutoQuestOn = true
     isInitialStart = true -- Mark as initial start
 
+    print("[Auto Quest] 🎯 Starting Auto Quest System...")
+
     -- Check initial incomplete quests
     local incompleteQuests = getIncompleteQuests()
 
+    print(string.format("[Auto Quest] 📊 Found %d incomplete quest(s) at startup", #incompleteQuests))
+
     if #incompleteQuests == 0 then
         -- All quests already complete
+        print("[Auto Quest] ✅ All quests already completed!")
+        print(string.format("[Auto Quest] 🏠 Teleporting to: %s", useTeleportLoc or "Sisyphus Statue"))
         teleportToNamedLocation(useTeleportLoc or "Sisyphus Statue")
         autoQuestRunning = false
         isAutoQuestOn = false
         return
+    end
+
+    -- Log all incomplete quests
+    print("[Auto Quest] 📋 Incomplete quest list:")
+    for i, quest in ipairs(incompleteQuests) do
+        print(string.format("  %d. %s → %s", i, quest.name, quest.location))
     end
 
     -- Find first quest to work on
@@ -4248,17 +4288,24 @@ local function startAutoQuest()
 
     if firstQuest then
         -- Teleport to first quest location (NO WEBHOOK)
+        print(string.format("[Auto Quest] 🚀 Initial teleport to: %s (Location: %s)", firstQuest.name, firstQuest.location))
         teleportToNamedLocation(firstQuest.location)
         currentQuestLocation = firstQuest.location
         task.wait(3)
+        print("[Auto Quest] ✅ Initial teleport completed")
+    else
+        print("[Auto Quest] ⚠️ No valid first quest found!")
     end
 
     -- Setup event listeners
+    print("[Auto Quest] 🔧 Setting up quest listeners...")
     setupQuestListeners()
+    print("[Auto Quest] ✅ Quest listeners active")
 
     -- After setup, mark as no longer initial start
     task.delay(5, function()
         isInitialStart = false
+        print("[Auto Quest] 📢 Webhook notifications now enabled")
     end)
 
     -- Fallback polling every 60 seconds for safety
