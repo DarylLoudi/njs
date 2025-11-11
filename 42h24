@@ -1424,6 +1424,48 @@ function getIncompleteQuests()
     return incomplete
 end
 
+-- Get ALL incomplete quests for DISPLAY (no priority filter)
+function getAllIncompleteQuestsForDisplay()
+    local incomplete = {}
+
+    -- Check ALL Ghostfinn quests
+    local ghostfinnQuests = getGhostfinnQuests()
+    for _, quest in ipairs(ghostfinnQuests) do
+        local questText = getQuestTextFromTracker(quest.tracker, quest.label)
+        local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
+
+        if isValidData and not isQuestComplete(questText) then
+            table.insert(incomplete, {
+                name = "Ghostfinn " .. quest.label,
+                tracker = quest.tracker,
+                label = quest.label,
+                location = quest.location,
+                text = questText
+            })
+        end
+    end
+
+    -- Check ALL Element Rod quests (regardless of Ghostfinn status)
+    local elementQuests = getElementRodQuests()
+    for _, quest in ipairs(elementQuests) do
+        local questText = getQuestTextFromTracker(quest.tracker, quest.label)
+        local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
+
+        if isValidData and not isQuestComplete(questText) then
+            table.insert(incomplete, {
+                name = "Element Rod " .. quest.label,
+                tracker = quest.tracker,
+                label = quest.label,
+                location = quest.location,
+                text = questText,
+                note = quest.note
+            })
+        end
+    end
+
+    return incomplete
+end
+
 -- Check if all quests are complete
 function areAllQuestsComplete()
     local incompleteQuests = getIncompleteQuests()
@@ -2457,9 +2499,9 @@ local function createWhiteScreen()
         questLabels[i] = questLabel
     end
 
-    -- Update quest labels with incomplete quests only
+    -- Update quest labels with ALL incomplete quests (for display only)
     local function updateQuestLabels()
-        local incompleteQuests = getIncompleteQuests()
+        local incompleteQuests = getAllIncompleteQuestsForDisplay()
 
         -- Update each label
         for i = 1, 6 do
