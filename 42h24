@@ -4068,13 +4068,20 @@ end
 local function startManualConfig()
     task.wait(3)  -- Wait for everything to load
 
+    -- CRITICAL: Check BOTH useAutoQuest AND AUTO_QUEST from loader
+    local autoQuestEnabled = useAutoQuest or AUTO_QUEST
+
+    print(string.format("[Config] 🔍 AUTO_QUEST check: useAutoQuest=%s, AUTO_QUEST=%s, final=%s",
+        tostring(useAutoQuest), tostring(AUTO_QUEST), tostring(autoQuestEnabled)))
+
     -- Teleport first (SKIP if Auto Quest is enabled - quest will handle teleport)
-    if not useAutoQuest then
+    if not autoQuestEnabled then
         print(string.format("[Config] 🚀 Teleporting to configured location: %s", useTeleportLoc))
         teleportToNamedLocation(useTeleportLoc)
         task.wait(3)  -- Increased wait time after teleport for character to stabilize
     else
         print("[Config] 🎯 Auto Quest enabled - skipping teleport to TELEPORT_LOCATION")
+        print("[Config] ⏳ Auto Quest will handle all teleports to quest locations")
     end
 
     -- Enable GPU Saver if configured
@@ -4108,9 +4115,14 @@ local function startManualConfig()
     end
 
     -- Enable Auto Quest if configured (this will handle its own teleport)
-    if useAutoQuest then
+    -- Check BOTH useAutoQuest AND AUTO_QUEST from loader
+    local autoQuestEnabled = useAutoQuest or AUTO_QUEST
+    if autoQuestEnabled then
+        print("[Config] ✅ Starting Auto Quest System...")
         startAutoQuest()
         task.wait(0.5)
+    else
+        print("[Config] ⏭️ Auto Quest disabled")
     end
 
     -- (Initial equip runs BEFORE this function is called)
