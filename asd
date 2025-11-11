@@ -1948,10 +1948,13 @@ end
 -- Helper: Get current coins
 local function getCurrentCoinsUpgrade()
     local success, result = pcall(function()
-        -- Use the global player variable, not LocalPlayer
-        if not player then return 0 end
+        -- Path: game:GetService("Players").LocalPlayer.PlayerGui.Events.Frame.CurrencyCounter.Counter.Text
+        local Players = game:GetService("Players")
+        local LocalPlayer = Players.LocalPlayer
 
-        local playerGui = player:FindFirstChild("PlayerGui")
+        if not LocalPlayer then return 0 end
+
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
         if not playerGui then return 0 end
 
         local events = playerGui:FindFirstChild("Events")
