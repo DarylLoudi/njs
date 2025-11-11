@@ -4064,70 +4064,6 @@ local function purchaseInitialWeather()
     end
 end
 
--- Manual configuration function
-local function startManualConfig()
-    task.wait(3)  -- Wait for everything to load
-
-    -- CRITICAL: Check BOTH useAutoQuest AND AUTO_QUEST from loader
-    local autoQuestEnabled = useAutoQuest or AUTO_QUEST
-
-    print(string.format("[Config] 🔍 AUTO_QUEST check: useAutoQuest=%s, AUTO_QUEST=%s, final=%s",
-        tostring(useAutoQuest), tostring(AUTO_QUEST), tostring(autoQuestEnabled)))
-
-    -- Teleport first (SKIP if Auto Quest is enabled - quest will handle teleport)
-    if not autoQuestEnabled then
-        print(string.format("[Config] 🚀 Teleporting to configured location: %s", useTeleportLoc))
-        teleportToNamedLocation(useTeleportLoc)
-        task.wait(3)  -- Increased wait time after teleport for character to stabilize
-    else
-        print("[Config] 🎯 Auto Quest enabled - skipping teleport to TELEPORT_LOCATION")
-        print("[Config] ⏳ Auto Quest will handle all teleports to quest locations")
-    end
-
-    -- Enable GPU Saver if configured
-    if useGPUSaver then
-        enableGPUSaver()
-        task.wait(0.5)
-    end
-
-    -- Enable Auto Farm if configured
-    if useAutoFarm then
-        setAutoFarm(true)
-        task.wait(1)  -- Give farm system time to initialize
-    end
-
-    -- Enable Auto Sell if configured
-    if useAutoSell then
-        setSell(true)
-        task.wait(0.5)
-    end
-
-    -- Enable Auto Weather if configured
-    if useAutoWeather then
-        setAutoWeather(true)
-        task.wait(0.5)
-    end
-
-    -- Enable Auto Megalodon if configured
-    if useAutoMegalodon then
-        setAutoMegalodon(true)
-        task.wait(0.5)
-    end
-
-    -- Enable Auto Quest if configured (this will handle its own teleport)
-    -- Check BOTH useAutoQuest AND AUTO_QUEST from loader
-    local autoQuestEnabled = useAutoQuest or AUTO_QUEST
-    if autoQuestEnabled then
-        print("[Config] ✅ Starting Auto Quest System...")
-        startAutoQuest()
-        task.wait(0.5)
-    else
-        print("[Config] ⏭️ Auto Quest disabled")
-    end
-
-    -- (Initial equip runs BEFORE this function is called)
-end
-
 -- ====================================================================
 --                    AUTO QUEST SYSTEM (EVENT-DRIVEN)
 -- ====================================================================
@@ -4367,7 +4303,7 @@ local function startAutoQuest()
     print("[Auto Quest] ⏳ Waiting for workspace to load...")
     task.wait(5) -- Wait for workspace to load
 
-    -- Check initial incomplete quests
+    -- Check initial incomplete quests ONCE
     local incompleteQuests = getIncompleteQuests()
 
     print(string.format("[Auto Quest] 📊 Found %d incomplete quest(s) at startup", #incompleteQuests))
@@ -4438,20 +4374,6 @@ local function startAutoQuest()
         print("[Auto Quest] 📢 Webhook notifications now enabled")
     end)
 
-    -- Fallback polling every 60 seconds for safety
-    task.spawn(function()
-        while autoQuestRunning do
-            task.wait(60)
-            if autoQuestRunning then
-                -- Check if quest was completed but listener missed it
-                local incompleteQuests = getIncompleteQuests()
-                if #incompleteQuests == 0 then
-                    onQuestCompleted("", "") -- Trigger completion check
-                end
-            end
-        end
-    end)
-
     -- Save state
     syncConfigFromStates()
     saveConfig()
@@ -4471,6 +4393,70 @@ local function stopAutoQuest()
     -- Save state
     syncConfigFromStates()
     saveConfig()
+end
+
+-- Manual configuration function
+local function startManualConfig()
+    task.wait(3)  -- Wait for everything to load
+
+    -- CRITICAL: Check BOTH useAutoQuest AND AUTO_QUEST from loader
+    local autoQuestEnabled = useAutoQuest or AUTO_QUEST
+
+    print(string.format("[Config] 🔍 AUTO_QUEST check: useAutoQuest=%s, AUTO_QUEST=%s, final=%s",
+        tostring(useAutoQuest), tostring(AUTO_QUEST), tostring(autoQuestEnabled)))
+
+    -- Teleport first (SKIP if Auto Quest is enabled - quest will handle teleport)
+    if not autoQuestEnabled then
+        print(string.format("[Config] 🚀 Teleporting to configured location: %s", useTeleportLoc))
+        teleportToNamedLocation(useTeleportLoc)
+        task.wait(3)  -- Increased wait time after teleport for character to stabilize
+    else
+        print("[Config] 🎯 Auto Quest enabled - skipping teleport to TELEPORT_LOCATION")
+        print("[Config] ⏳ Auto Quest will handle all teleports to quest locations")
+    end
+
+    -- Enable GPU Saver if configured
+    if useGPUSaver then
+        enableGPUSaver()
+        task.wait(0.5)
+    end
+
+    -- Enable Auto Farm if configured
+    if useAutoFarm then
+        setAutoFarm(true)
+        task.wait(1)  -- Give farm system time to initialize
+    end
+
+    -- Enable Auto Sell if configured
+    if useAutoSell then
+        setSell(true)
+        task.wait(0.5)
+    end
+
+    -- Enable Auto Weather if configured
+    if useAutoWeather then
+        setAutoWeather(true)
+        task.wait(0.5)
+    end
+
+    -- Enable Auto Megalodon if configured
+    if useAutoMegalodon then
+        setAutoMegalodon(true)
+        task.wait(0.5)
+    end
+
+    -- Enable Auto Quest if configured (this will handle its own teleport)
+    -- Check BOTH useAutoQuest AND AUTO_QUEST from loader
+    local autoQuestEnabled = useAutoQuest or AUTO_QUEST
+    if autoQuestEnabled then
+        print("[Config] ✅ Starting Auto Quest System...")
+        startAutoQuest()
+        task.wait(0.5)
+    else
+        print("[Config] ⏭️ Auto Quest disabled")
+    end
+
+    -- (Initial equip runs BEFORE this function is called)
 end
 
 -- ====================================================================
