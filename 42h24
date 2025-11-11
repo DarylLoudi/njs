@@ -3983,9 +3983,14 @@ end
 local function startManualConfig()
     task.wait(3)  -- Wait for everything to load
 
-    -- Teleport first
-    teleportToNamedLocation(useTeleportLoc)
-    task.wait(3)  -- Increased wait time after teleport for character to stabilize
+    -- Teleport first (SKIP if Auto Quest is enabled - quest will handle teleport)
+    if not useAutoQuest then
+        print(string.format("[Config] 🚀 Teleporting to configured location: %s", useTeleportLoc))
+        teleportToNamedLocation(useTeleportLoc)
+        task.wait(3)  -- Increased wait time after teleport for character to stabilize
+    else
+        print("[Config] 🎯 Auto Quest enabled - skipping teleport to TELEPORT_LOCATION")
+    end
 
     -- Enable GPU Saver if configured
     if useGPUSaver then
@@ -4017,7 +4022,7 @@ local function startManualConfig()
         task.wait(0.5)
     end
 
-    -- Enable Auto Quest if configured
+    -- Enable Auto Quest if configured (this will handle its own teleport)
     if useAutoQuest then
         startAutoQuest()
         task.wait(0.5)
