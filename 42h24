@@ -4250,12 +4250,19 @@ local function onQuestCompleted(trackerName, labelName)
         print("[Auto Quest] 🚫 Skipping webhook (initial start or duplicate)")
     end
 
-    -- Teleport to next quest location if different
+    -- Teleport to next quest location if different (4x retry)
     if currentQuestLocation ~= nextQuest.location then
         print(string.format("[Auto Quest] 🚀 Teleporting from '%s' to '%s'", currentQuestLocation or "nowhere", nextQuest.location))
-        teleportToNamedLocation(nextQuest.location)
+        print("[Auto Quest] 🔄 Executing 4x retry teleport...")
+
+        for i = 1, 4 do
+            print(string.format("[Auto Quest] 🎯 Attempt %d/4: Teleporting to %s", i, nextQuest.location))
+            teleportToNamedLocation(nextQuest.location)
+            task.wait(2)
+        end
+
         currentQuestLocation = nextQuest.location
-        task.wait(3)
+        print("[Auto Quest] ✅ Teleport completed (4x retry)")
     else
         print(string.format("[Auto Quest] ✅ Already at location: %s", nextQuest.location))
     end
@@ -4404,12 +4411,18 @@ local function startAutoQuest()
     end
 
     if firstQuest then
-        -- Teleport to first quest location (NO WEBHOOK)
-        print(string.format("[Auto Quest] 🚀 Initial teleport to: %s (Location: %s)", firstQuest.name, firstQuest.location))
-        teleportToNamedLocation(firstQuest.location)
+        -- FORCE teleport to first quest location 4x (NO WEBHOOK)
+        print(string.format("[Auto Quest] 🚀🚀🚀 FORCING teleport to: %s (Location: %s)", firstQuest.name, firstQuest.location))
+        print("[Auto Quest] 🔄 Executing 4x retry teleport to override any config teleport...")
+
+        for i = 1, 4 do
+            print(string.format("[Auto Quest] 🎯 Attempt %d/4: Teleporting to %s", i, firstQuest.location))
+            teleportToNamedLocation(firstQuest.location)
+            task.wait(2)
+        end
+
         currentQuestLocation = firstQuest.location
-        task.wait(3)
-        print("[Auto Quest] ✅ Initial teleport completed")
+        print("[Auto Quest] ✅ Forced teleport completed (4x retry)")
     else
         print("[Auto Quest] ⚠️ No valid first quest found!")
     end
