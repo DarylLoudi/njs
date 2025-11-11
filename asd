@@ -2258,19 +2258,18 @@ local function findAffordableBaits(currentCoins, ownedBaits)
     return affordableBaits, totalCost
 end
 
--- Helper: Initial check and equip best rod/bait (run once at start)
-local function initialEquipBestItems()
+-- Helper: Initial setup - Check auto farm, equip best items, set targets
+local function initialSetupUpgrade()
     print(string.rep("=", 70))
-    print("🔍 INITIAL CHECK - Equipping Best Items")
+    print("🔍 INITIAL SETUP - Preparing Auto Upgrade")
     print(string.rep("=", 70))
 
-    -- Step 1: Save current auto farm state
+    -- Step 1: Check if Auto Farm is ON
     local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
     local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
 
-    -- Step 2: Disable auto farm if running
     if autoFarmWasEnabled or autoFarmV2WasEnabled then
-        print("[Initial Check] ⏸️ Pausing auto farm...")
+        print("[Initial Setup] ⚠️ Auto Farm is ON, disabling temporarily...")
 
         if autoFarmWasEnabled then
             _G.AUTO_FARM_ENABLED = false
@@ -2282,58 +2281,82 @@ local function initialEquipBestItems()
             task.wait(3)
         end
 
-        task.wait(2) -- Additional wait to ensure fully stopped
+        task.wait(2)
+        print("[Initial Setup] ✅ Auto Farm disabled")
+    else
+        print("[Initial Setup] ℹ️ Auto Farm is OFF, proceeding...")
     end
 
-    -- Step 3: Unequip current tool
-    print("[Initial Check] 🔓 Unequipping current tool...")
+    -- Step 2: Unequip current rod
+    print("[Initial Setup] 🔓 Unequipping current rod...")
     unequipTool()
     task.wait(1.5)
 
-    -- Step 4: Detect and equip best rod
+    -- Step 3: Check all owned rods and baits
+    print("[Initial Setup] 📦 Checking inventory...")
+    local ownedRods = detectOwnedRods()
+    local ownedBaits = detectOwnedBaits()
+
+    -- Step 4: Equip best rod
     local bestRod = getBestOwnedRod()
     if bestRod then
-        print(string.format("[Initial Check] 🎣 Best Rod: %s (Price: %s)", bestRod.name, FormatNumber(bestRod.price)))
+        print(string.format("[Initial Setup] 🎣 Equipping Best Rod: %s (Price: %s)", bestRod.name, FormatNumber(bestRod.price)))
 
         local rodUUID = getLatestRodUUID(bestRod.id)
         if rodUUID then
             equipSpecificRod(rodUUID)
-            task.wait(1.5)
         else
             equipRodHotbar()
-            task.wait(1.5)
         end
+        task.wait(1.5)
     else
-        print("[Initial Check] ⚠️ No rod found in inventory, equipping default")
+        print("[Initial Setup] ⚠️ No rod owned, equipping default")
         equipRodHotbar()
         task.wait(1.5)
     end
 
-    -- Step 5: Detect and equip best bait
+    -- Step 5: Equip best bait
     local bestBait = getBestOwnedBait()
     if bestBait then
-        print(string.format("[Initial Check] 🪱 Best Bait: %s (Price: %s)", bestBait.name, FormatNumber(bestBait.price)))
+        print(string.format("[Initial Setup] 🪱 Equipping Best Bait: %s (Price: %s)", bestBait.name, FormatNumber(bestBait.price)))
         equipSpecificBait(bestBait.id)
         task.wait(1.5)
     else
-        print("[Initial Check] ⚠️ No bait found in inventory")
+        print("[Initial Setup] ℹ️ No bait owned yet")
     end
 
-    -- Step 6: Re-enable auto farm if it was running before
-    if autoFarmWasEnabled or autoFarmV2WasEnabled then
-        print("[Initial Check] ▶️ Resuming auto farm...")
+    -- Step 6: Set next targets
+    local nextRod, _ = findNextRodTarget(ownedRods)
+    local nextBait, _ = findNextBaitTarget(ownedBaits)
 
-        if autoFarmWasEnabled then
-            _G.AUTO_FARM_ENABLED = true
-        end
+    if nextRod then
+        upgradeState.rod.currentTarget = nextRod
+        print(string.format("[Initial Setup] 🎯 Next Rod Target: %s - %s coins", nextRod.name, FormatNumber(nextRod.price)))
+    else
+        print("[Initial Setup] ✅ All rods owned!")
+    end
 
-        if autoFarmV2WasEnabled then
-            _G.AUTO_FARM_V2_ENABLED = true
-        end
+    if nextBait then
+        upgradeState.bait.currentTarget = nextBait
+        print(string.format("[Initial Setup] 🎯 Next Bait Target: %s - %s coins", nextBait.name, FormatNumber(nextBait.price)))
+    else
+        print("[Initial Setup] ✅ All baits owned!")
+    end
+
+    -- Step 7: Enable Auto Farm (ALWAYS enable for farming)
+    print("[Initial Setup] ▶️ Starting Auto Farm...")
+
+    if autoFarmV2WasEnabled then
+        _G.AUTO_FARM_V2_ENABLED = true
+    elseif autoFarmWasEnabled then
+        _G.AUTO_FARM_ENABLED = true
+    else
+        -- If no auto farm was running, default to V2
+        _G.AUTO_FARM_V2_ENABLED = true
     end
 
     print(string.rep("=", 70))
-    print("✅ INITIAL CHECK COMPLETE - Best items equipped!")
+    print("✅ INITIAL SETUP COMPLETE - Auto Farm ON!")
     print(string.rep("=", 70) .. "\n")
 end
 
@@ -2349,9 +2372,9 @@ local function autoUpgradeRodLoop()
     print("🚀 AUTO UPGRADE ROD - STARTED")
     print(string.rep("=", 70))
 
-    -- Run initial check once
+    -- Run initial setup once (for both Rod and Bait if both enabled)
     task.wait(2)
-    initialEquipBestItems()
+    initialSetupUpgrade()
 
     task.spawn(function()
         while _G.AUTO_UPGRADE_ROD_ENABLED do
@@ -6648,9 +6671,66 @@ UpgradeTab:Divider()
 
 UpgradeTab:Space({ Size = 15 })
 
+-- Stats Section
+UpgradeTab:Section({
+    Title = "📊 Upgrade Stats"
+})
+
+-- Stats Display
+local upgradeStatsLabel = UpgradeTab:Paragraph({
+    Title = "Auto Upgrade Stats",
+    Desc = "Current Coins: 0\nNext Rod: None | Price: 0\nNext Bait: None | Price: 0"
+})
+
+-- Stats updater for Upgrade
+task.spawn(function()
+    while true do
+        task.wait(2)
+
+        -- Get current coins
+        local currentCoins = 0
+        pcall(function()
+            local coinsText = LocalPlayer.PlayerGui.Events.Frame.CurrencyCounter.Counter.Text
+            currentCoins = parseCurrency(coinsText)
+        end)
+
+        -- Get next rod target
+        local nextRodName = "None"
+        local nextRodPrice = 0
+        if upgradeState.rod.currentTarget then
+            nextRodName = upgradeState.rod.currentTarget.name
+            nextRodPrice = upgradeState.rod.currentTarget.price
+        end
+
+        -- Get next bait target
+        local nextBaitName = "None"
+        local nextBaitPrice = 0
+        if upgradeState.bait.currentTarget then
+            nextBaitName = upgradeState.bait.currentTarget.name
+            nextBaitPrice = upgradeState.bait.currentTarget.price
+        end
+
+        -- Update stats display
+        upgradeStatsLabel:SetDesc(string.format(
+            "Current Coins: %s\nNext Rod: %s | Price: %s\nNext Bait: %s | Price: %s",
+            FormatNumber(currentCoins),
+            nextRodName,
+            FormatNumber(nextRodPrice),
+            nextBaitName,
+            FormatNumber(nextBaitPrice)
+        ))
+    end
+end)
+
+UpgradeTab:Space({ Size = 20 })
+
+UpgradeTab:Divider()
+
+UpgradeTab:Space({ Size = 15 })
+
 -- Status Section
 UpgradeTab:Section({
-    Title = "📊 Upgrade Status"
+    Title = "📋 Upgrade Information"
 })
 
 UpgradeTab:Paragraph({
