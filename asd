@@ -1947,8 +1947,11 @@ end
 
 -- Helper: Get current coins
 local function getCurrentCoinsUpgrade()
-    local success, coins = pcall(function()
-        local playerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
+    local success, result = pcall(function()
+        -- Use the global player variable, not LocalPlayer
+        if not player then return 0 end
+
+        local playerGui = player:FindFirstChild("PlayerGui")
         if not playerGui then return 0 end
 
         local events = playerGui:FindFirstChild("Events")
@@ -1964,17 +1967,18 @@ local function getCurrentCoinsUpgrade()
         if not counter then return 0 end
 
         local coinsText = counter.Text
-        local parsedCoins = parseCurrency(coinsText)
+        if not coinsText or coinsText == "" then return 0 end
 
+        local parsedCoins = parseCurrency(coinsText)
         return parsedCoins
     end)
 
     if not success then
-        warn("[getCurrentCoins] ⚠️ Failed to get coins: " .. tostring(coins))
+        warn("[getCurrentCoins] ⚠️ Failed to get coins: " .. tostring(result))
         return 0
     end
 
-    return coins or 0
+    return result or 0
 end
 
 -- Helper: Detect owned rods from inventory
@@ -6767,12 +6771,8 @@ task.spawn(function()
     while true do
         task.wait(2)
 
-        -- Get current coins
-        local currentCoins = 0
-        pcall(function()
-            local coinsText = LocalPlayer.PlayerGui.Events.Frame.CurrencyCounter.Counter.Text
-            currentCoins = parseCurrency(coinsText)
-        end)
+        -- Get current coins using the proper function
+        local currentCoins = getCurrentCoinsUpgrade()
 
         -- Get next rod target
         local nextRodName = "None"
