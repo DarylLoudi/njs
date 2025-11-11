@@ -2264,7 +2264,33 @@ local function initialEquipBestItems()
     print("🔍 INITIAL CHECK - Equipping Best Items")
     print(string.rep("=", 70))
 
-    -- Check and equip best rod
+    -- Step 1: Save current auto farm state
+    local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
+    local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
+
+    -- Step 2: Disable auto farm if running
+    if autoFarmWasEnabled or autoFarmV2WasEnabled then
+        print("[Initial Check] ⏸️ Pausing auto farm...")
+
+        if autoFarmWasEnabled then
+            _G.AUTO_FARM_ENABLED = false
+            task.wait(3)
+        end
+
+        if autoFarmV2WasEnabled then
+            _G.AUTO_FARM_V2_ENABLED = false
+            task.wait(3)
+        end
+
+        task.wait(2) -- Additional wait to ensure fully stopped
+    end
+
+    -- Step 3: Unequip current tool
+    print("[Initial Check] 🔓 Unequipping current tool...")
+    unequipTool()
+    task.wait(1.5)
+
+    -- Step 4: Detect and equip best rod
     local bestRod = getBestOwnedRod()
     if bestRod then
         print(string.format("[Initial Check] 🎣 Best Rod: %s (Price: %s)", bestRod.name, FormatNumber(bestRod.price)))
@@ -2272,29 +2298,42 @@ local function initialEquipBestItems()
         local rodUUID = getLatestRodUUID(bestRod.id)
         if rodUUID then
             equipSpecificRod(rodUUID)
-            task.wait(1)
+            task.wait(1.5)
         else
             equipRodHotbar()
-            task.wait(1)
+            task.wait(1.5)
         end
     else
-        print("[Initial Check] ⚠️ No rod found in inventory")
+        print("[Initial Check] ⚠️ No rod found in inventory, equipping default")
         equipRodHotbar()
-        task.wait(1)
+        task.wait(1.5)
     end
 
-    -- Check and equip best bait
+    -- Step 5: Detect and equip best bait
     local bestBait = getBestOwnedBait()
     if bestBait then
         print(string.format("[Initial Check] 🪱 Best Bait: %s (Price: %s)", bestBait.name, FormatNumber(bestBait.price)))
         equipSpecificBait(bestBait.id)
-        task.wait(1)
+        task.wait(1.5)
     else
         print("[Initial Check] ⚠️ No bait found in inventory")
     end
 
+    -- Step 6: Re-enable auto farm if it was running before
+    if autoFarmWasEnabled or autoFarmV2WasEnabled then
+        print("[Initial Check] ▶️ Resuming auto farm...")
+
+        if autoFarmWasEnabled then
+            _G.AUTO_FARM_ENABLED = true
+        end
+
+        if autoFarmV2WasEnabled then
+            _G.AUTO_FARM_V2_ENABLED = true
+        end
+    end
+
     print(string.rep("=", 70))
-    print("✅ INITIAL CHECK COMPLETE")
+    print("✅ INITIAL CHECK COMPLETE - Best items equipped!")
     print(string.rep("=", 70) .. "\n")
 end
 
