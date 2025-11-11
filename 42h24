@@ -1296,7 +1296,7 @@ function getQuestTextFromTracker(trackerName, labelName)
         end
 
         local text = label.Text or "No data"
-        print(string.format("[Quest Fetch] ✅ %s %s: '%s'", trackerName, labelName, text))
+        -- Removed excessive logging - only log important events
         return text
     end)
 
@@ -2499,14 +2499,25 @@ local function createWhiteScreen()
         questLabels[i] = questLabel
     end
 
+    -- Cache for quest data to prevent excessive fetching
+    local lastQuestUpdate = 0
+    local questUpdateInterval = 5 -- Update every 5 seconds (not every frame)
+    local cachedIncompleteQuests = {}
+
     -- Update quest labels with ALL incomplete quests (for display only)
     local function updateQuestLabels()
-        local incompleteQuests = getAllIncompleteQuestsForDisplay()
+        local currentTime = tick()
 
-        -- Update each label
+        -- Only fetch new data every 5 seconds
+        if currentTime - lastQuestUpdate >= questUpdateInterval then
+            cachedIncompleteQuests = getAllIncompleteQuestsForDisplay()
+            lastQuestUpdate = currentTime
+        end
+
+        -- Update each label using cached data
         for i = 1, 6 do
-            if incompleteQuests[i] then
-                questLabels[i].Text = "🏆 " .. incompleteQuests[i].name .. ": " .. incompleteQuests[i].text
+            if cachedIncompleteQuests[i] then
+                questLabels[i].Text = "🏆 " .. cachedIncompleteQuests[i].name .. ": " .. cachedIncompleteQuests[i].text
                 questLabels[i].Visible = true
             else
                 questLabels[i].Visible = false
