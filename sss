@@ -2521,7 +2521,17 @@ local function autoUpgradeRodLoop()
                     task.wait(1.5)
                 end
 
-                -- Step 9: Resume auto farm
+                -- Step 9: Update next target
+                upgradeState.rod.ownedRods = detectOwnedRods()
+                local nextRod, _ = findNextRodTarget(upgradeState.rod.ownedRods)
+                if nextRod then
+                    upgradeState.rod.currentTarget = nextRod
+                    print(string.format("[Auto Upgrade Rod] 🎯 Next Target Set: %s - %s coins", nextRod.name, FormatNumber(nextRod.price)))
+                else
+                    print("[Auto Upgrade Rod] ✅ All rods owned!")
+                end
+
+                -- Step 10: Resume auto farm
                 print("[Auto Upgrade Rod] ♻️ Resuming auto farm...")
 
                 if autoFarmWasEnabled then
@@ -2701,7 +2711,17 @@ local function autoUpgradeBaitLoop()
                     task.wait(1.5)
                 end
 
-                -- Step 10: Resume auto farm
+                -- Step 10: Update next target
+                upgradeState.bait.ownedBaits = detectOwnedBaits()
+                local nextBait, _ = findNextBaitTarget(upgradeState.bait.ownedBaits)
+                if nextBait then
+                    upgradeState.bait.currentTarget = nextBait
+                    print(string.format("[Auto Upgrade Bait] 🎯 Next Target Set: %s - %s coins", nextBait.name, FormatNumber(nextBait.price)))
+                else
+                    print("[Auto Upgrade Bait] ✅ All baits owned!")
+                end
+
+                -- Step 11: Resume auto farm
                 print("[Auto Upgrade Bait] ♻️ Resuming auto farm...")
 
                 if autoFarmWasEnabled then
