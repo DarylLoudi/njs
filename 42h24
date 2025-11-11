@@ -1321,38 +1321,58 @@ end
 -- Get all incomplete quests
 function getIncompleteQuests()
     local incomplete = {}
+    local hasIncompleteGhostfinn = false
 
-    -- Check Ghostfinn quests
+    print("[Quest Check] 🔍 Checking all quests...")
+
+    -- PRIORITY 1: Check Ghostfinn quests FIRST
     local ghostfinnQuests = getGhostfinnQuests()
     for _, quest in ipairs(ghostfinnQuests) do
         local questText = getQuestTextFromTracker(quest.tracker, quest.label)
-        if not isQuestComplete(questText) then
+        local isComplete = isQuestComplete(questText)
+        print(string.format("[Quest Check] Ghostfinn %s: %s (Complete: %s)", quest.label, questText, tostring(isComplete)))
+
+        if not isComplete then
+            hasIncompleteGhostfinn = true
             table.insert(incomplete, {
                 name = "Ghostfinn " .. quest.label,
                 tracker = quest.tracker,
                 label = quest.label,
                 location = quest.location,
-                text = questText
-            })
-        end
-    end
-
-    -- Check Element Rod quests
-    local elementQuests = getElementRodQuests()
-    for _, quest in ipairs(elementQuests) do
-        local questText = getQuestTextFromTracker(quest.tracker, quest.label)
-        if not isQuestComplete(questText) then
-            table.insert(incomplete, {
-                name = "Element Rod " .. quest.label,
-                tracker = quest.tracker,
-                label = quest.label,
-                location = quest.location,
                 text = questText,
-                note = quest.note
+                priority = 1  -- High priority
             })
         end
     end
 
+    print(string.format("[Quest Check] 📊 Ghostfinn status: %s", hasIncompleteGhostfinn and "INCOMPLETE" or "ALL COMPLETE"))
+
+    -- PRIORITY 2: Only check Element Rod quests if ALL Ghostfinn quests are complete
+    if not hasIncompleteGhostfinn then
+        print("[Quest Check] ✅ All Ghostfinn quests complete, checking Element Rod...")
+        local elementQuests = getElementRodQuests()
+        for _, quest in ipairs(elementQuests) do
+            local questText = getQuestTextFromTracker(quest.tracker, quest.label)
+            local isComplete = isQuestComplete(questText)
+            print(string.format("[Quest Check] Element Rod %s: %s (Complete: %s)", quest.label, questText, tostring(isComplete)))
+
+            if not isComplete then
+                table.insert(incomplete, {
+                    name = "Element Rod " .. quest.label,
+                    tracker = quest.tracker,
+                    label = quest.label,
+                    location = quest.location,
+                    text = questText,
+                    note = quest.note,
+                    priority = 2  -- Lower priority
+                })
+            end
+        end
+    else
+        print("[Quest Check] ⏭️ Skipping Element Rod quests (Ghostfinn not done yet)")
+    end
+
+    print(string.format("[Quest Check] 📋 Total incomplete quests: %d", #incomplete))
     return incomplete
 end
 
