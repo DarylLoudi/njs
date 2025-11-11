@@ -2853,6 +2853,23 @@ local function teleportToNamedLocation(targetName)
         targetName = "Sisyphus Statue"
     end
 
+    -- CRITICAL: Block teleport to TELEPORT_LOCATION if AUTO_QUEST is running
+    -- Only allow quest locations (Treasure Room, Sisyphus Statue, Ancient Jungle, Sacred Temple)
+    local questLocations = {"Treasure Room", "Sisyphus Statue", "Ancient Jungle", "Sacred Temple"}
+    local isQuestLocation = false
+    for _, loc in ipairs(questLocations) do
+        if targetName == loc then
+            isQuestLocation = true
+            break
+        end
+    end
+
+    if autoQuestRunning and not isQuestLocation then
+        warn(string.format("[Teleport] 🚫 BLOCKED teleport to '%s' - AUTO_QUEST is active, only quest locations allowed!", targetName))
+        print("[Teleport] ✅ Auto Quest system will handle all teleports")
+        return
+    end
+
     local success, errorMsg = pcall(function()
         local character = player.Character or player.CharacterAdded:Wait()
         local rootPart = character and character:FindFirstChild("HumanoidRootPart")
