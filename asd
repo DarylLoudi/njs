@@ -1,6 +1,6 @@
 --[[
 ═══════════════════════════════════════════════════════════════════════════════
-    AUTO FISHING + ELEMENT SYSTEM v7.0 (WITH AUTO UPGRADE ROD & BAIT)
+    AUTO FISHING + ELEMENT SYSTEM v5.3 TURBO (ZERO ANIMATIONS OPTIMIZED)
 
     Features:
     - Auto Fishing with Toggle ON/OFF
@@ -9,60 +9,75 @@
     - Teleport System
     - Inventory Detection (Fish & Items)
     - WindUI Integration
-    - 🆕 AUTO UPGRADE ROD (Auto purchase & equip better rods)
-    - 🆕 AUTO UPGRADE BAIT (Auto purchase & equip better baits)
 
-    V7.0 NEW FEATURES (AUTO UPGRADE SYSTEM):
-    ✅ Auto Rod Upgrade - Automatically purchases and equips better fishing rods
-    ✅ Auto Bait Upgrade - Automatically purchases and equips better baits
-    ✅ Smart Detection - Scans inventory to find best owned rod/bait
-    ✅ Progressive Upgrade - Upgrades from Luck Rod → Ares Rod (11 tiers)
-    ✅ Progressive Bait - Upgrades from Topwater → Aether Bait (8 tiers)
-    ✅ Purchase Retry - 3 attempts with failure tracking
-    ✅ Auto Farm Pause - Temporarily pauses auto farm during purchase
-    ✅ UI Toggles - Enable/disable rod and bait upgrades independently
-    ✅ Config Integration - Settings auto-save per account
+    REMOVED IN THIS VERSION:
+    ✘ Animation system (disabled for performance)
+    ✘ Auto Farm (Element Tab) - use main Auto Farm tab instead
 
-    Rod Upgrade Path (worst → best):
-    Luck Rod (300) → Carbon Rod (900) → Grass Rod (1.5K) → Demascus Rod (3K) →
-    Ice Rod (5K) → Lucky Rod (15K) → Midnight Rod (50K) → Steampunk Rod (215K) →
-    Chrome Rod (437K) → Astral Rod (1M) → Ares Rod (2.5M)
+    V4.9.1 TURBO UPDATES (ZERO ANIMATION MODE):
+    ✅ AnimationController hook - disables ALL fishing animations when auto farm ON
+    ✅ PlayAnimation hook - blocks 12+ fishing animations dynamically
+    ✅ StopAnimation hook - prevents animation stop errors
+    ✅ IsDisabled hook - reports fishing animations as disabled
+    ✅ Auto-reinstall hooks on character respawn
+    ✅ Animations work normally when auto farm is OFF
+    ✅ Speed improvement: 2-3x faster (saves ~1.4s per fishing cycle)
 
-    Bait Upgrade Path (worst → best):
-    Topwater (100) → Luck Bait (1K) → Midnight Bait (3K) → Deep Bait (83.5K) →
-    Chroma Bait (290K) → Dark Matter Bait (630K) → Corrupt Bait (1.15M) →
-    Aether Bait (3.7M)
+    Animations disabled during auto farm:
+    - StartRodCharge, LoopedRodCharge (charging animations)
+    - RodThrow (critical ~0.6s delay animation)
+    - ReelIntermission, ReelStart (reel animations)
+    - FishCaught, FishingFailure (completion animations)
+    - EquipIdle, EquipIdleFake (idle animations)
+    - HoldFish, IdleLoop, WalkLoop (misc animations)
 
-    Previous Features (v5.3):
-    ✅ Zero animation mode (2-3x faster fishing)
-    ✅ Anti-drown protection
-    ✅ GPU Saver with white screen
-    ✅ Discord Webhook (Tier-based Mythic/SECRET detection)
-    ✅ Auto Sell, Auto Artifact, Auto Weather
+    V5 UPDATES (Anti-Drown & Death Protection):
+    ✅ Enhanced position lock (999999 force, 50000 P value)
+    ✅ Y-axis drift detection (0.5 stud threshold)
+    ✅ Overall position drift detection (2 stud threshold)
+    ✅ Death detection system with auto-cleanup
+    ✅ Emergency unfreeze on death
+    ✅ Character validation before each cycle
+    ✅ Health check during cycles
+    ✅ Auto-resume after respawn
+
+    V5.2 UPDATES (ANIMATION OPTIMIZATION):
+    ✅ State-based animation blocking (no per-cycle checks)
+    ✅ Animation blocks set once at start, not every frame
+    ✅ Removed animation spam prints for cleaner console
+    ✅ Optimized hooks for better performance
+    ✅ Simplified fishing logic for faster execution
+
+    V5.3 UPDATES (AUTO-DELETE ANIMATIONS & FPS UNLOCK):
+    ✅ Auto-delete ALL animations on script execution (walk, jump, fall, climb, swim, fishing)
+    ✅ Auto-delete animations on character respawn
+    ✅ Removed manual "Delete Animations" button - fully automatic now
+    ✅ FPS Unlock button (setfpscap to 240)
+    ✅ Freeze Character toggle remains separate from Auto Farm
+    ✅ GPU Saver fully functional with white screen overlay
 
     Structure:
     1. DEPENDENCIES & SETUP
-    2. AUTO UPGRADE SYSTEM (NEW)
-    3. AUTO FARM MODULE
-    4. INVENTORY MODULE
-    5. AUTO ELEMENT MODULE
-    6. AUTO WEATHER MODULE
-    7. TELEPORT MODULE
-    8. UI MODULE
-    9. MAIN EXECUTION
+    2. AUTO FARM MODULE
+    3. INVENTORY MODULE
+    4. AUTO ELEMENT MODULE (V5)
+    5. AUTO WEATHER MODULE
+    6. TELEPORT MODULE
+    7. UI MODULE
+    8. MAIN EXECUTION
 
     Usage:
-    loadstring(readfile("auto_farm_v7.lua"))()
+    loadstring(readfile("auto_farm_v5_elemen.lua"))()
 ═══════════════════════════════════════════════════════════════════════════════
 ]]
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- AUTO FISHING SYSTEM v7.0 (WITH AUTO UPGRADE)
+-- AUTO FISHING SYSTEM v5.3 TURBO (NO KEY PROTECTION)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 print(string.rep("=", 80))
-print("🚀 AUTO FISHING SYSTEM v7.0 (WITH AUTO UPGRADE ROD & BAIT)")
-print("✅ Animation Hook | Auto Upgrade | Optimized Performance")
+print("🚀 AUTO FISHING SYSTEM v5.3 TURBO (ZERO ANIMATIONS OPTIMIZED)")
+print("✅ Animation Hook System | 2-3x Faster | Optimized Performance")
 print(string.rep("=", 80))
 print("\n⏳ Loading optimized modules...\n")
 
@@ -96,6 +111,8 @@ _G.AUTO_WEATHER_ENABLED = false   -- Auto Weather state
 _G.WEATHER_PURCHASE_DELAY = 32    -- Delay between weather purchase cycles (default 32s)
 _G.FREEZE_CHAR_ENABLED = false    -- Freeze Character state
 _G.GPU_SAVER_ENABLED = false       -- GPU Saver state
+_G.AUTO_UPGRADE_ROD_ENABLED = false  -- Auto Upgrade Rod state
+_G.AUTO_UPGRADE_BAIT_ENABLED = false -- Auto Upgrade Bait state
 
 -- Jung V2 State Variables (Auto Farm V2)
 _G.JUNG_V2_STATE = {
@@ -118,443 +135,6 @@ _G.JUNG_V2_STATE = {
     baseDelayReel = 1.5,
     baseDelayComplete = 0.7,
 }
-
--- Auto Upgrade State Variables (v7.0)
-_G.AUTO_UPGRADE_ROD_ENABLED = false
-_G.AUTO_UPGRADE_BAIT_ENABLED = false
-
--- Auto Upgrade System Data
-local upgradeState = { rod = false, bait = false }
-
--- Rod IDs (worst to best priority)
-local rodIDs = {79, 76, 85, 77, 78, 4, 80, 6, 7, 5, 126}
-
--- Bait IDs (worst to best priority)
-local baitIDs = {10, 2, 3, 17, 6, 8, 15, 16}
-
--- Rod Prices
-local rodPrices = {
-    [79] = 300,      -- Luck Rod
-    [76] = 900,      -- Carbon Rod
-    [85] = 1500,     -- Grass Rod
-    [77] = 3000,     -- Demascus Rod
-    [78] = 5000,     -- Ice Rod
-    [4] = 15000,     -- Lucky Rod
-    [80] = 50000,    -- Midnight Rod
-    [6] = 215000,    -- Steampunk Rod
-    [7] = 437000,    -- Chrome Rod
-    [5] = 1000000,   -- Astral Rod
-    [126] = 2500000  -- Ares Rod
-}
-
--- Bait Prices
-local baitPrices = {
-    [10] = 100,       -- Topwater Bait
-    [2] = 1000,       -- Luck Bait
-    [3] = 3000,       -- Midnight Bait
-    [17] = 83500,     -- Deep Bait
-    [6] = 290000,     -- Chroma Bait
-    [8] = 630000,     -- Dark Matter Bait
-    [15] = 1150000,   -- Corrupt Bait
-    [16] = 3700000    -- Aether Bait
-}
-
--- Rod Names for logging
-local rodNames = {
-    [79] = "Luck Rod",
-    [76] = "Carbon Rod",
-    [85] = "Grass Rod",
-    [77] = "Demascus Rod",
-    [78] = "Ice Rod",
-    [4] = "Lucky Rod",
-    [80] = "Midnight Rod",
-    [6] = "Steampunk Rod",
-    [7] = "Chrome Rod",
-    [5] = "Astral Rod",
-    [126] = "Ares Rod"
-}
-
--- Failure tracking
-local failedRodAttempts = {}
-local failedBaitAttempts = {}
-local rodFailedCounts = {}
-local baitFailedCounts = {}
-
--- Current targets
-local currentRodTarget = nil
-local currentBaitTarget = nil
-
--- ====== AUTO UPGRADE HELPER FUNCTIONS (v7.0) ======
-
--- Trim whitespace from strings
-local function trim(s)
-    if not s then return nil end
-    return s:match("^%s*(.-)%s*$")
-end
-
--- Function to get current coins from UI
-function getCurrentCoins()
-    local coinText = "0"
-    local success, result = pcall(function()
-        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-        local events = playerGui and playerGui:FindFirstChild("Events")
-        local frame = events and events:FindFirstChild("Frame")
-        local currencyCounter = frame and frame:FindFirstChild("CurrencyCounter")
-        local counter = currencyCounter and currencyCounter:FindFirstChild("Counter")
-        return counter and counter.Text
-    end)
-
-    if success and result then
-        coinText = result
-    end
-
-    -- Parse coin text (handles "1.5K", "2.3M", etc.)
-    local cleanText = coinText:gsub(",", "")
-    local coins = 0
-
-    if cleanText:lower():find("k") then
-        local numStr = cleanText:lower():gsub("k", "")
-        coins = (tonumber(numStr) or 0) * 1000
-    elseif cleanText:lower():find("m") then
-        local numStr = cleanText:lower():gsub("m", "")
-        coins = (tonumber(numStr) or 0) * 1000000
-    else
-        coins = tonumber(cleanText) or 0
-    end
-
-    return coins
-end
-
--- Find next rod target to purchase
-function findNextRodTarget()
-    local startIndex = 1
-
-    -- If we have a current target, start from the next one
-    if currentRodTarget then
-        for i = 1, #rodIDs do
-            if rodIDs[i] == currentRodTarget then
-                startIndex = i + 1
-                break
-            end
-        end
-    end
-
-    -- Find next rod that hasn't failed 3+ times
-    for i = startIndex, #rodIDs do
-        local rodId = rodIDs[i]
-        if rodPrices[rodId] and (not rodFailedCounts[rodId] or rodFailedCounts[rodId] < 3) then
-            return rodId
-        end
-    end
-
-    return nil
-end
-
--- Find next bait target to purchase
-function findNextBaitTarget()
-    local startIndex = 1
-
-    -- If we have a current target, start from the next one
-    if currentBaitTarget then
-        for i = 1, #baitIDs do
-            if baitIDs[i] == currentBaitTarget then
-                startIndex = i + 1
-                break
-            end
-        end
-    end
-
-    -- Find next bait that hasn't failed 3+ times
-    for i = startIndex, #baitIDs do
-        local baitId = baitIDs[i]
-        if baitPrices[baitId] and (not baitFailedCounts[baitId] or baitFailedCounts[baitId] < 3) then
-            return baitId
-        end
-    end
-
-    return nil
-end
-
--- Check if player can afford next rod upgrade
-function getAffordableRod(coins)
-    if not currentRodTarget then
-        return
-    end
-
-    local price = rodPrices[currentRodTarget]
-    if not price then
-        currentRodTarget = findNextRodTarget()
-        return
-    end
-
-    -- Check if this rod recently failed (30 second cooldown)
-    if failedRodAttempts[currentRodTarget] and tick() - failedRodAttempts[currentRodTarget] < 30 then
-        return
-    end
-
-    -- Return rod ID and price if affordable
-    if coins >= price then
-        return currentRodTarget, price
-    end
-end
-
--- Check if player can afford next bait upgrade
-function getAffordableBait(coins)
-    if not currentBaitTarget then
-        return
-    end
-
-    local price = baitPrices[currentBaitTarget]
-    if not price then
-        currentBaitTarget = findNextBaitTarget()
-        return
-    end
-
-    -- Check if this bait recently failed (30 second cooldown)
-    if failedBaitAttempts[currentBaitTarget] and tick() - failedBaitAttempts[currentBaitTarget] < 30 then
-        return
-    end
-
-    -- Return bait ID and price if affordable
-    if coins >= price then
-        return currentBaitTarget, price
-    end
-end
-
--- ====== END AUTO UPGRADE HELPER FUNCTIONS ======
-
--- ====== AUTO UPGRADE EQUIP FUNCTIONS (v7.0) ======
-
--- Function to detect all rods from PlayerData and find best owned rod
-local function detectAndEquipBestRod()
-    if not PlayerData then
-        warn("[Auto Equip Rod] PlayerData is not available.")
-        return false
-    end
-
-    local success, inventory = pcall(function()
-        return PlayerData:Get("Inventory")
-    end)
-
-    if not success or not inventory then
-        warn("[Auto Equip Rod] Failed to get inventory from PlayerData")
-        return false
-    end
-
-    local fishingRods = inventory["Fishing Rods"]
-    if not fishingRods or type(fishingRods) ~= "table" then
-        warn("[Auto Equip Rod] 'Fishing Rods' category not found")
-        return false
-    end
-
-    -- Scan ALL owned rods and find the best one
-    local ownedRods = {}
-
-    for i, rodItem in ipairs(fishingRods) do
-        local rodData = ItemUtility:GetItemData(rodItem.Id)
-        if rodData and rodData.Data then
-            local rodName = trim(rodData.Data.Name)
-            local rodUUID = rodItem.UUID
-            local rodID = rodItem.Id
-
-            -- Check if this rod is in our upgrade list
-            for rodIndex, listRodID in ipairs(rodIDs) do
-                if listRodID == rodID then
-                    table.insert(ownedRods, {
-                        id = rodID,
-                        uuid = rodUUID,
-                        name = rodName,
-                        priority = rodIndex
-                    })
-                    break
-                end
-            end
-        end
-    end
-
-    if #ownedRods == 0 then
-        warn("[Auto Equip Rod] No rods found in upgrade list!")
-        return false
-    end
-
-    -- Sort by priority (higher = better)
-    table.sort(ownedRods, function(a, b)
-        return a.priority > b.priority
-    end)
-
-    local bestRod = ownedRods[1]
-    print(string.format("[Auto Equip Rod] 🏆 Best owned rod: '%s' (ID: %d, Priority: %d/%d, UUID: %s)",
-        bestRod.name, bestRod.id, bestRod.priority, #rodIDs, bestRod.uuid))
-
-    -- Check if already equipped
-    local equippedItems = PlayerData:GetExpect("EquippedItems")
-    for _, equippedUUID in ipairs(equippedItems) do
-        if equippedUUID == bestRod.uuid then
-            print(string.format("[Auto Equip Rod] ✅ '%s' already equipped!", bestRod.name))
-            print("[Auto Equip Rod] ================================================")
-            return true
-        end
-    end
-
-    -- Equip the best rod
-    local equipSuccess = pcall(function()
-        local EquipItemEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net:WaitForChild("RE/EquipItem")
-        EquipItemEvent:FireServer(bestRod.uuid, "Fishing Rods")
-    end)
-
-    if equipSuccess then
-        task.wait(2) -- Wait for equip to fully register
-
-        -- Verify equip was successful (check if UUID is now in equipped items)
-        local verified = false
-        local equippedItems = PlayerData:GetExpect("EquippedItems")
-        for _, equippedUUID in ipairs(equippedItems) do
-            if equippedUUID == bestRod.uuid then
-                verified = true
-                break
-            end
-        end
-
-        if verified then
-            print(string.format("[Auto Equip Rod] ✅ Successfully equipped '%s'", bestRod.name))
-            print("[Auto Equip Rod] ================================================")
-        else
-            warn(string.format("[Auto Equip Rod] ⚠️ Equip verification failed for '%s' - retrying...", bestRod.name))
-
-            -- Retry equip once
-            task.wait(1)
-            local retrySuccess = pcall(function()
-                local EquipItemEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net:WaitForChild("RE/EquipItem")
-                EquipItemEvent:FireServer(bestRod.uuid, "Fishing Rods")
-            end)
-
-            if retrySuccess then
-                task.wait(2)
-                print(string.format("[Auto Equip Rod] ✅ Retry successful for '%s'", bestRod.name))
-            else
-                warn(string.format("[Auto Equip Rod] ❌ Retry failed for '%s'", bestRod.name))
-            end
-        end
-
-        return true
-    else
-        warn(string.format("[Auto Equip Rod] ❌ Failed to equip '%s'", bestRod.name))
-        return false
-    end
-end
-
--- Function to detect all baits from PlayerData and find best owned bait
-local function detectAndEquipBestBait()
-    if not PlayerData then
-        warn("[Auto Equip Bait] PlayerData is not available.")
-        return false
-    end
-
-    local success, inventory = pcall(function()
-        return PlayerData:Get("Inventory")
-    end)
-
-    if not success or not inventory then
-        warn("[Auto Equip Bait] Failed to get inventory from PlayerData")
-        return false
-    end
-
-    local baits = inventory["Baits"]
-    if not baits or type(baits) ~= "table" then
-        warn("[Auto Equip Bait] 'Baits' category not found")
-        return false
-    end
-
-    -- Scan ALL owned baits and find the best one
-    local ownedBaits = {}
-
-    for i, baitItem in ipairs(baits) do
-        local baitData = ItemUtility:GetBaitData(baitItem.Id)
-        if baitData and baitData.Data then
-            local baitName = trim(baitData.Data.Name)
-            local baitID = baitData.Data.Id
-
-            -- Check if this bait is in our upgrade list
-            for baitIndex, listBaitID in ipairs(baitIDs) do
-                if listBaitID == baitID then
-                    table.insert(ownedBaits, {
-                        id = baitID,
-                        name = baitName,
-                        priority = baitIndex
-                    })
-                    break
-                end
-            end
-        end
-    end
-
-    if #ownedBaits == 0 then
-        warn("[Auto Equip Bait] No baits found in upgrade list!")
-        return false
-    end
-
-    -- Sort by priority (higher = better)
-    table.sort(ownedBaits, function(a, b)
-        return a.priority > b.priority
-    end)
-
-    local bestBait = ownedBaits[1]
-    print(string.format("[Auto Equip Bait] 🏆 Best owned bait: '%s' (ID: %d, Priority: %d/%d)",
-        bestBait.name, bestBait.id, bestBait.priority, #baitIDs))
-
-    -- Check if already equipped
-    local equippedBaitId = PlayerData:GetExpect("EquippedBaitId")
-    if equippedBaitId == bestBait.id then
-        print(string.format("[Auto Equip Bait] ✅ '%s' already equipped!", bestBait.name))
-        print("[Auto Equip Bait] ================================================")
-        return true
-    end
-
-    -- Equip the best bait
-    local equipSuccess = pcall(function()
-        local EquipBaitEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net:WaitForChild("RE/EquipBait")
-        EquipBaitEvent:FireServer(bestBait.id)
-    end)
-
-    if equipSuccess then
-        task.wait(2) -- Wait for equip to fully register
-
-        -- Verify equip was successful (check if ID is now equipped)
-        local verified = false
-        local equippedBaitId = PlayerData:GetExpect("EquippedBaitId")
-        if equippedBaitId == bestBait.id then
-            verified = true
-        end
-
-        if verified then
-            print(string.format("[Auto Equip Bait] ✅ Successfully equipped '%s'", bestBait.name))
-            print("[Auto Equip Bait] ================================================")
-        else
-            warn(string.format("[Auto Equip Bait] ⚠️ Equip verification failed for '%s' - retrying...", bestBait.name))
-
-            -- Retry equip once
-            task.wait(1)
-            local retrySuccess = pcall(function()
-                local EquipBaitEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net:WaitForChild("RE/EquipBait")
-                EquipBaitEvent:FireServer(bestBait.id)
-            end)
-
-            if retrySuccess then
-                task.wait(2)
-                print(string.format("[Auto Equip Bait] ✅ Retry successful for '%s'", bestBait.name))
-            else
-                warn(string.format("[Auto Equip Bait] ❌ Retry failed for '%s'", bestBait.name))
-            end
-        end
-
-        return true
-    else
-        warn(string.format("[Auto Equip Bait] ❌ Failed to equip '%s'", bestBait.name))
-        return false
-    end
-end
-
--- ====== END AUTO UPGRADE EQUIP FUNCTIONS ======
 
 -- Freeze Character state variables
 local freezeCharBodyVelocity = nil
@@ -581,23 +161,6 @@ local RequestEvent = Net["RF/RequestFishingMinigameStarted"]
 local CompletedEvent = Net["RE/FishingCompleted"]
 local CancelEvent = Net["RF/CancelFishingInputs"]
 local EquipItemEvent = Net["RE/EquipItem"]
-
--- Auto Upgrade Network Events (v7.0)
-local PurchaseRodEvent = nil
-local PurchaseBaitEvent = nil
-
--- Initialize purchase events (using pcall in case not immediately available)
-task.spawn(function()
-    local success = pcall(function()
-        local networkNet = ReplicatedStorage:WaitForChild("Network", 10)
-        PurchaseRodEvent = networkNet:WaitForChild("RF/PurchaseFishingRod", 10)
-        PurchaseBaitEvent = networkNet:WaitForChild("RF/PurchaseBait", 10)
-        print("✅ Auto Upgrade network events loaded")
-    end)
-    if not success then
-        warn("[Auto Upgrade] ⚠️ Could not load purchase events - auto upgrade may not work")
-    end
-end)
 
 print("✅ Network events loaded\n")
 
@@ -1433,6 +996,10 @@ function saveConfig()
         AUTO_WEATHER_ENABLED = _G.AUTO_WEATHER_ENABLED,
         WEATHER_PURCHASE_DELAY = _G.WEATHER_PURCHASE_DELAY,
 
+        -- Auto Upgrade Settings
+        AUTO_UPGRADE_ROD_ENABLED = _G.AUTO_UPGRADE_ROD_ENABLED,
+        AUTO_UPGRADE_BAIT_ENABLED = _G.AUTO_UPGRADE_BAIT_ENABLED,
+
         -- Freeze Character
         FREEZE_CHAR_ENABLED = _G.FREEZE_CHAR_ENABLED,
 
@@ -1443,15 +1010,11 @@ function saveConfig()
         WEBHOOK_ENABLED = _G.WEBHOOK_ENABLED,
         WEBHOOK_SECRET = _G.WEBHOOK_SECRET,
 
-        -- Auto Upgrade Settings (v7.0)
-        AUTO_UPGRADE_ROD_ENABLED = _G.AUTO_UPGRADE_ROD_ENABLED,
-        AUTO_UPGRADE_BAIT_ENABLED = _G.AUTO_UPGRADE_BAIT_ENABLED,
-
         -- Metadata
         playerName = player.Name,
         userId = player.UserId,
         lastSave = os.time(),
-        version = "v7.0"
+        version = "v5.3"
     }
 
     local success, err = pcall(function()
@@ -1551,24 +1114,6 @@ function applyLoadedConfig(config)
         task.wait(0.15)
     end
 
-    -- Update Auto Upgrade Rod Toggle UI (v7.0)
-    if config.AUTO_UPGRADE_ROD_ENABLED then
-        pcall(function()
-            Window.Flags.AutoUpgradeRodEnabled = true
-        end)
-        print("  🎣 Auto Upgrade Rod: TOGGLED ON")
-        task.wait(0.15)
-    end
-
-    -- Update Auto Upgrade Bait Toggle UI (v7.0)
-    if config.AUTO_UPGRADE_BAIT_ENABLED then
-        pcall(function()
-            Window.Flags.AutoUpgradeBaitEnabled = true
-        end)
-        print("  🪱 Auto Upgrade Bait: TOGGLED ON")
-        task.wait(0.15)
-    end
-
     -- Update Artifact Skip Toggles UI
     if config.artifactSkipToggles then
         if config.artifactSkipToggles[1] then
@@ -1628,6 +1173,28 @@ function applyLoadedConfig(config)
             Window.Flags.AutoWeatherEnabled = true
         end)
         print("  ✅ Auto Weather: TOGGLED ON")
+        task.wait(0.15)
+    end
+
+    -- ═════════════════════════════════════════════════════════════════════════
+    -- TAB 3.5: AUTO UPGRADE - UPDATE UI TOGGLES
+    -- ═════════════════════════════════════════════════════════════════════════
+
+    print("[Config] ⬆️ Loading Auto Upgrade settings...")
+
+    if config.AUTO_UPGRADE_ROD_ENABLED then
+        pcall(function()
+            Window.Flags.AutoUpgradeRodEnabled = true
+        end)
+        print("  ✅ Auto Upgrade Rod: TOGGLED ON")
+        task.wait(0.15)
+    end
+
+    if config.AUTO_UPGRADE_BAIT_ENABLED then
+        pcall(function()
+            Window.Flags.AutoUpgradeBaitEnabled = true
+        end)
+        print("  ✅ Auto Upgrade Bait: TOGGLED ON")
         task.wait(0.15)
     end
 
@@ -2276,6 +1843,614 @@ print("✅ Auto animation deletion system initialized")
 print("ℹ️ Animation removal provides 2-3x speed boost (0.75s wait bypass not possible)\n")
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- AUTO UPGRADE SYSTEM (ROD & BAIT)
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    Auto Upgrade System - Automatic Rod & Bait purchasing and upgrading
+
+    Features:
+    - Currency parsing (2.99M -> 2990000)
+    - Inventory detection (detect owned rods/baits)
+    - Auto purchase next affordable rod/bait
+    - Auto equip after purchase
+    - Integration with Auto Farm (pause/resume)
+]]
+
+print("🔧 Loading Auto Upgrade System...")
+
+-- Network Events for Upgrade System
+local UnequipToolEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/UnequipToolFromHotbar"]
+local EquipItemEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/EquipItem"]
+local EquipBaitEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/EquipBait"]
+
+-- Purchase events
+local PurchaseRodEvent = nil
+local PurchaseBaitEvent = nil
+
+pcall(function()
+    PurchaseRodEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/PurchaseFishingRod"]
+end)
+
+pcall(function()
+    PurchaseBaitEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/PurchaseBait"]
+end)
+
+-- Rod Prices (ordered from cheapest to most expensive)
+local rodPrices = {
+    {id = 79, price = 300, name = "Luck Rod"},
+    {id = 76, price = 900, name = "Carbon Rod"},
+    {id = 85, price = 1500, name = "Grass Rod"},
+    {id = 77, price = 3000, name = "Demascus Rod"},
+    {id = 78, price = 5000, name = "Ice Rod"},
+    {id = 4, price = 15000, name = "Lucky Rod"},
+    {id = 80, price = 50000, name = "Midnight Rod"},
+    {id = 6, price = 215000, name = "Steampunk Rod"},
+    {id = 7, price = 437000, name = "Chrome Rod"},
+    {id = 5, price = 1000000, name = "Astral Rod"},
+    {id = 126, price = 2500000, name = "Ares Rod"},
+    {id = 168, price = 8000000, name = "Angler Rod"}
+}
+
+-- Bait Prices (ordered from cheapest to most expensive)
+local baitPrices = {
+    {id = 10, price = 100, name = "Topwater Bait"},
+    {id = 2, price = 1000, name = "Luck Bait"},
+    {id = 3, price = 3000, name = "Midnight Bait"},
+    {id = 17, price = 83500, name = "Deep Bait"},
+    {id = 6, price = 290000, name = "Chroma Bait"},
+    {id = 8, price = 630000, name = "Dark Matter Bait"},
+    {id = 15, price = 1150000, name = "Corrupt Bait"},
+    {id = 16, price = 3700000, name = "Aether Bait"}
+}
+
+-- Auto Upgrade State
+local upgradeState = {
+    isPurchasing = false, -- Global lock to prevent both running simultaneously
+    rod = {
+        running = false,
+        currentTarget = nil,
+        ownedRods = {},
+        nextRodIndex = 1
+    },
+    bait = {
+        running = false,
+        currentTarget = nil,
+        ownedBaits = {},
+        nextBaitIndex = 1
+    }
+}
+
+-- Helper: Parse currency text to number (2.99M -> 2990000, 1.5K -> 1500)
+local function parseCurrency(text)
+    if not text or text == "" then return 0 end
+
+    text = text:gsub(",", "") -- Remove commas
+    text = text:upper() -- Convert to uppercase
+
+    local multiplier = 1
+    if text:find("K") then
+        multiplier = 1000
+        text = text:gsub("K", "")
+    elseif text:find("M") then
+        multiplier = 1000000
+        text = text:gsub("M", "")
+    elseif text:find("B") then
+        multiplier = 1000000000
+        text = text:gsub("B", "")
+    end
+
+    local number = tonumber(text)
+    if not number then return 0 end
+
+    return math.floor(number * multiplier)
+end
+
+-- Helper: Get current coins
+local function getCurrentCoinsUpgrade()
+    local success, coins = pcall(function()
+        local playerGui = player:WaitForChild("PlayerGui", 5)
+        if not playerGui then return 0 end
+
+        local events = playerGui:FindFirstChild("Events")
+        if not events then return 0 end
+
+        local frame = events:FindFirstChild("Frame")
+        if not frame then return 0 end
+
+        local currencyCounter = frame:FindFirstChild("CurrencyCounter")
+        if not currencyCounter then return 0 end
+
+        local counter = currencyCounter:FindFirstChild("Counter")
+        if not counter then return 0 end
+
+        return parseCurrency(counter.Text)
+    end)
+
+    return success and coins or 0
+end
+
+-- Helper: Detect owned rods from inventory
+local function detectOwnedRods()
+    local ownedRods = {}
+
+    local success = pcall(function()
+        if not PlayerData then return end
+
+        local inventory = PlayerData:GetExpect("Inventory")
+        if not inventory then return end
+
+        local rods = inventory["Fishing Rods"] or {}
+
+        for _, rod in ipairs(rods) do
+            if rod and rod.Id then
+                table.insert(ownedRods, rod.Id)
+            end
+        end
+    end)
+
+    if success then
+        print(string.format("[Auto Upgrade] ✅ Detected %d owned rods", #ownedRods))
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to detect owned rods")
+    end
+
+    return ownedRods
+end
+
+-- Helper: Detect owned baits from inventory
+local function detectOwnedBaits()
+    local ownedBaits = {}
+
+    local success = pcall(function()
+        if not PlayerData then return end
+
+        local inventory = PlayerData:GetExpect("Inventory")
+        if not inventory then return end
+
+        local baits = inventory.Baits or {}
+
+        for _, bait in ipairs(baits) do
+            if bait and bait.Id then
+                table.insert(ownedBaits, bait.Id)
+            end
+        end
+    end)
+
+    if success then
+        print(string.format("[Auto Upgrade] ✅ Detected %d owned baits", #ownedBaits))
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to detect owned baits")
+    end
+
+    return ownedBaits
+end
+
+-- Helper: Check if rod is owned
+local function isRodOwned(rodId, ownedList)
+    for _, id in ipairs(ownedList) do
+        if id == rodId then return true end
+    end
+    return false
+end
+
+-- Helper: Find next rod to buy
+local function findNextRodTarget(ownedRods)
+    for i, rod in ipairs(rodPrices) do
+        if not isRodOwned(rod.id, ownedRods) then
+            return rod, i
+        end
+    end
+    return nil, nil
+end
+
+-- Helper: Find next bait to buy
+local function findNextBaitTarget(ownedBaits)
+    for i, bait in ipairs(baitPrices) do
+        if not isRodOwned(bait.id, ownedBaits) then
+            return bait, i
+        end
+    end
+    return nil, nil
+end
+
+-- Helper: Unequip tool
+local function unequipTool()
+    local success = pcall(function()
+        UnequipToolEvent:FireServer()
+    end)
+
+    if success then
+        print("[Auto Upgrade] 🔓 Tool unequipped")
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to unequip tool")
+    end
+
+    return success
+end
+
+-- Helper: Equip rod (from hotbar)
+local function equipRodHotbar()
+    local success = pcall(function()
+        EquipToolEvent:FireServer(1)
+    end)
+
+    if success then
+        print("[Auto Upgrade] 🎣 Rod equipped (hotbar)")
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to equip rod from hotbar")
+    end
+
+    return success
+end
+
+-- Helper: Buy rod
+local function buyRod(rodId, rodName)
+    if not PurchaseRodEvent then
+        warn("[Auto Upgrade] ❌ PurchaseRodEvent not available")
+        return false
+    end
+
+    local success, result = pcall(function()
+        return PurchaseRodEvent:InvokeServer(rodId)
+    end)
+
+    if success and result then
+        print(string.format("[Auto Upgrade] ✅ Purchased: %s (ID: %d)", rodName, rodId))
+        return true
+    else
+        warn(string.format("[Auto Upgrade] ❌ Failed to purchase: %s (ID: %d) - %s", rodName, rodId, tostring(result)))
+        return false
+    end
+end
+
+-- Helper: Buy bait
+local function buyBait(baitId, baitName)
+    if not PurchaseBaitEvent then
+        warn("[Auto Upgrade] ❌ PurchaseBaitEvent not available")
+        return false
+    end
+
+    local success, result = pcall(function()
+        return PurchaseBaitEvent:InvokeServer(baitId)
+    end)
+
+    if success and result then
+        print(string.format("[Auto Upgrade] ✅ Purchased: %s (ID: %d)", baitName, baitId))
+        return true
+    else
+        warn(string.format("[Auto Upgrade] ❌ Failed to purchase: %s (ID: %d) - %s", baitName, baitId, tostring(result)))
+        return false
+    end
+end
+
+-- Helper: Equip specific rod by UUID (after purchase)
+local function equipSpecificRod(rodUUID)
+    local success = pcall(function()
+        EquipItemEvent:FireServer(rodUUID, "Fishing Rods")
+    end)
+
+    if success then
+        print(string.format("[Auto Upgrade] 🎣 Rod equipped (UUID: %s)", rodUUID))
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to equip specific rod")
+    end
+
+    return success
+end
+
+-- Helper: Equip specific bait by ID
+local function equipSpecificBait(baitId)
+    local success = pcall(function()
+        EquipBaitEvent:FireServer(baitId)
+    end)
+
+    if success then
+        print(string.format("[Auto Upgrade] 🪱 Bait equipped (ID: %d)", baitId))
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to equip bait")
+    end
+
+    return success
+end
+
+-- Helper: Get latest rod UUID by ID
+local function getLatestRodUUID(rodId)
+    local uuid = nil
+
+    pcall(function()
+        if not PlayerData then return end
+
+        local inventory = PlayerData:GetExpect("Inventory")
+        if not inventory then return end
+
+        local rods = inventory["Fishing Rods"] or {}
+
+        -- Find the latest rod with matching ID
+        for i = #rods, 1, -1 do
+            if rods[i] and rods[i].Id == rodId and rods[i].UUID then
+                uuid = rods[i].UUID
+                break
+            end
+        end
+    end)
+
+    return uuid
+end
+
+-- Main: Auto Upgrade Rod Loop
+local function autoUpgradeRodLoop()
+    if upgradeState.rod.running then
+        warn("[Auto Upgrade Rod] ⚠️ Already running!")
+        return
+    end
+
+    upgradeState.rod.running = true
+    print(string.rep("=", 70))
+    print("🚀 AUTO UPGRADE ROD - STARTED")
+    print(string.rep("=", 70))
+
+    task.spawn(function()
+        while _G.AUTO_UPGRADE_ROD_ENABLED do
+            -- Wait if bait is currently purchasing
+            while upgradeState.isPurchasing and _G.AUTO_UPGRADE_ROD_ENABLED do
+                task.wait(1)
+            end
+
+            if not _G.AUTO_UPGRADE_ROD_ENABLED then break end
+
+            -- Step 1: Detect owned rods
+            upgradeState.rod.ownedRods = detectOwnedRods()
+
+            -- Step 2: Find next rod target
+            local nextRod, rodIndex = findNextRodTarget(upgradeState.rod.ownedRods)
+
+            if not nextRod then
+                print("[Auto Upgrade Rod] ✅ All rods purchased! Auto upgrade complete.")
+                _G.AUTO_UPGRADE_ROD_ENABLED = false
+                break
+            end
+
+            upgradeState.rod.currentTarget = nextRod
+            upgradeState.rod.nextRodIndex = rodIndex
+
+            print(string.format("[Auto Upgrade Rod] 🎯 Next Target: %s | Price: %s coins",
+                nextRod.name,
+                FormatNumber(nextRod.price)))
+
+            -- Step 3: Wait until we have enough coins
+            local currentCoins = getCurrentCoinsUpgrade()
+
+            while currentCoins < nextRod.price and _G.AUTO_UPGRADE_ROD_ENABLED do
+                print(string.format("[Auto Upgrade Rod] 💰 Farming... Current: %s | Need: %s",
+                    FormatCoins(currentCoins),
+                    FormatCoins(nextRod.price)))
+
+                task.wait(10) -- Check every 10 seconds
+                currentCoins = getCurrentCoinsUpgrade()
+            end
+
+            if not _G.AUTO_UPGRADE_ROD_ENABLED then break end
+
+            -- Lock purchasing
+            upgradeState.isPurchasing = true
+
+            -- Step 4: We have enough coins, pause auto farm
+            print("[Auto Upgrade Rod] ✅ Enough coins! Pausing auto farm...")
+
+            local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
+            local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
+
+            if autoFarmWasEnabled then
+                _G.AUTO_FARM_ENABLED = false
+                task.wait(3) -- Wait longer for farm to fully stop
+            end
+
+            if autoFarmV2WasEnabled then
+                _G.AUTO_FARM_V2_ENABLED = false
+                task.wait(3) -- Wait longer for V2 to fully stop
+            end
+
+            -- Additional wait to ensure everything stopped
+            task.wait(2)
+
+            -- Step 5: Unequip tool
+            unequipTool()
+            task.wait(1.5)
+
+            -- Step 6: Purchase rod
+            print(string.format("[Auto Upgrade Rod] 🛒 Purchasing: %s...", nextRod.name))
+            local purchaseSuccess = buyRod(nextRod.id, nextRod.name)
+
+            if purchaseSuccess then
+                task.wait(3) -- Wait longer for purchase to register
+
+                -- Step 7: Equip the newly purchased rod
+                local rodUUID = getLatestRodUUID(nextRod.id)
+
+                if rodUUID then
+                    equipSpecificRod(rodUUID)
+                else
+                    warn("[Auto Upgrade Rod] ⚠️ Could not find UUID for purchased rod, using hotbar")
+                    equipRodHotbar()
+                end
+
+                task.wait(1.5)
+            else
+                warn("[Auto Upgrade Rod] ❌ Purchase failed, retrying in next cycle...")
+                task.wait(1.5)
+            end
+
+            -- Step 8: Resume auto farm
+            print("[Auto Upgrade Rod] ♻️ Resuming auto farm...")
+
+            if autoFarmWasEnabled then
+                _G.AUTO_FARM_ENABLED = true
+            end
+
+            if autoFarmV2WasEnabled then
+                _G.AUTO_FARM_V2_ENABLED = true
+            end
+
+            -- Unlock purchasing
+            upgradeState.isPurchasing = false
+
+            task.wait(10) -- Wait before next check
+        end
+
+        upgradeState.rod.running = false
+        print(string.rep("=", 70))
+        print("🛑 AUTO UPGRADE ROD - STOPPED")
+        print(string.rep("=", 70))
+    end)
+end
+
+-- Main: Auto Upgrade Bait Loop
+local function autoUpgradeBaitLoop()
+    if upgradeState.bait.running then
+        warn("[Auto Upgrade Bait] ⚠️ Already running!")
+        return
+    end
+
+    upgradeState.bait.running = true
+    print(string.rep("=", 70))
+    print("🚀 AUTO UPGRADE BAIT - STARTED")
+    print(string.rep("=", 70))
+
+    task.spawn(function()
+        while _G.AUTO_UPGRADE_BAIT_ENABLED do
+            -- Wait if rod is currently purchasing
+            while upgradeState.isPurchasing and _G.AUTO_UPGRADE_BAIT_ENABLED do
+                task.wait(1)
+            end
+
+            if not _G.AUTO_UPGRADE_BAIT_ENABLED then break end
+
+            -- Step 1: Detect owned baits
+            upgradeState.bait.ownedBaits = detectOwnedBaits()
+
+            -- Step 2: Find next bait target
+            local nextBait, baitIndex = findNextBaitTarget(upgradeState.bait.ownedBaits)
+
+            if not nextBait then
+                print("[Auto Upgrade Bait] ✅ All baits purchased! Auto upgrade complete.")
+                _G.AUTO_UPGRADE_BAIT_ENABLED = false
+                break
+            end
+
+            upgradeState.bait.currentTarget = nextBait
+            upgradeState.bait.nextBaitIndex = baitIndex
+
+            print(string.format("[Auto Upgrade Bait] 🎯 Next Target: %s | Price: %s coins",
+                nextBait.name,
+                FormatNumber(nextBait.price)))
+
+            -- Step 3: Wait until we have enough coins
+            local currentCoins = getCurrentCoinsUpgrade()
+
+            while currentCoins < nextBait.price and _G.AUTO_UPGRADE_BAIT_ENABLED do
+                print(string.format("[Auto Upgrade Bait] 💰 Farming... Current: %s | Need: %s",
+                    FormatCoins(currentCoins),
+                    FormatCoins(nextBait.price)))
+
+                task.wait(10) -- Check every 10 seconds
+                currentCoins = getCurrentCoinsUpgrade()
+            end
+
+            if not _G.AUTO_UPGRADE_BAIT_ENABLED then break end
+
+            -- Lock purchasing
+            upgradeState.isPurchasing = true
+
+            -- Step 4: We have enough coins, pause auto farm
+            print("[Auto Upgrade Bait] ✅ Enough coins! Pausing auto farm...")
+
+            local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
+            local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
+
+            if autoFarmWasEnabled then
+                _G.AUTO_FARM_ENABLED = false
+                task.wait(3) -- Wait longer for farm to fully stop
+            end
+
+            if autoFarmV2WasEnabled then
+                _G.AUTO_FARM_V2_ENABLED = false
+                task.wait(3) -- Wait longer for V2 to fully stop
+            end
+
+            -- Additional wait to ensure everything stopped
+            task.wait(2)
+
+            -- Step 5: Unequip tool
+            unequipTool()
+            task.wait(1.5)
+
+            -- Step 6: Purchase bait
+            print(string.format("[Auto Upgrade Bait] 🛒 Purchasing: %s...", nextBait.name))
+            local purchaseSuccess = buyBait(nextBait.id, nextBait.name)
+
+            if purchaseSuccess then
+                task.wait(3) -- Wait longer for purchase to register
+
+                -- Step 7: Equip the newly purchased bait
+                equipSpecificBait(nextBait.id)
+                task.wait(1.5)
+            else
+                warn("[Auto Upgrade Bait] ❌ Purchase failed, retrying in next cycle...")
+                task.wait(1.5)
+            end
+
+            -- Step 8: Equip rod back
+            equipRodHotbar()
+            task.wait(1.5)
+
+            -- Step 9: Resume auto farm
+            print("[Auto Upgrade Bait] ♻️ Resuming auto farm...")
+
+            if autoFarmWasEnabled then
+                _G.AUTO_FARM_ENABLED = true
+            end
+
+            if autoFarmV2WasEnabled then
+                _G.AUTO_FARM_V2_ENABLED = true
+            end
+
+            -- Unlock purchasing
+            upgradeState.isPurchasing = false
+
+            task.wait(10) -- Wait before next check
+        end
+
+        upgradeState.bait.running = false
+        print(string.rep("=", 70))
+        print("🛑 AUTO UPGRADE BAIT - STOPPED")
+        print(string.rep("=", 70))
+    end)
+end
+
+-- Start/Stop Functions (called from UI)
+function startAutoUpgradeRod()
+    if not _G.AUTO_UPGRADE_ROD_ENABLED then return end
+    autoUpgradeRodLoop()
+end
+
+function stopAutoUpgradeRod()
+    _G.AUTO_UPGRADE_ROD_ENABLED = false
+    upgradeState.rod.running = false
+end
+
+function startAutoUpgradeBait()
+    if not _G.AUTO_UPGRADE_BAIT_ENABLED then return end
+    autoUpgradeBaitLoop()
+end
+
+function stopAutoUpgradeBait()
+    _G.AUTO_UPGRADE_BAIT_ENABLED = false
+    upgradeState.bait.running = false
+end
+
+print("✅ Auto Upgrade System loaded\n")
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- SECTION 2: AUTO FARM MODULE
 -- ═══════════════════════════════════════════════════════════════════════════
 --[[
@@ -2377,15 +2552,10 @@ _G.MAIN_LOOP_RUNNING = false
 
 function runMainLoop()
     if _G.MAIN_LOOP_RUNNING then
-        print("⚠️ Main loop already running!")
         return
     end
 
     _G.MAIN_LOOP_RUNNING = true
-
-    print(string.rep("=", 70))
-    print("🚀 AUTO FISHING LOOP - STARTING")
-    print(string.rep("=", 70) .. "\n")
 
     local cycleCount = 0
     local successCount = 0
@@ -2410,39 +2580,16 @@ function runMainLoop()
 
         if success then
             successCount = successCount + 1
-            print(string.format("[Cycle #%d] ✅ Request SUCCEEDED", cycleCount))
-
             task.wait(_G.FARM_SUCCESS_DELAY)
             fishing_completed()
-        else
-            print(string.format("[Cycle #%d] ❌ Request failed", cycleCount))
         end
 
         task.wait(0.2)
         cancel_inputs_bypass()
         task.wait(0.01)
-
-        -- Stats every 10 cycles
-        if cycleCount % 10 == 0 then
-            local successRate = (successCount / cycleCount) * 100
-            print(string.format("\n📊 [STATS] Cycles: %d | Success: %d (%.1f%%) | Farm: %s\n",
-                cycleCount,
-                successCount,
-                successRate,
-                _G.AUTO_FARM_ENABLED and "🟢 ON" or "🔴 OFF"
-            ))
-        end
     end
 
     -- Cleanup
-    print("\n" .. string.rep("=", 70))
-    print("🛑 AUTO FISHING LOOP STOPPED")
-    print(string.rep("=", 70))
-    if cycleCount > 0 then
-        local finalRate = (successCount / cycleCount) * 100
-        print(string.format("\n📊 FINAL: %d cycles | %d success (%.1f%%)\n", cycleCount, successCount, finalRate))
-    end
-
     stopReelIntermissionLoop()
     _G.MAIN_LOOP_RUNNING = false
 end
@@ -2600,17 +2747,14 @@ function startAutoFarmV2()
     local State = _G.JUNG_V2_STATE
 
     if State.isRunning then
-        print("⚠️ Auto Farm V2 already running!")
         return
     end
 
     -- Stop V1 if running
     if _G.AUTO_FARM_ENABLED then
         _G.AUTO_FARM_ENABLED = false
-        print("⚠️ Auto Farm V1 will be stopped (switched to V2)")
     end
 
-    print("\n🚀 Starting Auto Farm V2 (Jung V2 - Fast)...")
     State.isRunning = true
     State.fishCaught = 0
     State.cycleCount = 0
@@ -2623,7 +2767,6 @@ function startAutoFarmV2()
 
     if State.autoPingCompensation then
         calculateCompensatedDelays()
-        print(string.format("📶 Ping: %.0fms (compensated)", State.currentPing))
     end
 
     -- Equip rod
@@ -2632,14 +2775,6 @@ function startAutoFarmV2()
     end)
     task.wait(0.5)
 
-    print("✅ Auto Farm V2 STARTED")
-    print(string.format("⚙️ Delays: %.2fs reel / %.2fs complete", State.delayReel, State.delayComplete))
-    if State.autoPingCompensation then
-        print(string.format("📶 Ping Compensation: ENABLED (Base: %.2fs/%.2fs)",
-            State.baseDelayReel, State.baseDelayComplete))
-    end
-    print("🔄 Independent loop + Server-based complete\n")
-
     task.spawn(mainFishingLoopV2)
 end
 
@@ -2647,20 +2782,10 @@ function stopAutoFarmV2()
     local State = _G.JUNG_V2_STATE
 
     if not State.isRunning then
-        print("⚠️ Auto Farm V2 not running!")
         return
     end
 
-    print("\n🛑 Stopping Auto Farm V2...")
     State.isRunning = false
-
-    local runtime = tick() - State.startTime
-    local fishPerMin = runtime > 0 and (State.fishCaught / runtime) * 60 or 0
-
-    print("✅ Auto Farm V2 STOPPED")
-    print(string.format("📊 Fish: %d | Runtime: %.1fs | Rate: %.1f/min\n",
-        State.fishCaught, runtime, fishPerMin))
-
     stopReelIntermissionLoop()
 end
 
@@ -4388,244 +4513,6 @@ end
 print("✅ Inventory module ready\n")
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 3.5: AUTO UPGRADE LOOPS (v7.0)
--- ═══════════════════════════════════════════════════════════════════════════
-
--- Auto Upgrade Rod Loop
-task.spawn(function()
-    -- Wait for all systems to initialize
-    task.wait(10)
-
-    -- Initialize target on first run
-    currentRodTarget = findNextRodTarget()
-    print("[Auto Upgrade Rod] Loop started (target initialized)")
-
-    while true do
-        if _G.AUTO_UPGRADE_ROD_ENABLED and PurchaseRodEvent then
-            -- Track auto farm state OUTSIDE pcall
-            local wasAutoFarmEnabled = _G.AUTO_FARM_ENABLED
-
-            local success, err = pcall(function()
-                local currentCurrency = getCurrentCoins()
-                local affordableRodId, rodPrice = getAffordableRod(currentCurrency)
-
-                if not affordableRodId then
-                    return -- Silent return, nothing affordable yet
-                end
-
-                local rodName = rodNames[affordableRodId] or ("Rod ID " .. affordableRodId)
-                print(string.format("[Auto Upgrade Rod] 💰 Purchasing '%s' (ID: %d, Price: %s)",
-                    rodName, affordableRodId, tostring(rodPrice)))
-
-                -- Stop auto farm before purchase
-                if wasAutoFarmEnabled then
-                    _G.AUTO_FARM_ENABLED = false
-                    task.wait(1)
-                end
-
-                -- Attempt purchase up to 3 times
-                local purchaseSuccess = false
-                local guidOrErr = nil
-                local lastError = "unknown error"
-
-                for attempt = 1, 3 do
-                    print(string.format("[Auto Upgrade Rod] Attempt %d/3...", attempt))
-
-                    local pcallSuccess, result, errorMsg = pcall(PurchaseRodEvent.InvokeServer, PurchaseRodEvent, affordableRodId)
-
-                    if pcallSuccess and result then
-                        purchaseSuccess = true
-                        guidOrErr = errorMsg
-                        break
-                    elseif pcallSuccess then
-                        lastError = tostring(errorMsg or "unknown error")
-                    else
-                        lastError = "invoke failed: " .. tostring(result)
-                    end
-
-                    if attempt < 3 then
-                        task.wait(2)
-                    end
-                end
-
-                if purchaseSuccess then
-                    print(string.format("[Auto Upgrade Rod] ✅ Purchase successful for '%s'", rodName))
-
-                    -- Wait 3 seconds for inventory to update
-                    task.wait(3)
-
-                    -- Scan and equip best owned rod using new system
-                    detectAndEquipBestRod()
-
-                    -- Clear failure records
-                    failedRodAttempts[affordableRodId] = nil
-                    rodFailedCounts[affordableRodId] = 0
-
-                    -- Move to next target
-                    currentRodTarget = findNextRodTarget()
-                    if currentRodTarget then
-                        print(string.format("[Auto Upgrade Rod] 🎯 Next target: %s (ID: %d)",
-                            rodNames[currentRodTarget] or "Unknown", currentRodTarget))
-                    else
-                        print("[Auto Upgrade Rod] 🏆 All rods purchased!")
-                    end
-                else
-                    warn(string.format("[Auto Upgrade Rod] ❌ All 3 attempts failed for '%s': %s", rodName, lastError))
-
-                    -- All 3 attempts failed - mark as owned
-                    rodFailedCounts[affordableRodId] = 3
-
-                    -- Move to next target
-                    currentRodTarget = findNextRodTarget()
-                    if currentRodTarget then
-                        print(string.format("[Auto Upgrade Rod] ⏭️ Skipping to next target: %s (ID: %d)",
-                            rodNames[currentRodTarget] or "Unknown", currentRodTarget))
-                    else
-                        print("[Auto Upgrade Rod] ⏸️ No more targets available")
-                    end
-                end
-
-            end)
-
-            -- ALWAYS re-enable auto farm if it was enabled (even if error occurred)
-            if wasAutoFarmEnabled and not _G.AUTO_FARM_ENABLED then
-                _G.AUTO_FARM_ENABLED = true
-                print("[Auto Upgrade Rod] ♻️ Auto farm re-enabled")
-            end
-
-            if not success then
-                warn("[Auto Upgrade Rod] Loop error: " .. tostring(err))
-            end
-        end
-        task.wait(15)
-    end
-end)
-
--- Auto Upgrade Bait Loop
-task.spawn(function()
-    -- Wait for all systems to initialize
-    task.wait(10)
-
-    -- Initialize target on first run
-    currentBaitTarget = findNextBaitTarget()
-    print("[Auto Upgrade Bait] Loop started (target initialized)")
-
-    while true do
-        if _G.AUTO_UPGRADE_BAIT_ENABLED and PurchaseBaitEvent then
-            -- Track auto farm state OUTSIDE pcall
-            local wasAutoFarmEnabled = _G.AUTO_FARM_ENABLED
-
-            local success, err = pcall(function()
-                local currentCurrency = getCurrentCoins()
-                local affordableBaitId, baitPrice = getAffordableBait(currentCurrency)
-
-                if not affordableBaitId then
-                    return -- Silent return, nothing affordable yet
-                end
-
-                -- Get bait name from baitIDs index
-                local baitNames = {
-                    [10] = "Topwater Bait",
-                    [2] = "Luck Bait",
-                    [3] = "Midnight Bait",
-                    [17] = "Deep Bait",
-                    [6] = "Chroma Bait",
-                    [8] = "Dark Matter Bait",
-                    [15] = "Corrupt Bait",
-                    [16] = "Aether Bait"
-                }
-                local baitName = baitNames[affordableBaitId] or ("Bait ID " .. affordableBaitId)
-
-                print(string.format("[Auto Upgrade Bait] 💰 Purchasing '%s' (ID: %d, Price: %s)",
-                    baitName, affordableBaitId, tostring(baitPrice)))
-
-                -- Stop auto farm before purchase
-                if wasAutoFarmEnabled then
-                    _G.AUTO_FARM_ENABLED = false
-                    task.wait(1)
-                end
-
-                -- Attempt purchase up to 3 times
-                local purchaseSuccess = false
-                local guidOrErr = nil
-                local lastError = "unknown error"
-
-                for attempt = 1, 3 do
-                    print(string.format("[Auto Upgrade Bait] Attempt %d/3...", attempt))
-
-                    local pcallSuccess, result, errorMsg = pcall(PurchaseBaitEvent.InvokeServer, PurchaseBaitEvent, affordableBaitId)
-
-                    if pcallSuccess and result then
-                        purchaseSuccess = true
-                        guidOrErr = errorMsg
-                        break
-                    elseif pcallSuccess then
-                        lastError = tostring(errorMsg or "unknown error")
-                    else
-                        lastError = "invoke failed: " .. tostring(result)
-                    end
-
-                    if attempt < 3 then
-                        task.wait(2)
-                    end
-                end
-
-                if purchaseSuccess then
-                    print(string.format("[Auto Upgrade Bait] ✅ Purchase successful for '%s'", baitName))
-
-                    -- Wait 3 seconds for inventory to update
-                    task.wait(3)
-
-                    -- Scan and equip best owned bait using new system
-                    detectAndEquipBestBait()
-
-                    -- Clear failure records
-                    failedBaitAttempts[affordableBaitId] = nil
-                    baitFailedCounts[affordableBaitId] = 0
-
-                    -- Move to next target
-                    currentBaitTarget = findNextBaitTarget()
-                    if currentBaitTarget then
-                        print(string.format("[Auto Upgrade Bait] 🎯 Next target: %s (ID: %d)",
-                            baitNames[currentBaitTarget] or "Unknown", currentBaitTarget))
-                    else
-                        print("[Auto Upgrade Bait] 🏆 All baits purchased!")
-                    end
-                else
-                    warn(string.format("[Auto Upgrade Bait] ❌ All 3 attempts failed for '%s': %s", baitName, lastError))
-
-                    -- All 3 attempts failed - mark as owned
-                    baitFailedCounts[affordableBaitId] = 3
-
-                    -- Move to next target
-                    currentBaitTarget = findNextBaitTarget()
-                    if currentBaitTarget then
-                        print(string.format("[Auto Upgrade Bait] ⏭️ Skipping to next target: %s (ID: %d)",
-                            baitNames[currentBaitTarget] or "Unknown", currentBaitTarget))
-                    else
-                        print("[Auto Upgrade Bait] ⏸️ No more targets available")
-                    end
-                end
-
-            end)
-
-            -- ALWAYS re-enable auto farm if it was enabled (even if error occurred)
-            if wasAutoFarmEnabled and not _G.AUTO_FARM_ENABLED then
-                _G.AUTO_FARM_ENABLED = true
-                print("[Auto Upgrade Bait] ♻️ Auto farm re-enabled")
-            end
-
-            if not success then
-                warn("[Auto Upgrade Bait] Loop error: " .. tostring(err))
-            end
-        end
-        task.wait(15)
-    end
-end)
-
-print("✅ Auto Upgrade loops ready\n")
-
--- ═══════════════════════════════════════════════════════════════════════════
 -- SECTION 4: UI MODULE
 -- ═══════════════════════════════════════════════════════════════════════════
 --[[
@@ -5061,22 +4948,17 @@ FarmTab:Section({
 
 -- Stop function
 local function stopAutoFarm()
-    print("\n🛑 Stopping Auto Farm...")
     _G.AUTO_FARM_ENABLED = false
 
     task.spawn(function()
         pcall(function()
             CancelEvent:InvokeServer()
-            print("✅ Sent CancelFishingInputs (1x)")
         end)
     end)
-
-    print("✅ Auto Farm stopped successfully\n")
 end
 
 -- Start function
 local function startAutoFarm()
-    print("\n🚀 Starting Auto Farm...")
     _G.AUTO_FARM_ENABLED = true
 
     startReelIntermissionLoop()
@@ -5084,8 +4966,6 @@ local function startAutoFarm()
     if not _G.MAIN_LOOP_RUNNING then
         task.spawn(runMainLoop)
     end
-
-    print("✅ Auto Farm ENABLED\n")
 end
 
 -- Toggle
@@ -5292,66 +5172,6 @@ FarmTab:Space({ Size = 10 })
 FarmTab:Paragraph({
     Title = "ℹ️ V2 Info",
     Desc = "Independent loop = doesn't wait for completion\nServer-based complete = parallel execution\nPing compensation = auto-adjust for high ping\nFixed params (-1, 0) = always OK rating"
-})
-
-FarmTab:Space({ Size = 20 })
-
-FarmTab:Divider()
-
-FarmTab:Space({ Size = 15 })
-
--- Auto Upgrade Section Header
-FarmTab:Paragraph({
-    Title = "🎯 Auto Upgrade System (v7.0)",
-    Desc = "Automatically purchase and equip better rods and baits when affordable.\n\nRods: Luck → Carbon → Grass → Demascus → Ice → Lucky → Midnight → Steampunk → Chrome → Astral → Ares\n\nBaits: Topwater → Luck → Midnight → Deep → Chroma → Dark Matter → Corrupt → Aether"
-})
-
-FarmTab:Space({ Size = 5 })
-
--- Auto Upgrade Rod Toggle
-UIComponents.AutoUpgradeRodToggle = FarmTab:Toggle({
-    Title = "Auto Upgrade Rod",
-    Desc = "Automatically purchase and equip better fishing rods",
-    Type = "Toggle",
-    Default = false,
-    Flag = "AutoUpgradeRodEnabled",
-    Callback = function(state)
-        _G.AUTO_UPGRADE_ROD_ENABLED = state
-        if state then
-            print("[Auto Upgrade Rod] ✅ ENABLED - Will auto-purchase rods")
-            -- Initialize target if not set
-            if not currentRodTarget then
-                currentRodTarget = findNextRodTarget()
-            end
-        else
-            print("[Auto Upgrade Rod] ⏸️ DISABLED")
-        end
-        autoSaveConfig()
-    end
-})
-
-FarmTab:Space({ Size = 5 })
-
--- Auto Upgrade Bait Toggle
-UIComponents.AutoUpgradeBaitToggle = FarmTab:Toggle({
-    Title = "Auto Upgrade Bait",
-    Desc = "Automatically purchase and equip better baits",
-    Type = "Toggle",
-    Default = false,
-    Flag = "AutoUpgradeBaitEnabled",
-    Callback = function(state)
-        _G.AUTO_UPGRADE_BAIT_ENABLED = state
-        if state then
-            print("[Auto Upgrade Bait] ✅ ENABLED - Will auto-purchase baits")
-            -- Initialize target if not set
-            if not currentBaitTarget then
-                currentBaitTarget = findNextBaitTarget()
-            end
-        else
-            print("[Auto Upgrade Bait] ⏸️ DISABLED")
-        end
-        autoSaveConfig()
-    end
 })
 
 FarmTab:Space({ Size = 20 })
@@ -6546,6 +6366,94 @@ MiscTab:Button({
 print("✅ Misc tab created")
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- UPGRADE TAB
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local UpgradeTab = Window:Tab({
+    Title = "Upgrade",
+    Icon = "arrow-up"
+})
+
+-- Auto Upgrade Section
+UpgradeTab:Section({
+    Title = "⬆️ Auto Upgrade System"
+})
+
+UpgradeTab:Paragraph({
+    Title = "Auto Upgrade Information",
+    Desc = "Automatically upgrade your Fishing Rods and Baits\nRequires sufficient coins and materials"
+})
+
+UpgradeTab:Space({ Size = 15 })
+
+-- Auto Upgrade Rod Toggle
+local autoUpgradeRodToggle = UpgradeTab:Toggle({
+    Title = "Auto Upgrade Rod",
+    Desc = "Automatically upgrade fishing rods when possible",
+    Type = "Toggle",
+    Default = false,
+    Flag = "AutoUpgradeRodEnabled",
+    Callback = function(state)
+        _G.AUTO_UPGRADE_ROD_ENABLED = state
+        if state then
+            print("[Auto Upgrade] ✅ Auto Upgrade Rod ENABLED")
+            startAutoUpgradeRod()
+        else
+            print("[Auto Upgrade] ❌ Auto Upgrade Rod DISABLED")
+            stopAutoUpgradeRod()
+        end
+        autoSaveConfig()
+    end
+})
+
+UpgradeTab:Space({ Size = 10 })
+
+-- Auto Upgrade Bait Toggle
+local autoUpgradeBaitToggle = UpgradeTab:Toggle({
+    Title = "Auto Upgrade Bait",
+    Desc = "Automatically upgrade baits when possible",
+    Type = "Toggle",
+    Default = false,
+    Flag = "AutoUpgradeBaitEnabled",
+    Callback = function(state)
+        _G.AUTO_UPGRADE_BAIT_ENABLED = state
+        if state then
+            print("[Auto Upgrade] ✅ Auto Upgrade Bait ENABLED")
+            startAutoUpgradeBait()
+        else
+            print("[Auto Upgrade] ❌ Auto Upgrade Bait DISABLED")
+            stopAutoUpgradeBait()
+        end
+        autoSaveConfig()
+    end
+})
+
+UpgradeTab:Space({ Size = 20 })
+
+UpgradeTab:Divider()
+
+UpgradeTab:Space({ Size = 15 })
+
+-- Status Section
+UpgradeTab:Section({
+    Title = "📊 Upgrade Status"
+})
+
+UpgradeTab:Paragraph({
+    Title = "How It Works",
+    Desc = "1. Enable Auto Upgrade Rod/Bait toggle\n2. System detects current inventory\n3. Finds next affordable rod/bait to buy\n4. Auto farm continues until enough coins\n5. Pauses farm, buys item, equips it\n6. Resumes farm and repeats\n\n⚠️ Make sure Auto Farm is enabled!"
+})
+
+UpgradeTab:Space({ Size = 10 })
+
+UpgradeTab:Paragraph({
+    Title = "Purchase Order",
+    Desc = "Rods: Luck → Carbon → Grass → Demascus → Ice → Lucky → Midnight → Steampunk → Chrome → Astral → Ares → Angler\n\nBaits: Topwater → Luck → Midnight → Deep → Chroma → Dark Matter → Corrupt → Aether"
+})
+
+print("✅ Upgrade tab created")
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- WEBHOOK TAB
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -6646,7 +6554,6 @@ print("\n🎮 UI is ready!")
 print("📋 Features:")
 print("  ✅ Auto Farm Tab - Toggle & Custom Delay")
 print("  ✅ Auto Element Tab - Element Collection System")
-print("  ✅ Auto Upgrade Tab - Rod & Bait Auto Purchase (v7.0)")
 print("  ✅ Inventory Tab - Fish & Items Detection")
 print(string.rep("=", 80) .. "\n")
 
@@ -6656,38 +6563,4 @@ task.spawn(function()
     if savedConfig then
         applyLoadedConfig(savedConfig)
     end
-end)
-
--- ═══════════════════════════════════════════════════════════════════════════
--- INITIAL EQUIP BEST ROD & BAIT ON STARTUP (v7.0)
--- ═══════════════════════════════════════════════════════════════════════════
-
--- Initial equip best rod and bait if auto upgrade enabled
-task.spawn(function()
-    -- Wait for all systems and config to load
-    task.wait(5)
-
-    print("\n[Auto Upgrade] 🔍 Checking for initial rod/bait equip...")
-
-    -- Initial equip best rod if auto upgrade enabled
-    if _G.AUTO_UPGRADE_ROD_ENABLED then
-        print("[Auto Upgrade] 🎣 Auto Upgrade Rod is ENABLED - Equipping best owned rod...")
-        task.wait(1)
-        detectAndEquipBestRod()
-        task.wait(1) -- Wait for equip to complete
-    else
-        print("[Auto Upgrade] ℹ️ Auto Upgrade Rod is DISABLED - Skipping initial rod equip")
-    end
-
-    -- Initial equip best bait if auto upgrade enabled
-    if _G.AUTO_UPGRADE_BAIT_ENABLED then
-        print("[Auto Upgrade] 🪱 Auto Upgrade Bait is ENABLED - Equipping best owned bait...")
-        task.wait(1)
-        detectAndEquipBestBait()
-        task.wait(1) -- Wait for equip to complete
-    else
-        print("[Auto Upgrade] ℹ️ Auto Upgrade Bait is DISABLED - Skipping initial bait equip")
-    end
-
-    print("[Auto Upgrade] ✅ Initial equip check complete\n")
 end)
