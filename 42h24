@@ -1260,26 +1260,52 @@ function getQuestText(a)local b,c=pcall(function()local d=workspace:FindFirstChi
 function getQuestTextFromTracker(trackerName, labelName)
     local success, result = pcall(function()
         local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
-        if not menuRings then return "Quest not found" end
+        if not menuRings then
+            warn(string.format("[Quest Fetch] ❌ '!!! MENU RINGS' not found in workspace"))
+            return "Quest not found"
+        end
 
         local tracker = menuRings:FindFirstChild(trackerName)
-        if not tracker then return "Quest not found" end
+        if not tracker then
+            warn(string.format("[Quest Fetch] ❌ Tracker '%s' not found", trackerName))
+            return "Quest not found"
+        end
 
         local board = tracker:FindFirstChild("Board")
-        if not board then return "Quest not found" end
+        if not board then
+            warn(string.format("[Quest Fetch] ❌ Board not found in '%s'", trackerName))
+            return "Quest not found"
+        end
 
         local gui = board:FindFirstChild("Gui")
-        if not gui then return "Quest not found" end
+        if not gui then
+            warn(string.format("[Quest Fetch] ❌ Gui not found in '%s'", trackerName))
+            return "Quest not found"
+        end
 
         local content = gui:FindFirstChild("Content")
-        if not content then return "Quest not found" end
+        if not content then
+            warn(string.format("[Quest Fetch] ❌ Content not found in '%s'", trackerName))
+            return "Quest not found"
+        end
 
         local label = content:FindFirstChild(labelName)
-        if not label then return "Quest not found" end
+        if not label then
+            warn(string.format("[Quest Fetch] ❌ Label '%s' not found in '%s'", labelName, trackerName))
+            return "Quest not found"
+        end
 
-        return label.Text or "No data"
+        local text = label.Text or "No data"
+        print(string.format("[Quest Fetch] ✅ %s %s: '%s'", trackerName, labelName, text))
+        return text
     end)
-    return success and result or "Error fetching quest"
+
+    if not success then
+        warn(string.format("[Quest Fetch] ❌ Error: %s", tostring(result)))
+        return "Error fetching quest"
+    end
+
+    return result
 end
 
 -- Check if quest is 100% complete
@@ -1322,6 +1348,7 @@ end
 function getIncompleteQuests()
     local incomplete = {}
     local hasIncompleteGhostfinn = false
+    local hasValidGhostfinnData = false
 
     print("[Quest Check] 🔍 Checking all quests...")
 
@@ -1329,20 +1356,35 @@ function getIncompleteQuests()
     local ghostfinnQuests = getGhostfinnQuests()
     for _, quest in ipairs(ghostfinnQuests) do
         local questText = getQuestTextFromTracker(quest.tracker, quest.label)
-        local isComplete = isQuestComplete(questText)
-        print(string.format("[Quest Check] Ghostfinn %s: %s (Complete: %s)", quest.label, questText, tostring(isComplete)))
 
-        if not isComplete then
-            hasIncompleteGhostfinn = true
-            table.insert(incomplete, {
-                name = "Ghostfinn " .. quest.label,
-                tracker = quest.tracker,
-                label = quest.label,
-                location = quest.location,
-                text = questText,
-                priority = 1  -- High priority
-            })
+        -- Check if quest data is valid (not error message)
+        local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
+
+        if isValidData then
+            hasValidGhostfinnData = true
+            local isComplete = isQuestComplete(questText)
+            print(string.format("[Quest Check] Ghostfinn %s: %s (Complete: %s)", quest.label, questText, tostring(isComplete)))
+
+            if not isComplete then
+                hasIncompleteGhostfinn = true
+                table.insert(incomplete, {
+                    name = "Ghostfinn " .. quest.label,
+                    tracker = quest.tracker,
+                    label = quest.label,
+                    location = quest.location,
+                    text = questText,
+                    priority = 1  -- High priority
+                })
+            end
+        else
+            warn(string.format("[Quest Check] ⚠️ Ghostfinn %s: Invalid data '%s' - skipping", quest.label, questText))
         end
+    end
+
+    -- If no valid Ghostfinn data found, quest system not ready
+    if not hasValidGhostfinnData then
+        warn("[Quest Check] ❌ No valid Ghostfinn quest data found! Quest system may not be loaded yet.")
+        return {} -- Return empty to prevent teleport to TELEPORT_LOCATION
     end
 
     print(string.format("[Quest Check] 📊 Ghostfinn status: %s", hasIncompleteGhostfinn and "INCOMPLETE" or "ALL COMPLETE"))
@@ -1353,19 +1395,25 @@ function getIncompleteQuests()
         local elementQuests = getElementRodQuests()
         for _, quest in ipairs(elementQuests) do
             local questText = getQuestTextFromTracker(quest.tracker, quest.label)
-            local isComplete = isQuestComplete(questText)
-            print(string.format("[Quest Check] Element Rod %s: %s (Complete: %s)", quest.label, questText, tostring(isComplete)))
+            local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
 
-            if not isComplete then
-                table.insert(incomplete, {
-                    name = "Element Rod " .. quest.label,
-                    tracker = quest.tracker,
-                    label = quest.label,
-                    location = quest.location,
-                    text = questText,
-                    note = quest.note,
-                    priority = 2  -- Lower priority
-                })
+            if isValidData then
+                local isComplete = isQuestComplete(questText)
+                print(string.format("[Quest Check] Element Rod %s: %s (Complete: %s)", quest.label, questText, tostring(isComplete)))
+
+                if not isComplete then
+                    table.insert(incomplete, {
+                        name = "Element Rod " .. quest.label,
+                        tracker = quest.tracker,
+                        label = quest.label,
+                        location = quest.location,
+                        text = questText,
+                        note = quest.note,
+                        priority = 2  -- Lower priority
+                    })
+                end
+            else
+                warn(string.format("[Quest Check] ⚠️ Element Rod %s: Invalid data '%s' - skipping", quest.label, questText))
             end
         end
     else
@@ -4280,20 +4328,35 @@ local function startAutoQuest()
     isInitialStart = true -- Mark as initial start
 
     print("[Auto Quest] 🎯 Starting Auto Quest System...")
+    print("[Auto Quest] ⏳ Waiting for workspace to load...")
+    task.wait(5) -- Wait for workspace to load
 
     -- Check initial incomplete quests
     local incompleteQuests = getIncompleteQuests()
 
     print(string.format("[Auto Quest] 📊 Found %d incomplete quest(s) at startup", #incompleteQuests))
 
+    -- If no quests found (quest system not loaded), retry after delay
     if #incompleteQuests == 0 then
-        -- All quests already complete
-        print("[Auto Quest] ✅ All quests already completed!")
-        print(string.format("[Auto Quest] 🏠 Teleporting to: %s", useTeleportLoc or "Sisyphus Statue"))
-        teleportToNamedLocation(useTeleportLoc or "Sisyphus Statue")
-        autoQuestRunning = false
-        isAutoQuestOn = false
-        return
+        warn("[Auto Quest] ⚠️ No incomplete quests detected!")
+        warn("[Auto Quest] ⏳ This could mean:")
+        warn("[Auto Quest]   1. All quests are 100% complete")
+        warn("[Auto Quest]   2. Quest workspace not loaded yet")
+        warn("[Auto Quest] 🔄 Retrying in 10 seconds...")
+
+        task.wait(10)
+        incompleteQuests = getIncompleteQuests()
+
+        if #incompleteQuests == 0 then
+            print("[Auto Quest] ✅ Confirmed: All quests already completed!")
+            print(string.format("[Auto Quest] 🏠 Teleporting to: %s", useTeleportLoc or "Sisyphus Statue"))
+            teleportToNamedLocation(useTeleportLoc or "Sisyphus Statue")
+            autoQuestRunning = false
+            isAutoQuestOn = false
+            return
+        else
+            print(string.format("[Auto Quest] ✅ Found %d incomplete quest(s) after retry", #incompleteQuests))
+        end
     end
 
     -- Log all incomplete quests
