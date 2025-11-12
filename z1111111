@@ -5997,19 +5997,9 @@ print("[UI] ===============================================")
 -- ═══════════════════════════════════════════════════════════════════════════
 local savedConfig = loadConfig()
 
--- ─────────────────────────────────────────────────────────────────────────
--- UI: AUTO FARM TAB
--- ─────────────────────────────────────────────────────────────────────────
-
-local FarmTab = Window:Tab({
-    Title = "Auto Farm",
-    Icon = "zap"
-})
-
-FarmTab:Section({
-    Title = "⚙️ Farm Controls"
-})
-
+-- ═══════════════════════════════════════════════════════════════════════════
+-- UI TAB CREATION FUNCTIONS (Split to avoid local register limit)
+-- ═══════════════════════════════════════════════════════════════════════════
 
 -- Stop function
 local function stopAutoFarm()
@@ -6033,20 +6023,33 @@ local function startAutoFarm()
     end
 end
 
--- Toggle
-UIComponents.AutoFarmToggle = FarmTab:Toggle({
-    Title = "Auto Farm",
-    Desc = "Enable/disable automatic fishing",
-    Type = "Toggle",
-    Default = false,
-    Flag = "AutoFarmEnabled",
-    Callback = function(state)
-        if state then
-            startAutoFarm()
-        else
-            stopAutoFarm()
-        end
-        autoSaveConfig()
+-- ─────────────────────────────────────────────────────────────────────────
+-- UI: AUTO FARM TAB CREATION FUNCTION
+-- ─────────────────────────────────────────────────────────────────────────
+local function createAutoFarmTab()
+    local FarmTab = Window:Tab({
+        Title = "Auto Farm",
+        Icon = "zap"
+    })
+
+    FarmTab:Section({
+        Title = "⚙️ Farm Controls"
+    })
+
+    -- Toggle
+    UIComponents.AutoFarmToggle = FarmTab:Toggle({
+        Title = "Auto Farm",
+        Desc = "Enable/disable automatic fishing",
+        Type = "Toggle",
+        Default = false,
+        Flag = "AutoFarmEnabled",
+        Callback = function(state)
+            if state then
+                startAutoFarm()
+            else
+                stopAutoFarm()
+            end
+            autoSaveConfig()
     end
 })
 
@@ -6562,13 +6565,14 @@ FarmTab:Button({
     end
 })
 
-print("✅ Auto Farm tab created")
+    print("✅ Auto Farm tab created")
+end  -- End of createAutoFarmTab()
 
 -- ─────────────────────────────────────────────────────────────────────────
--- UI: INVENTORY TAB
+-- UI: INVENTORY TAB CREATION FUNCTION
 -- ─────────────────────────────────────────────────────────────────────────
-
-local InventoryTab = Window:Tab({
+local function createInventoryTab()
+    local InventoryTab = Window:Tab({
     Title = "Inventory",
     Icon = "package"
 })
@@ -6855,13 +6859,14 @@ detectionStatus = InventoryTab:Paragraph({
     Desc = "⚪ No detection run yet\nClick 'Detect Fish' or 'Detect Items' to start"
 })
 
-print("✅ Inventory tab created")
+    print("✅ Inventory tab created")
+end  -- End of createInventoryTab()
 
 -- ─────────────────────────────────────────────────────────────────────────
--- UI: AUTO ELEMENT TAB
+-- UI: AUTO ELEMENT TAB CREATION FUNCTION
 -- ─────────────────────────────────────────────────────────────────────────
-
-local ElementTab = Window:Tab({
+local function createElementTab()
+    local ElementTab = Window:Tab({
     Title = "Auto Element",
     Icon = "star"
 })
@@ -6950,16 +6955,17 @@ task.spawn(function()
     end
 end)
 
-print("✅ Auto Element tab created")
+    print("✅ Auto Element tab created")
+end  -- End of createElementTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 4.5: WEATHER TAB
+-- SECTION 4.5: WEATHER TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local WeatherTab = Window:Tab({
-    Title = "Weather",
-    Icon = "cloud"
-})
+local function createWeatherTab()
+    local WeatherTab = Window:Tab({
+        Title = "Weather",
+        Icon = "cloud"
+    })
 
 WeatherTab:Section({
     Title = "🌤️ Weather Controls"
@@ -7027,16 +7033,17 @@ WeatherTab:Paragraph({
     Desc = "When enabled, this will automatically purchase Wind, Cloudy, and Storm weather in sequence every X seconds (configurable delay).\n\nUse this to keep weather effects active continuously."
 })
 
-print("✅ Auto Weather tab created")
+    print("✅ Auto Weather tab created")
+end  -- End of createWeatherTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 4.6: TELEPORT TAB
+-- SECTION 4.6: TELEPORT TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local TeleportTab = Window:Tab({
-    Title = "Teleport",
-    Icon = "map-pin"
-})
+local function createTeleportTab()
+    local TeleportTab = Window:Tab({
+        Title = "Teleport",
+        Icon = "map-pin"
+    })
 
 TeleportTab:Section({
     Title = "📍 Teleport Locations"
@@ -7240,16 +7247,17 @@ TeleportTab:Paragraph({
     Desc = "1. Find the location's CFrame coordinates\n2. Add to TELEPORT_LOCATIONS table (line ~1770)\n3. Add button in this tab UI\n\nFormat:\n[\"Location Name\"] = CFrame.new(...)"
 })
 
-print("✅ Teleport tab created")
+    print("✅ Teleport tab created")
+end  -- End of createTeleportTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 4.7: CONFIG TAB (PRESETS)
+-- SECTION 4.7: CONFIG TAB CREATION FUNCTION (PRESETS)
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local ConfigTab = Window:Tab({
-    Title = "Config",
-    Icon = "settings"
-})
+local function createConfigTab()
+    local ConfigTab = Window:Tab({
+        Title = "Config",
+        Icon = "settings"
+    })
 
 ConfigTab:Section({
     Title = "⚙️ Preset Configurations"
@@ -7383,16 +7391,17 @@ ConfigTab:Paragraph({
     Desc = "• Make sure you have a quest active (Label2/Label3)\n• Ensure you're at the correct location before starting\n• Monitor the first few cycles to ensure everything works\n• You can toggle individual features off if needed"
 })
 
-print("✅ Config tab created")
+    print("✅ Config tab created")
+end  -- End of createConfigTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- MISC TAB
+-- MISC TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local MiscTab = Window:Tab({
-    Title = "Misc",
-    Icon = "sliders"
-})
+local function createMiscTab()
+    local MiscTab = Window:Tab({
+        Title = "Misc",
+        Icon = "sliders"
+    })
 
 -- Freeze Character Section
 MiscTab:Section({
@@ -7510,16 +7519,17 @@ MiscTab:Button({
     end
 })
 
-print("✅ Misc tab created")
+    print("✅ Misc tab created")
+end  -- End of createMiscTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- UPGRADE TAB
+-- UPGRADE TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local UpgradeTab = Window:Tab({
-    Title = "Upgrade",
-    Icon = "arrow-up"
-})
+local function createUpgradeTab()
+    local UpgradeTab = Window:Tab({
+        Title = "Upgrade",
+        Icon = "arrow-up"
+    })
 
 -- Auto Upgrade Section
 UpgradeTab:Section({
@@ -7651,16 +7661,17 @@ UpgradeTab:Paragraph({
     Desc = "Rods: Luck → Carbon → Grass → Demascus → Ice → Lucky → Midnight → Steampunk → Chrome → Astral → Ares → Angler\n\nBaits: Topwater → Luck → Midnight → Deep → Chroma → Dark Matter → Corrupt → Aether"
 })
 
-print("✅ Upgrade tab created")
+    print("✅ Upgrade tab created")
+end  -- End of createUpgradeTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- WEBHOOK TAB
+-- WEBHOOK TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local WebhookTab = Window:Tab({
-    Title = "Webhook",
-    Icon = "bell"
-})
+local function createWebhookTab()
+    local WebhookTab = Window:Tab({
+        Title = "Webhook",
+        Icon = "bell"
+    })
 
 -- Webhook Configuration Section
 WebhookTab:Section({
@@ -7733,7 +7744,23 @@ WebhookTab:Paragraph({
     Desc = "Webhooks automatically detect fish by tier:\n\n🔥 Mythic (Tier 6): Rarity 1 in 50,000+\n✨ SECRET (Tier 7): Rarity 1 in 250,000+\n\nAll fish matching these tiers will be detected automatically - no whitelist needed!"
 })
 
-print("✅ Webhook tab created")
+    print("✅ Webhook tab created")
+end  -- End of createWebhookTab()
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CALL ALL TAB CREATION FUNCTIONS (Solves local register limit)
+-- ═══════════════════════════════════════════════════════════════════════════
+print("[UI] 🔨 Creating all UI tabs...")
+createAutoFarmTab()
+createInventoryTab()
+createElementTab()
+createWeatherTab()
+createTeleportTab()
+createConfigTab()
+createMiscTab()
+createUpgradeTab()
+createWebhookTab()
+print("[UI] ✅ All tabs created successfully!")
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- SECTION 5: MAIN EXECUTION
