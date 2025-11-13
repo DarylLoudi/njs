@@ -113,6 +113,29 @@ _G.FREEZE_CHAR_ENABLED = false    -- Freeze Character state
 _G.GPU_SAVER_ENABLED = false       -- GPU Saver state
 _G.AUTO_UPGRADE_ROD_ENABLED = false  -- Auto Upgrade Rod state
 _G.AUTO_UPGRADE_BAIT_ENABLED = false -- Auto Upgrade Bait state
+_G.AUTO_MEGALODON_ENABLED = false    -- Auto Megalodon state
+_G.AUTO_QUEST_ENABLED = false        -- Auto Quest state
+
+-- Megalodon System State Variables
+local megalodonEventActive = false
+local megalodonMissingAlertSent = false
+local megalodonEventStartedAt = 0
+local megalodonEventEndAlertSent = false
+local megalodonPreEventFarmState = nil
+local megalodonLockActive = false
+local megalodonLockConnection = nil
+local megalodonLockedCFrame = nil
+local megalodonPositionLocked = false
+local megalodonBodyVelocity = nil
+local megalodonBodyGyro = nil
+local megalodonCurrentEventPos = nil
+
+-- Auto Quest System State Variables
+local autoQuestRunning = false
+local currentQuestLocation = nil
+local questListenerConnections = {}
+local lastCompletedQuest = nil
+local isInitialStart = true
 
 -- Jung V2 State Variables (Auto Farm V2)
 _G.JUNG_V2_STATE = {
@@ -720,16 +743,9 @@ local function sendUnifiedWebhook(webhookType, data)
     local embed = {}
 
     if webhookType == "rare_fish_caught" then
-        local embedColor = 16711680
-        local embedTitle = "🎣 RARE FISH CAUGHT!"
-
-        if data.tier == 7 then
-            embedColor = 0x17FF97
-            embedTitle = "✨ SECRET FISH CAUGHT!"
-        elseif data.tier == 6 then
-            embedColor = 0xFF1818
-            embedTitle = "🔥 MYTHIC FISH CAUGHT!"
-        end
+        -- Only SECRET fish (Tier 7) will trigger this webhook
+        local embedColor = 0x17FF97  -- Bright cyan
+        local embedTitle = "✨ SECRET FISH CAUGHT!"
 
         embed = {
             title = embedTitle,
@@ -744,7 +760,7 @@ local function sendUnifiedWebhook(webhookType, data)
                 { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = true },
                 { name = "👤 Player", value = player.DisplayName or player.Name or "Unknown", inline = false },
             },
-            footer = { text = "Mythic/SECRET Fish Detector • Auto Fish" }
+            footer = { text = "SECRET Fish Detector • Auto Fish" }
         }
 
         -- Add fish thumbnail
@@ -853,8 +869,8 @@ local function setupRareFishDetection()
                     tierInfo = TierUtility:GetTierFromRarity(rarity.Chance)
                 end
 
-                -- Check if Mythic (Tier 6) or SECRET (Tier 7) only
-                if tierInfo and (tierInfo.Tier == 6 or tierInfo.Tier == 7) then
+                -- Check if SECRET (Tier 7) ONLY
+                if tierInfo and tierInfo.Tier == 7 then
                     local rarityRatio = math.round(1 / rarity.Chance * 10) / 10
                     local weight = fishData and fishData.Weight or "unknown"
                     local variant = fishData and fishData.VariantId or "none"
@@ -913,7 +929,7 @@ function startWebhookNotifier()
         webhookInitialized = true
         _G.WEBHOOK_ENABLED = true
         print("[Webhook] ✅ Tier-based fish notifier started!")
-        print("[Webhook] 📡 Monitoring for Mythic (Tier 6) & SECRET (Tier 7) fish...")
+        print("[Webhook] 📡 Monitoring for SECRET (Tier 7) fish ONLY...")
     end)
 end
 
@@ -4379,7 +4395,7 @@ local TELEPORT_LOCATIONS = {
     ["Coral Reefs"] = CFrame.new(-3114.78198, 1.32066584, 2237.52295, -0.304758579, 1.6556676e-08, -0.952429652, -8.50574935e-08, 1, 4.46003305e-08, 0.952429652, 9.46036067e-08, -0.304758579),
     ["Esoteric Depths"] = CFrame.new(3248.37109, -1301.53027, 1403.82727, -0.920208454, 7.76270355e-08, 0.391428679, 4.56261056e-08, 1, -9.10549289e-08, -0.391428679, -6.5930152e-08, -0.920208454),
     ["Crater Island"] = CFrame.new(1016.49072, 20.0919304, 5069.27295, 0.838976264, 3.30379857e-09, -0.544168055, 2.63538391e-09, 1, 1.01344115e-08, 0.544168055, -9.93662219e-09, 0.838976264),
-    ["Ocean"] = CFrame.new(-60.5511894, 6.22727871, 2325.45532, -0.114589661, -3.51123965e-08, 0.993412912, -8.24795663e-08, 1, 2.58312447e-08, -0.993412912, -7.89762709e-08, -0.114589661),
+    ["Ocean"] = CFrame.new(-103.188454, 7.79656315, 2498.33594, 0.802506626, -1.94894383e-07, 0.596643209, 1.32473943e-07, 1, 1.4846924e-07, -0.596643209, -4.01078744e-08, 0.802506626),
     ["Lost Isle"] = CFrame.new(-3618.15698, 240.836655, -1317.45801, 1, 0, 0, 0, 1, 0, 0, 0, 1),
     ["Weather Machine"] = CFrame.new(-1488.51196, 83.1732635, 1876.30298, 1, 0, 0, 0, 1, 0, 0, 0, 1),
     ["Tropical Grove"] = CFrame.new(-2095.34106, 197.199997, 3718.08008),
@@ -4390,6 +4406,84 @@ local TELEPORT_LOCATIONS = {
     ["Ancient Jungle"] = CFrame.new(1490.12305, 6.62499952, -850.539307, -0.982308805, -4.67861128e-09, -0.187268242, -7.57854224e-09, 1, 1.47694985e-08, 0.187268242, 1.59274283e-08, -0.982308805),
     ["Sacred Temple"] = CFrame.new(1466.92151, -21.8750591, -622.835693, -0.764787138, 8.14444334e-09, 0.644283056, 2.31097452e-08, 1, 1.4791004e-08, -0.644283056, 2.6201187e-08, -0.764787138),
 }
+
+-- Function to disable megalodon lock
+local function disableMegalodonLock()
+    megalodonLockActive = false
+    megalodonLockedCFrame = nil
+    megalodonPositionLocked = false
+    megalodonCurrentEventPos = nil
+
+    if megalodonLockConnection then
+        megalodonLockConnection:Disconnect()
+        megalodonLockConnection = nil
+    end
+
+    if megalodonBodyVelocity then
+        megalodonBodyVelocity:Destroy()
+        megalodonBodyVelocity = nil
+    end
+
+    if megalodonBodyGyro then
+        megalodonBodyGyro:Destroy()
+        megalodonBodyGyro = nil
+    end
+end
+
+-- Function to enable megalodon lock at current position (for Ocean teleport)
+local function enableMegalodonLock()
+    local char = player.Character
+    if not char then return false end
+
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+
+    -- Disable any existing lock first
+    disableMegalodonLock()
+
+    task.wait(0.2)
+
+    -- Set locked position at current location
+    megalodonLockedCFrame = root.CFrame
+    megalodonPositionLocked = true
+    megalodonLockActive = true
+
+    -- Create BodyVelocity to prevent falling
+    megalodonBodyVelocity = Instance.new("BodyVelocity")
+    megalodonBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    megalodonBodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+    megalodonBodyVelocity.P = 10000
+    megalodonBodyVelocity.Parent = root
+
+    -- Create BodyGyro to maintain orientation
+    megalodonBodyGyro = Instance.new("BodyGyro")
+    megalodonBodyGyro.CFrame = megalodonLockedCFrame
+    megalodonBodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)
+    megalodonBodyGyro.P = 10000
+    megalodonBodyGyro.Parent = root
+
+    -- Create Heartbeat connection to maintain position
+    megalodonLockConnection = RunService.Heartbeat:Connect(function()
+        if not root or not root.Parent or not megalodonLockActive then
+            if megalodonLockConnection then
+                megalodonLockConnection:Disconnect()
+                megalodonLockConnection = nil
+            end
+            return
+        end
+
+        -- If player moves too far from locked position, teleport back
+        if (root.Position - megalodonLockedCFrame.Position).Magnitude > 15 then
+            root.CFrame = megalodonLockedCFrame
+            if megalodonBodyVelocity then
+                megalodonBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+    end)
+
+    print("[Megalodon Lock] ✅ Position locked at Ocean!")
+    return true
+end
 
 -- Teleport to location
 local function teleportToLocation(locationName)
@@ -4406,6 +4500,15 @@ local function teleportToLocation(locationName)
         if hrp then
             hrp.CFrame = cframeData
             print(string.format("[Teleport] ✅ Teleported to: %s", locationName))
+
+            -- Auto-enable megalodon lock for Ocean location
+            if locationName == "Ocean" then
+                task.spawn(function()
+                    task.wait(0.5) -- Wait for teleport to complete
+                    enableMegalodonLock()
+                    print("[Teleport] 🔒 Ocean position locked - you will stay above water!")
+                end)
+            end
         else
             warn("[Teleport] ❌ HumanoidRootPart not found!")
         end
@@ -4420,6 +4523,701 @@ local function teleportToLocation(locationName)
 end
 
 print("✅ Teleport module ready\n")
+
+-- ═════════════════════════════════════════════════════════════════════════
+-- AUTO MEGALODON MODULE
+-- ═════════════════════════════════════════════════════════════════════════
+
+-- Function to teleport to megalodon and lock position
+local function teleportToMegalodon(pos, isEvent)
+    local char = player.Character
+    if not char then return end
+
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChild("Humanoid")
+    if not root or not hum then return end
+
+    local tPos = pos
+    if type(pos) == "userdata" and pos.X then
+        tPos = pos + Vector3.new(0, 5, 0)
+    elseif type(pos) == "userdata" and pos.Position then
+        tPos = pos.Position + Vector3.new(0, 5, 0)
+    end
+
+    if isEvent then
+        if megalodonCurrentEventPos and (tPos - megalodonCurrentEventPos).Magnitude < 5 then
+            return
+        end
+
+        megalodonCurrentEventPos = tPos
+        disableMegalodonLock()
+
+        local finalPos = tPos + Vector3.new(0, 8, 0)
+        root.CFrame = CFrame.new(finalPos)
+        task.wait(0.2)
+
+        megalodonLockedCFrame = root.CFrame
+        megalodonPositionLocked = true
+        megalodonLockActive = true
+
+        megalodonBodyVelocity = Instance.new("BodyVelocity")
+        megalodonBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        megalodonBodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+        megalodonBodyVelocity.P = 10000
+        megalodonBodyVelocity.Parent = root
+
+        megalodonBodyGyro = Instance.new("BodyGyro")
+        megalodonBodyGyro.CFrame = megalodonLockedCFrame
+        megalodonBodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)
+        megalodonBodyGyro.P = 10000
+        megalodonBodyGyro.Parent = root
+
+        megalodonLockConnection = RunService.Heartbeat:Connect(function()
+            if not root or not root.Parent or not megalodonLockActive then
+                if megalodonLockConnection then
+                    megalodonLockConnection:Disconnect()
+                    megalodonLockConnection = nil
+                end
+                return
+            end
+
+            if (root.Position - megalodonLockedCFrame.Position).Magnitude > 15 then
+                root.CFrame = megalodonLockedCFrame
+                if megalodonBodyVelocity then
+                    megalodonBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                end
+            end
+        end)
+    else
+        root.CFrame = CFrame.new(tPos)
+    end
+end
+
+-- Function to resume farming after megalodon event
+local function resumeFarmingAfterMegalodon(previousAutoFarmState)
+    task.spawn(function()
+        task.wait(1)
+
+        local farmLocation = "Sisyphus Statue"
+        local success = teleportToLocation(farmLocation)
+        if success then
+            task.wait(2)
+        end
+
+        local shouldResume = previousAutoFarmState
+        if shouldResume == nil then
+            shouldResume = _G.AUTO_FARM_ENABLED
+        end
+
+        if shouldResume and not _G.AUTO_FARM_ENABLED then
+            _G.AUTO_FARM_ENABLED = true
+            if UIComponents.AutoFarmToggle then
+                pcall(function()
+                    UIComponents.AutoFarmToggle:SetValue(true)
+                end)
+            end
+        end
+    end)
+end
+
+-- Function to auto-detect megalodon event
+local function autoDetectMegalodon()
+    local eventFound = false
+    local eventPosition = nil
+
+    pcall(function()
+        local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
+        if menuRings then
+            for _, propsFolder in ipairs(menuRings:GetChildren()) do
+                if propsFolder.Name == "Props" then
+                    local huntFolder = propsFolder:FindFirstChild("Megalodon Hunt")
+                    if huntFolder then
+                        local colorPart = huntFolder:FindFirstChild("Color")
+                        if colorPart and colorPart.Position then
+                            eventPosition = colorPart.Position
+                            eventFound = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        if not eventFound then
+            for _, child in ipairs(workspace:GetChildren()) do
+                if string.lower(child.Name) == "props" then
+                    local megalodonHunt = child:FindFirstChild("Megalodon Hunt")
+                    if megalodonHunt then
+                        local colorPart = megalodonHunt:FindFirstChild("Color")
+                        if colorPart and colorPart.Position then
+                            eventPosition = colorPart.Position
+                            eventFound = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+
+        if not eventFound then
+            for _, child in ipairs(workspace:GetChildren()) do
+                for _, subChild in ipairs(child:GetChildren()) do
+                    if string.find(string.lower(subChild.Name), "megalodon") then
+                        local colorPart = subChild:FindFirstChild("Color")
+                        if colorPart and colorPart.Position then
+                            eventPosition = colorPart.Position
+                            eventFound = true
+                            break
+                        end
+                    end
+                end
+                if eventFound then break end
+            end
+        end
+    end)
+
+    if eventFound and eventPosition then
+        if not megalodonEventActive then
+            megalodonEventActive = true
+            megalodonMissingAlertSent = false
+            megalodonEventEndAlertSent = false
+            megalodonPreEventFarmState = _G.AUTO_FARM_ENABLED
+            megalodonEventStartedAt = os.time()
+            print("[Megalodon] 🦈 Event detected! Teleporting...")
+        end
+
+        teleportToMegalodon(eventPosition, true)
+    else
+        local wasActive = megalodonEventActive
+        if wasActive then
+            megalodonEventActive = false
+            disableMegalodonLock()
+
+            if not megalodonEventEndAlertSent then
+                megalodonEventEndAlertSent = true
+                megalodonMissingAlertSent = true
+
+                local eventEndedAt = os.time()
+                local duration = eventEndedAt - megalodonEventStartedAt
+
+                print(string.format("[Megalodon] 🏁 Event ended (Duration: %s)", FormatTime(duration)))
+            end
+
+            megalodonEventStartedAt = 0
+            resumeFarmingAfterMegalodon(megalodonPreEventFarmState)
+            megalodonPreEventFarmState = nil
+
+        elseif not megalodonMissingAlertSent then
+            megalodonMissingAlertSent = true
+            print("[Megalodon] ⚠️ No event detected")
+        end
+    end
+end
+
+-- Main toggle function for auto megalodon
+local function setAutoMegalodon(state)
+    _G.AUTO_MEGALODON_ENABLED = state
+
+    if not state then
+        disableMegalodonLock()
+        megalodonMissingAlertSent = false
+        megalodonEventActive = false
+        megalodonEventStartedAt = 0
+        megalodonEventEndAlertSent = false
+        megalodonPreEventFarmState = nil
+        print("[Megalodon] ⏹️ Auto Megalodon stopped")
+    else
+        print("[Megalodon] ▶️ Auto Megalodon started")
+    end
+end
+
+print("✅ Auto Megalodon module ready\n")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- AUTO QUEST SYSTEM (EVENT-DRIVEN)
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    Auto Quest System - Event-driven quest tracking and completion
+
+    Features:
+    - Tracks 6 quest labels (3 Ghostfinn + 3 Element Rod)
+    - Priority system: Ghostfinn first, then Element Rod
+    - Event-driven using GetPropertyChangedSignal
+    - Teleports to quest locations with 4x retry
+    - Only displays incomplete quests
+    - Webhook notifications on completion
+]]
+
+-- Get quest text from specific tracker and label (SILENT - no logging)
+local function getQuestTextFromTracker(trackerName, labelName)
+    local success, result = pcall(function()
+        local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
+        if not menuRings then return "Quest not found" end
+
+        local tracker = menuRings:FindFirstChild(trackerName)
+        if not tracker then return "Quest not found" end
+
+        local board = tracker:FindFirstChild("Board")
+        if not board then return "Quest not found" end
+
+        local gui = board:FindFirstChild("Gui")
+        if not gui then return "Quest not found" end
+
+        local content = gui:FindFirstChild("Content")
+        if not content then return "Quest not found" end
+
+        local label = content:FindFirstChild(labelName)
+        if not label then return "Quest not found" end
+
+        return label.Text or "No data"
+    end)
+
+    return success and result or "Error fetching quest"
+end
+
+-- Check if quest is 100% complete
+local function isQuestComplete(questText)
+    if not questText or questText == "" then return false end
+    if questText:find("Quest not found") or questText:find("Error") then return false end
+
+    -- Check for 100% completion patterns
+    if questText:find("100%%") or questText:find("100 %%") then
+        return true
+    end
+
+    -- Check for completion patterns like "Completed" or "Done"
+    if questText:lower():find("completed") or questText:lower():find("done") then
+        return true
+    end
+
+    return false
+end
+
+-- Get all Ghostfinn quests (Deep Sea Tracker)
+local function getGhostfinnQuests()
+    return {
+        {tracker = "Deep Sea Tracker", label = "Label1", location = "Treasure Room"},
+        {tracker = "Deep Sea Tracker", label = "Label2", location = "Sisyphus Statue"},
+        {tracker = "Deep Sea Tracker", label = "Label3", location = "Sisyphus Statue"}
+    }
+end
+
+-- Get all Element Rod quests (Element Tracker)
+local function getElementRodQuests()
+    return {
+        {tracker = "Element Tracker", label = "Label1", location = "Auto", note = "Auto-completes with Ghostfinn"},
+        {tracker = "Element Tracker", label = "Label2", location = "Ancient Jungle"},
+        {tracker = "Element Tracker", label = "Label3", location = "Sacred Temple"}
+    }
+end
+
+-- Get all incomplete quests
+local function getIncompleteQuests()
+    local incomplete = {}
+    local hasIncompleteGhostfinn = false
+    local hasValidGhostfinnData = false
+
+    print("[Quest Check] 🔍 Checking all quests...")
+
+    -- PRIORITY 1: Check Ghostfinn quests FIRST
+    local ghostfinnQuests = getGhostfinnQuests()
+    for _, quest in ipairs(ghostfinnQuests) do
+        local questText = getQuestTextFromTracker(quest.tracker, quest.label)
+
+        -- Check if quest data is valid (not error message)
+        local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
+
+        if isValidData then
+            hasValidGhostfinnData = true
+            local isComplete = isQuestComplete(questText)
+            print(string.format("[Quest Check] Ghostfinn %s: %s (Complete: %s)", quest.label, questText, tostring(isComplete)))
+
+            if not isComplete then
+                hasIncompleteGhostfinn = true
+                table.insert(incomplete, {
+                    name = "Ghostfinn " .. quest.label,
+                    tracker = quest.tracker,
+                    label = quest.label,
+                    location = quest.location,
+                    text = questText,
+                    priority = 1  -- High priority
+                })
+            end
+        else
+            warn(string.format("[Quest Check] ⚠️ Ghostfinn %s: Invalid data '%s' - skipping", quest.label, questText))
+        end
+    end
+
+    -- If no valid Ghostfinn data found, quest system not ready
+    if not hasValidGhostfinnData then
+        warn("[Quest Check] ❌ No valid Ghostfinn quest data found! Quest system may not be loaded yet.")
+        return {} -- Return empty to prevent teleport
+    end
+
+    print(string.format("[Quest Check] 📊 Ghostfinn status: %s", hasIncompleteGhostfinn and "INCOMPLETE" or "ALL COMPLETE"))
+
+    -- PRIORITY 2: Only check Element Rod quests if ALL Ghostfinn quests are complete
+    if not hasIncompleteGhostfinn then
+        print("[Quest Check] ✅ All Ghostfinn quests complete, checking Element Rod...")
+        local elementQuests = getElementRodQuests()
+        for _, quest in ipairs(elementQuests) do
+            local questText = getQuestTextFromTracker(quest.tracker, quest.label)
+            local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
+
+            if isValidData then
+                local isComplete = isQuestComplete(questText)
+                print(string.format("[Quest Check] Element Rod %s: %s (Complete: %s)", quest.label, questText, tostring(isComplete)))
+
+                if not isComplete then
+                    table.insert(incomplete, {
+                        name = "Element Rod " .. quest.label,
+                        tracker = quest.tracker,
+                        label = quest.label,
+                        location = quest.location,
+                        text = questText,
+                        note = quest.note,
+                        priority = 2  -- Lower priority
+                    })
+                end
+            else
+                warn(string.format("[Quest Check] ⚠️ Element Rod %s: Invalid data '%s' - skipping", quest.label, questText))
+            end
+        end
+    else
+        print("[Quest Check] ⏭️ Skipping Element Rod quests (Ghostfinn not done yet)")
+    end
+
+    print(string.format("[Quest Check] 📋 Total incomplete quests: %d", #incomplete))
+    return incomplete
+end
+
+-- Get ALL incomplete quests for DISPLAY (no priority filter)
+local function getAllIncompleteQuestsForDisplay()
+    local incomplete = {}
+
+    -- Check ALL Ghostfinn quests
+    local ghostfinnQuests = getGhostfinnQuests()
+    for _, quest in ipairs(ghostfinnQuests) do
+        local questText = getQuestTextFromTracker(quest.tracker, quest.label)
+        local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
+
+        if isValidData and not isQuestComplete(questText) then
+            table.insert(incomplete, {
+                name = "Ghostfinn " .. quest.label,
+                tracker = quest.tracker,
+                label = quest.label,
+                location = quest.location,
+                text = questText
+            })
+        end
+    end
+
+    -- Check ALL Element Rod quests (regardless of Ghostfinn status)
+    local elementQuests = getElementRodQuests()
+    for _, quest in ipairs(elementQuests) do
+        local questText = getQuestTextFromTracker(quest.tracker, quest.label)
+        local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
+
+        if isValidData and not isQuestComplete(questText) then
+            table.insert(incomplete, {
+                name = "Element Rod " .. quest.label,
+                tracker = quest.tracker,
+                label = quest.label,
+                location = quest.location,
+                text = questText,
+                note = quest.note
+            })
+        end
+    end
+
+    return incomplete
+end
+
+-- Check if all quests are complete
+local function areAllQuestsComplete()
+    local incompleteQuests = getIncompleteQuests()
+    return #incompleteQuests == 0
+end
+
+-- Teleport to named location (quest locations only)
+local function teleportToQuestLocation(locationName)
+    if not locationName then
+        warn("[Auto Quest] ⚠️ Location name is nil!")
+        return
+    end
+
+    -- Quest location mappings (from main script v2.lua)
+    local questLocations = {
+        ["Treasure Room"] = CFrame.new(3134.67529, 127.984032, -3257.58325),
+        ["Sisyphus Statue"] = CFrame.new(-1318.41, 129.2, 1593.39),
+        ["Ancient Jungle"] = CFrame.new(3116.5, 132.1, 2516.5),
+        ["Sacred Temple"] = CFrame.new(6061, 130.8, 2024)
+    }
+
+    local targetCFrame = questLocations[locationName]
+    if not targetCFrame then
+        warn(string.format("[Auto Quest] ⚠️ Unknown location: %s", locationName))
+        return
+    end
+
+    pcall(function()
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = targetCFrame
+        end
+    end)
+end
+
+-- Handle quest completion
+local function onQuestCompleted(trackerName, labelName)
+    if not autoQuestRunning then return end
+
+    print(string.format("[Auto Quest] 🔔 Quest completed: %s %s", trackerName, labelName))
+
+    -- Get all incomplete quests
+    local incompleteQuests = getIncompleteQuests()
+
+    print(string.format("[Auto Quest] 📊 Remaining incomplete quests: %d", #incompleteQuests))
+
+    -- Check if all quests are complete
+    if #incompleteQuests == 0 then
+        -- All quests complete!
+        print("[Auto Quest] 🎉 All quests completed!")
+        autoQuestRunning = false
+        _G.AUTO_QUEST_ENABLED = false
+        return
+    end
+
+    -- Find next quest to work on
+    local nextQuest = nil
+    for _, quest in ipairs(incompleteQuests) do
+        -- Skip Element Rod Label1 (auto-completes)
+        if not (quest.tracker == "Element Tracker" and quest.label == "Label1") then
+            nextQuest = quest
+            break
+        end
+    end
+
+    if not nextQuest then
+        print("[Auto Quest] ⏳ Only Element Rod Label1 remains (auto-complete)")
+        return -- No valid next quest
+    end
+
+    print(string.format("[Auto Quest] 🎯 Next quest: %s → Location: %s", nextQuest.name, nextQuest.location))
+
+    -- Teleport to next quest location if different (4x retry)
+    if currentQuestLocation ~= nextQuest.location then
+        print(string.format("[Auto Quest] 🚀 Teleporting from '%s' to '%s'", currentQuestLocation or "nowhere", nextQuest.location))
+        print("[Auto Quest] 🔄 Executing 4x retry teleport...")
+
+        for i = 1, 4 do
+            print(string.format("[Auto Quest] 🎯 Attempt %d/4: Teleporting to %s", i, nextQuest.location))
+            teleportToQuestLocation(nextQuest.location)
+            task.wait(2)
+        end
+
+        currentQuestLocation = nextQuest.location
+        print("[Auto Quest] ✅ Teleport completed (4x retry)")
+    else
+        print(string.format("[Auto Quest] ✅ Already at location: %s", nextQuest.location))
+    end
+end
+
+-- Setup listeners for all quest labels
+local function setupQuestListeners()
+    -- Clean up existing listeners
+    for _, connection in pairs(questListenerConnections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    questListenerConnections = {}
+
+    local success, result = pcall(function()
+        local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
+        if not menuRings then
+            warn("[Auto Quest] ⚠️ !!! MENU RINGS not found in workspace")
+            return false
+        end
+
+        -- Setup listeners for Deep Sea Tracker (Ghostfinn)
+        local deepSeaTracker = menuRings:FindFirstChild("Deep Sea Tracker")
+        if deepSeaTracker then
+            local board = deepSeaTracker:FindFirstChild("Board")
+            if board then
+                local gui = board:FindFirstChild("Gui")
+                if gui then
+                    local content = gui:FindFirstChild("Content")
+                    if content then
+                        for _, labelName in ipairs({"Label1", "Label2", "Label3"}) do
+                            local label = content:FindFirstChild(labelName)
+                            if label then
+                                local connection = label:GetPropertyChangedSignal("Text"):Connect(function()
+                                    local questText = label.Text
+                                    if isQuestComplete(questText) then
+                                        onQuestCompleted("Deep Sea Tracker", labelName)
+                                    end
+                                end)
+                                table.insert(questListenerConnections, connection)
+                                print(string.format("[Auto Quest] ✅ Listener set: Deep Sea Tracker %s", labelName))
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Setup listeners for Element Tracker (Element Rod)
+        local elementTracker = menuRings:FindFirstChild("Element Tracker")
+        if elementTracker then
+            local board = elementTracker:FindFirstChild("Board")
+            if board then
+                local gui = board:FindFirstChild("Gui")
+                if gui then
+                    local content = gui:FindFirstChild("Content")
+                    if content then
+                        for _, labelName in ipairs({"Label1", "Label2", "Label3"}) do
+                            local label = content:FindFirstChild(labelName)
+                            if label then
+                                local connection = label:GetPropertyChangedSignal("Text"):Connect(function()
+                                    local questText = label.Text
+                                    if isQuestComplete(questText) then
+                                        onQuestCompleted("Element Tracker", labelName)
+                                    end
+                                end)
+                                table.insert(questListenerConnections, connection)
+                                print(string.format("[Auto Quest] ✅ Listener set: Element Tracker %s", labelName))
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        return true
+    end)
+
+    if not success or not result then
+        warn("[Auto Quest] ⚠️ Failed to setup quest listeners, will use fallback polling")
+    end
+end
+
+-- Cleanup all quest listeners
+local function cleanupQuestListeners()
+    for _, connection in pairs(questListenerConnections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    questListenerConnections = {}
+end
+
+-- Start Auto Quest (Event-Driven)
+local function startAutoQuest()
+    if autoQuestRunning then return end
+    autoQuestRunning = true
+    _G.AUTO_QUEST_ENABLED = true
+    isInitialStart = true
+
+    print("[Auto Quest] 🎯 Starting Auto Quest System...")
+    print("[Auto Quest] ⏳ Waiting for workspace to load...")
+    task.wait(5)
+
+    -- Check initial incomplete quests ONCE
+    local incompleteQuests = getIncompleteQuests()
+
+    print(string.format("[Auto Quest] 📊 Found %d incomplete quest(s) at startup", #incompleteQuests))
+
+    -- If no quests found (quest system not loaded), retry after delay
+    if #incompleteQuests == 0 then
+        warn("[Auto Quest] ⚠️ No incomplete quests detected!")
+        warn("[Auto Quest] ⏳ This could mean:")
+        warn("[Auto Quest]   1. All quests are 100% complete")
+        warn("[Auto Quest]   2. Quest workspace not loaded yet")
+        warn("[Auto Quest] 🔄 Retrying in 10 seconds...")
+
+        task.wait(10)
+        incompleteQuests = getIncompleteQuests()
+
+        if #incompleteQuests == 0 then
+            print("[Auto Quest] ✅ Confirmed: All quests already completed!")
+            autoQuestRunning = false
+            _G.AUTO_QUEST_ENABLED = false
+            return
+        else
+            print(string.format("[Auto Quest] ✅ Found %d incomplete quest(s) after retry", #incompleteQuests))
+        end
+    end
+
+    -- Log all incomplete quests
+    print("[Auto Quest] 📋 Incomplete quest list:")
+    for i, quest in ipairs(incompleteQuests) do
+        print(string.format("  %d. %s → %s", i, quest.name, quest.location))
+    end
+
+    -- Find first quest to work on
+    local firstQuest = nil
+    for _, quest in ipairs(incompleteQuests) do
+        if not (quest.tracker == "Element Tracker" and quest.label == "Label1") then
+            firstQuest = quest
+            break
+        end
+    end
+
+    if firstQuest then
+        -- FORCE teleport to first quest location 4x (NO WEBHOOK)
+        print(string.format("[Auto Quest] 🚀🚀🚀 FORCING teleport to: %s (Location: %s)", firstQuest.name, firstQuest.location))
+        print("[Auto Quest] 🔄 Executing 4x retry teleport to override any config teleport...")
+
+        for i = 1, 4 do
+            print(string.format("[Auto Quest] 🎯 Attempt %d/4: Teleporting to %s", i, firstQuest.location))
+            teleportToQuestLocation(firstQuest.location)
+            task.wait(2)
+        end
+
+        currentQuestLocation = firstQuest.location
+        print("[Auto Quest] ✅ Forced teleport completed (4x retry)")
+    else
+        print("[Auto Quest] ⚠️ No valid first quest found!")
+    end
+
+    -- Setup event listeners
+    print("[Auto Quest] 🔧 Setting up quest listeners...")
+    setupQuestListeners()
+    print("[Auto Quest] ✅ Quest listeners active")
+
+    -- After setup, mark as no longer initial start
+    task.delay(5, function()
+        isInitialStart = false
+        print("[Auto Quest] 📢 Quest system fully initialized")
+    end)
+end
+
+-- Stop Auto Quest
+local function stopAutoQuest()
+    autoQuestRunning = false
+    _G.AUTO_QUEST_ENABLED = false
+    currentQuestLocation = nil
+    isInitialStart = true
+    lastCompletedQuest = nil
+
+    -- Cleanup listeners
+    cleanupQuestListeners()
+
+    print("[Auto Quest] ⏹️ Auto Quest stopped")
+end
+
+-- Main toggle function for auto quest
+local function setAutoQuest(state)
+    if state then
+        startAutoQuest()
+    else
+        stopAutoQuest()
+    end
+end
+
+print("✅ Auto Quest module ready\n")
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- AUTO ELEMENT: Teleport Functions
@@ -4627,214 +5425,6 @@ end
 print("✅ Auto element module ready\n")
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 3: INVENTORY MODULE
--- ═══════════════════════════════════════════════════════════════════════════
---[[
-    Inventory Module - Fish & Items detection system
-
-    EDIT START: Line below this marker
-    EDIT END: Before next section marker
-
-    Key Functions:
-    - detectFish() - Detect fish from inventory
-    - detectItems() - Detect items from inventory
-    - formatPrice() - Format price with commas
-]]
-
--- ─────────────────────────────────────────────────────────────────────────
--- INVENTORY: Helper Functions
--- ─────────────────────────────────────────────────────────────────────────
-
-local function trim(s)
-    if not s then return nil end
-    return s:match("^%s*(.-)%s*$")
-end
-
-local function formatPrice(price)
-    if not price or price == 0 then return "0" end
-    local formatted = tostring(math.floor(price))
-    formatted = formatted:reverse():gsub("(%d%d%d)", "%1,")
-    formatted = formatted:reverse():gsub("^,", "")
-    return formatted
-end
-
--- ─────────────────────────────────────────────────────────────────────────
--- INVENTORY: Detection System
--- ─────────────────────────────────────────────────────────────────────────
-
-local detectedFish = {}
-local detectedItems = {}
-local currentCategory = "Fishes" -- "Fishes" or "Items"
-local isDetecting = false
-
--- Grouping System State
-local isGroupingEnabled = false  -- Start with list view (backward compatibility)
-local expandedGroups = {}        -- Track which groups are expanded: {[baseName] = true/false}
-local currentDisplayedCategory = nil  -- Track currently displayed category: "Fishes" or "Items"
-
-local function detectInventory(category)
-    local detected = {}
-    isDetecting = true
-
-    print(string.format("[Inventory] Starting %s detection...", category))
-
-    if not PlayerData then
-        warn("[Inventory] PlayerData not available")
-        isDetecting = false
-        return detected
-    end
-
-    local success, inventory = pcall(function()
-        return PlayerData:Get("Inventory")
-    end)
-
-    if not success or not inventory then
-        warn("[Inventory] Failed to get inventory")
-        isDetecting = false
-        return detected
-    end
-
-    local itemsCategory = inventory["Items"]
-    if not itemsCategory or type(itemsCategory) ~= "table" then
-        warn("[Inventory] Items category not found")
-        isDetecting = false
-        return detected
-    end
-
-    print(string.format("[Inventory] Found %d total items", #itemsCategory))
-
-    local itemCount = 0
-    for i, item in ipairs(itemsCategory) do
-        local itemData = ItemUtility:GetItemData(item.Id)
-        if itemData and itemData.Data then
-            local itemType = itemData.Data.Type
-            local itemName = trim(itemData.Data.Name)
-            local itemUUID = item.UUID
-
-            local shouldInclude = false
-            if category == "Fishes" and itemType == "Fish" then
-                shouldInclude = true
-            elseif category == "Items" and itemType ~= "Fish" then
-                shouldInclude = true
-            end
-
-            if shouldInclude then
-                local mutation = nil
-                local originalName = itemName
-
-                -- Detect Big mutation
-                if string.find(itemName, "^Big ") then
-                    mutation = "Big"
-                    itemName = trim(string.gsub(itemName, "^Big ", ""))
-                -- Detect Shiny mutation
-                elseif string.find(itemName, "^Shiny ") then
-                    mutation = "Shiny"
-                    itemName = trim(string.gsub(itemName, "^Shiny ", ""))
-                end
-
-                -- Detect variant mutations
-                if not mutation and item.Metadata and item.Metadata.VariantId then
-                    local variantData = ItemUtility:GetVariantData(item.Metadata.VariantId)
-                    if variantData and variantData.Data.Name and variantData.Data.Name ~= "Ghoulish" then
-                        mutation = variantData.Data.Name
-                    end
-                end
-
-                local itemPrice = VendorUtility:GetSellPrice(item) or 0
-                local basePrice = itemData.SellPrice or 0
-
-                table.insert(detected, {
-                    index = itemCount + 1,
-                    name = itemName,
-                    originalName = originalName,
-                    mutation = mutation,
-                    uuid = itemUUID,
-                    category = category,
-                    itemType = itemType,
-                    price = itemPrice,
-                    basePrice = basePrice
-                })
-                itemCount = itemCount + 1
-            end
-        end
-    end
-
-    print(string.format("[Inventory] Detected %d %s", itemCount, category))
-    isDetecting = false
-    return detected
-end
-
-local function detectFish()
-    detectedFish = detectInventory("Fishes")
-    return detectedFish
-end
-
-local function detectItems()
-    detectedItems = detectInventory("Items")
-    return detectedItems
-end
-
--- ─────────────────────────────────────────────────────────────────────────
--- INVENTORY: Grouping System
--- ─────────────────────────────────────────────────────────────────────────
-
-local function groupInventoryItems(items)
-    local groups = {}
-    local groupOrder = {}
-
-    for i, item in ipairs(items) do
-        local baseName = item.name  -- Base name for grouping
-
-        -- Create new group if doesn't exist
-        if not groups[baseName] then
-            groups[baseName] = {
-                baseName = baseName,
-                items = {},
-                totalCount = 0,
-                totalValue = 0,
-                avgPrice = 0,
-                maxPrice = 0,
-                minPrice = 999999999,
-                isExpanded = expandedGroups[baseName] or false
-            }
-            table.insert(groupOrder, baseName)
-        end
-
-        -- Preserve original index
-        local itemWithIndex = {}
-        for k, v in pairs(item) do
-            itemWithIndex[k] = v
-        end
-        itemWithIndex.originalIndex = i
-
-        -- Add item to group
-        table.insert(groups[baseName].items, itemWithIndex)
-        groups[baseName].totalCount = groups[baseName].totalCount + 1
-
-        -- Update statistics
-        local itemPrice = item.price or 0
-        groups[baseName].totalValue = groups[baseName].totalValue + itemPrice
-
-        if itemPrice > groups[baseName].maxPrice then
-            groups[baseName].maxPrice = itemPrice
-        end
-
-        if itemPrice < groups[baseName].minPrice then
-            groups[baseName].minPrice = itemPrice
-        end
-    end
-
-    -- Calculate averages
-    for _, group in pairs(groups) do
-        if group.totalCount > 0 then
-            group.avgPrice = math.floor(group.totalValue / group.totalCount)
-        end
-    end
-
-    return groups, groupOrder
-end
-
-print("✅ Inventory module ready\n")
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- SECTION 4: UI MODULE
@@ -4847,7 +5437,7 @@ print("✅ Inventory module ready\n")
 
     Tabs:
     - Auto Farm: Toggle ON/OFF, Custom Delay
-    - Inventory: Fish/Items detection
+    - (Inventory tab removed to fix "Out of local registers" error)
 ]]
 
 -- ─────────────────────────────────────────────────────────────────────────
@@ -5256,19 +5846,9 @@ print("[UI] ===============================================")
 -- ═══════════════════════════════════════════════════════════════════════════
 local savedConfig = loadConfig()
 
--- ─────────────────────────────────────────────────────────────────────────
--- UI: AUTO FARM TAB
--- ─────────────────────────────────────────────────────────────────────────
-
-local FarmTab = Window:Tab({
-    Title = "Auto Farm",
-    Icon = "zap"
-})
-
-FarmTab:Section({
-    Title = "⚙️ Farm Controls"
-})
-
+-- ═══════════════════════════════════════════════════════════════════════════
+-- UI TAB CREATION FUNCTIONS (Split to avoid local register limit)
+-- ═══════════════════════════════════════════════════════════════════════════
 
 -- Stop function
 local function stopAutoFarm()
@@ -5292,20 +5872,34 @@ local function startAutoFarm()
     end
 end
 
--- Toggle
-UIComponents.AutoFarmToggle = FarmTab:Toggle({
-    Title = "Auto Farm",
-    Desc = "Enable/disable automatic fishing",
-    Type = "Toggle",
-    Default = false,
-    Flag = "AutoFarmEnabled",
-    Callback = function(state)
-        if state then
-            startAutoFarm()
-        else
-            stopAutoFarm()
-        end
-        autoSaveConfig()
+-- ─────────────────────────────────────────────────────────────────────────
+-- UI: AUTO FARM TAB CREATION FUNCTION
+-- ─────────────────────────────────────────────────────────────────────────
+local function createAutoFarmTab()
+    local FarmTab = Window:Tab({
+        Title = "Auto Farm",
+        Icon = "zap"
+    })
+
+    do  -- Farm Controls Section (local scope)
+        FarmTab:Section({
+            Title = "⚙️ Farm Controls"
+        })
+
+        -- Toggle
+        UIComponents.AutoFarmToggle = FarmTab:Toggle({
+        Title = "Auto Farm",
+        Desc = "Enable/disable automatic fishing",
+        Type = "Toggle",
+        Default = false,
+        Flag = "AutoFarmEnabled",
+        Callback = function(state)
+            if state then
+                startAutoFarm()
+            else
+                stopAutoFarm()
+            end
+            autoSaveConfig()
     end
 })
 
@@ -5332,19 +5926,21 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
     end
 })
 
-FarmTab:Space({ Size = 20 })
+        FarmTab:Space({ Size = 20 })
 
-FarmTab:Divider()
+        FarmTab:Divider()
 
-FarmTab:Space({ Size = 15 })
+        FarmTab:Space({ Size = 15 })
+    end  -- End Farm Controls Section
 
--- ─────────────────────────────────────────────────────────────────────────
--- AUTO FARM TAB: Auto Farm V2 (Fast) Section
--- ─────────────────────────────────────────────────────────────────────────
+    do  -- Auto Farm V2 Section (local scope)
+        -- ─────────────────────────────────────────────────────────────────────────
+        -- AUTO FARM TAB: Auto Farm V2 (Fast) Section
+        -- ─────────────────────────────────────────────────────────────────────────
 
-FarmTab:Section({
-    Title = "⚡ Auto Farm V2 (Fast)"
-})
+        FarmTab:Section({
+            Title = "⚡ Auto Farm V2 (Fast)"
+        })
 
 FarmTab:Paragraph({
     Title = "Jung V2 - Independent Loop",
@@ -5498,107 +6094,197 @@ FarmTab:Paragraph({
     Desc = "Independent loop = doesn't wait for completion\nServer-based complete = parallel execution\nPing compensation = auto-adjust for high ping\nFixed params (-1, 0) = always OK rating"
 })
 
-FarmTab:Space({ Size = 20 })
+        FarmTab:Space({ Size = 20 })
 
-FarmTab:Divider()
+        FarmTab:Divider()
 
-FarmTab:Space({ Size = 15 })
+        FarmTab:Space({ Size = 15 })
+    end  -- End Auto Farm V2 Section
 
--- ─────────────────────────────────────────────────────────────────────────
--- AUTO FARM TAB: Auto Sell Section
--- ─────────────────────────────────────────────────────────────────────────
+    do  -- Auto Megalodon Section (local scope)
+        -- ─────────────────────────────────────────────────────────────────────────
+        -- AUTO FARM TAB: Auto Megalodon Section
+        -- ─────────────────────────────────────────────────────────────────────────
 
-FarmTab:Section({
-    Title = "💰 Auto Sell"
-})
+        FarmTab:Section({
+            Title = "🦈 Auto Megalodon"
+        })
 
--- Auto Sell Toggle
-UIComponents.AutoSellToggle = FarmTab:Toggle({
-    Title = "Auto Sell",
-    Desc = "Automatically sell all items periodically",
-    Type = "Toggle",
-    Default = false,
-    Flag = "AutoSellEnabled",
-    Callback = function(state)
-        if state then
-            startAutoSell()
-        else
-            stopAutoSell()
-        end
-        autoSaveConfig()
-    end
-})
+        FarmTab:Paragraph({
+            Title = "Megalodon Event Hunter",
+            Desc = "Automatically detects and teleports to Megalodon Hunt events\nPosition lock ensures you stay at the event location"
+        })
 
-FarmTab:Space({ Size = 10 })
+        FarmTab:Space({ Size = 10 })
 
--- Auto Sell Delay Input
-UIComponents.SellDelayInput = FarmTab:Input({
-    Title = "Sell Delay",
-    Desc = "Delay between auto-sell cycles (seconds)",
-    Type = "Input",
-    Placeholder = "60",
-    Value = savedConfig and savedConfig.AUTO_SELL_DELAY and tostring(savedConfig.AUTO_SELL_DELAY) or "60",
-    InputIcon = "timer",
-    Callback = function(value)
-        local delay = tonumber(value)
-        if delay and delay >= 10 then
-            _G.AUTO_SELL_DELAY = delay
-            print(string.format("💰 Auto Sell delay set to: %ds", delay))
-        else
-            print("❌ Invalid delay! Minimum 10 seconds. Using default: 60s")
-            _G.AUTO_SELL_DELAY = 60
-        end
-        autoSaveConfig()
-    end
-})
+        -- Auto Megalodon Toggle
+        UIComponents.AutoMegalodonToggle = FarmTab:Toggle({
+            Title = "Auto Megalodon",
+            Desc = "Enable/disable automatic megalodon event detection",
+            Type = "Toggle",
+            Default = false,
+            Flag = "AutoMegalodonEnabled",
+            Callback = function(state)
+                setAutoMegalodon(state)
+                autoSaveConfig()
+            end
+        })
 
-FarmTab:Space({ Size = 20 })
+        FarmTab:Space({ Size = 10 })
 
-FarmTab:Divider()
+        FarmTab:Paragraph({
+            Title = "ℹ️ How It Works",
+            Desc = "• Scans every 12 seconds for Megalodon events\n• Auto-teleports to event location (8 studs above water)\n• Locks position with BodyVelocity + BodyGyro\n• Auto-resumes farming when event ends\n• Saves pre-event farming state"
+        })
 
-FarmTab:Space({ Size = 15 })
+        FarmTab:Space({ Size = 20 })
 
--- ─────────────────────────────────────────────────────────────────────────
--- AUTO FARM TAB: Auto Artifact Section
--- ─────────────────────────────────────────────────────────────────────────
+        FarmTab:Divider()
 
-FarmTab:Section({
-    Title = "🎯 Auto Artifact"
-})
+        FarmTab:Space({ Size = 15 })
+    end  -- End Auto Megalodon Section
 
--- Auto Artifact Toggle
-UIComponents.AutoArtifactToggle = FarmTab:Toggle({
-    Title = "Auto Artifact",
-    Desc = "Enable/disable automatic artifact collection",
-    Type = "Toggle",
-    Default = false,
-    Flag = "AutoArtifactEnabled",
-    Callback = function(state)
-        if state then
-            startAutoArtifact()
-        else
-            stopAutoArtifact()
-        end
-        autoSaveConfig()
-    end
-})
+    do  -- Auto Quest Section (local scope)
+        -- ─────────────────────────────────────────────────────────────────────────
+        -- AUTO FARM TAB: Auto Quest Section
+        -- ─────────────────────────────────────────────────────────────────────────
 
-FarmTab:Space({ Size = 10 })
+        FarmTab:Section({
+            Title = "🎯 Auto Quest"
+        })
 
--- Artifact Skip Toggles Section
-FarmTab:Section({
+        FarmTab:Paragraph({
+            Title = "Quest System (Event-Driven)",
+            Desc = "Automatically tracks and completes quests (Ghostfinn + Element Rod)\nPriority: Ghostfinn first, then Element Rod\n4x retry teleport ensures accurate positioning"
+        })
+
+        FarmTab:Space({ Size = 10 })
+
+        -- Auto Quest Toggle
+        UIComponents.AutoQuestToggle = FarmTab:Toggle({
+            Title = "Auto Quest",
+            Desc = "Enable/disable automatic quest tracking and completion",
+            Type = "Toggle",
+            Default = false,
+            Flag = "AutoQuestEnabled",
+            Callback = function(state)
+                setAutoQuest(state)
+                autoSaveConfig()
+            end
+        })
+
+        FarmTab:Space({ Size = 10 })
+
+        FarmTab:Paragraph({
+            Title = "ℹ️ How It Works",
+            Desc = "• Tracks 6 quest labels (3 Ghostfinn + 3 Element Rod)\n• Event-driven listeners (no polling)\n• Priority system: Ghostfinn → Element Rod\n• Auto-teleports to quest locations (4x retry)\n• Auto-stops when all quests are 100% complete"
+        })
+
+        FarmTab:Space({ Size = 20 })
+
+        FarmTab:Divider()
+
+        FarmTab:Space({ Size = 15 })
+    end  -- End Auto Quest Section
+
+    do  -- Auto Sell Section (local scope)
+        -- ─────────────────────────────────────────────────────────────────────────
+        -- AUTO FARM TAB: Auto Sell Section
+        -- ─────────────────────────────────────────────────────────────────────────
+
+        FarmTab:Section({
+            Title = "💰 Auto Sell"
+        })
+
+        -- Auto Sell Toggle
+        UIComponents.AutoSellToggle = FarmTab:Toggle({
+            Title = "Auto Sell",
+            Desc = "Automatically sell all items periodically",
+            Type = "Toggle",
+            Default = false,
+            Flag = "AutoSellEnabled",
+            Callback = function(state)
+                if state then
+                    startAutoSell()
+                else
+                    stopAutoSell()
+                end
+                autoSaveConfig()
+            end
+        })
+
+        FarmTab:Space({ Size = 10 })
+
+        -- Auto Sell Delay Input
+        UIComponents.SellDelayInput = FarmTab:Input({
+            Title = "Sell Delay",
+            Desc = "Delay between auto-sell cycles (seconds)",
+            Type = "Input",
+            Placeholder = "60",
+            Value = savedConfig and savedConfig.AUTO_SELL_DELAY and tostring(savedConfig.AUTO_SELL_DELAY) or "60",
+            InputIcon = "timer",
+            Callback = function(value)
+                local delay = tonumber(value)
+                if delay and delay >= 10 then
+                    _G.AUTO_SELL_DELAY = delay
+                    print(string.format("💰 Auto Sell delay set to: %ds", delay))
+                else
+                    print("❌ Invalid delay! Minimum 10 seconds. Using default: 60s")
+                    _G.AUTO_SELL_DELAY = 60
+                end
+                autoSaveConfig()
+            end
+        })
+
+        FarmTab:Space({ Size = 20 })
+
+        FarmTab:Divider()
+
+        FarmTab:Space({ Size = 15 })
+    end  -- End Auto Sell Section
+
+    do  -- Auto Artifact Section (local scope)
+        -- ─────────────────────────────────────────────────────────────────────────
+        -- AUTO FARM TAB: Auto Artifact Section
+        -- ─────────────────────────────────────────────────────────────────────────
+
+        FarmTab:Section({
+            Title = "🎯 Auto Artifact"
+        })
+
+        -- Auto Artifact Toggle
+        UIComponents.AutoArtifactToggle = FarmTab:Toggle({
+            Title = "Auto Artifact",
+            Desc = "Enable/disable automatic artifact collection",
+            Type = "Toggle",
+            Default = false,
+            Flag = "AutoArtifactEnabled",
+            Callback = function(state)
+                if state then
+                    startAutoArtifact()
+                else
+                    stopAutoArtifact()
+                end
+                autoSaveConfig()
+            end
+        })
+
+        FarmTab:Space({ Size = 10 })
+
+        -- Artifact Skip Toggles Section
+        FarmTab:Section({
     Title = "🎯 Artifact Skip Settings"
 })
 
-FarmTab:Paragraph({
+        FarmTab:Paragraph({
     Title = "Skip Artifacts",
     Desc = "Toggle ON to skip artifacts you already have"
 })
 
-FarmTab:Space({ Size = 5 })
+        FarmTab:Space({ Size = 5 })
 
--- Temple 1: Hourglass Diamond Artifact
-UIComponents.SkipHourglassToggle = FarmTab:Toggle({
+        -- Temple 1: Hourglass Diamond Artifact
+        UIComponents.SkipHourglassToggle = FarmTab:Toggle({
     Title = "⏭️ Skip Hourglass Diamond",
     Desc = "Temple 1 - Mark as already obtained",
     Type = "Toggle",
@@ -5612,8 +6298,8 @@ UIComponents.SkipHourglassToggle = FarmTab:Toggle({
     end
 })
 
--- Temple 2: Arrow Artifact
-UIComponents.SkipArrowToggle = FarmTab:Toggle({
+        -- Temple 2: Arrow Artifact
+        UIComponents.SkipArrowToggle = FarmTab:Toggle({
     Title = "⏭️ Skip Arrow Artifact",
     Desc = "Temple 2 - Mark as already obtained",
     Type = "Toggle",
@@ -5627,8 +6313,8 @@ UIComponents.SkipArrowToggle = FarmTab:Toggle({
     end
 })
 
--- Temple 3: Diamond Artifact
-UIComponents.SkipDiamondToggle = FarmTab:Toggle({
+        -- Temple 3: Diamond Artifact
+        UIComponents.SkipDiamondToggle = FarmTab:Toggle({
     Title = "⏭️ Skip Diamond Artifact",
     Desc = "Temple 3 - Mark as already obtained",
     Type = "Toggle",
@@ -5642,8 +6328,8 @@ UIComponents.SkipDiamondToggle = FarmTab:Toggle({
     end
 })
 
--- Temple 4: Crescent Artifact
-UIComponents.SkipCrescentToggle = FarmTab:Toggle({
+        -- Temple 4: Crescent Artifact
+        UIComponents.SkipCrescentToggle = FarmTab:Toggle({
     Title = "⏭️ Skip Crescent Artifact",
     Desc = "Temple 4 - Mark as already obtained",
     Type = "Toggle",
@@ -5657,26 +6343,26 @@ UIComponents.SkipCrescentToggle = FarmTab:Toggle({
     end
 })
 
-FarmTab:Space({ Size = 10 })
+        FarmTab:Space({ Size = 10 })
 
-FarmTab:Divider()
+        FarmTab:Divider()
 
-FarmTab:Space({ Size = 15 })
+        FarmTab:Space({ Size = 15 })
 
--- Manual Teleport Section
-FarmTab:Section({
+        -- Manual Teleport Section
+        FarmTab:Section({
     Title = "🗺️ Manual Temple Teleport"
 })
 
-FarmTab:Paragraph({
+        FarmTab:Paragraph({
     Title = "Quick Teleport",
     Desc = "Teleport to temples manually without auto-farm"
 })
 
-FarmTab:Space({ Size = 5 })
+        FarmTab:Space({ Size = 5 })
 
--- Temple 1: Hourglass Diamond Artifact
-FarmTab:Button({
+        -- Temple 1: Hourglass Diamond Artifact
+        FarmTab:Button({
     Title = "📍 Temple 1 - Hourglass Diamond",
     Desc = "Teleport to Temple 1 location",
     Callback = function()
@@ -5691,8 +6377,8 @@ FarmTab:Button({
     end
 })
 
--- Temple 2: Arrow Artifact
-FarmTab:Button({
+        -- Temple 2: Arrow Artifact
+        FarmTab:Button({
     Title = "📍 Temple 2 - Arrow Artifact",
     Desc = "Teleport to Temple 2 location",
     Callback = function()
@@ -5707,8 +6393,8 @@ FarmTab:Button({
     end
 })
 
--- Temple 3: Diamond Artifact
-FarmTab:Button({
+        -- Temple 3: Diamond Artifact
+        FarmTab:Button({
     Title = "📍 Temple 3 - Diamond Artifact",
     Desc = "Teleport to Temple 3 location",
     Callback = function()
@@ -5723,8 +6409,8 @@ FarmTab:Button({
     end
 })
 
--- Temple 4: Crescent Artifact
-FarmTab:Button({
+        -- Temple 4: Crescent Artifact
+        FarmTab:Button({
     Title = "📍 Temple 4 - Crescent Artifact",
     Desc = "Teleport to Temple 4 location",
     Callback = function()
@@ -5738,307 +6424,17 @@ FarmTab:Button({
         end
     end
 })
+    end  -- End Auto Artifact Section
 
-print("✅ Auto Farm tab created")
+    print("✅ Auto Farm tab created")
+end  -- End of createAutoFarmTab()
 
--- ─────────────────────────────────────────────────────────────────────────
--- UI: INVENTORY TAB
--- ─────────────────────────────────────────────────────────────────────────
-
-local InventoryTab = Window:Tab({
-    Title = "Inventory",
-    Icon = "package"
-})
-
-InventoryTab:Section({
-    Title = "📦 Inventory Detection"
-})
-
--- Detection status label
-local detectionStatus = nil
-local fishListLabels = {}
-local itemListLabels = {}
-local allInventoryUIComponents = {}  -- Track ALL created UI components
-
--- Helper function to clear list (IMPROVED)
-local function clearList(listTable)
-    for _, label in ipairs(listTable) do
-        if label then
-            pcall(function() label:Destroy() end)
-        end
-    end
-    table.clear(listTable)
-end
-
--- Clear ALL inventory UI components
-local function clearAllInventoryUI()
-    for _, component in ipairs(allInventoryUIComponents) do
-        if component then
-            pcall(function() component:Destroy() end)
-        end
-    end
-    table.clear(allInventoryUIComponents)
-    table.clear(fishListLabels)
-    table.clear(itemListLabels)
-end
-
--- Refresh Inventory Display (Main rendering function)
-local function refreshInventoryDisplay(category)
-    -- Clear previous UI
-    clearAllInventoryUI()
-
-    -- Get current items based on category
-    local currentItems = (category == "Fishes") and detectedFish or detectedItems
-
-    if #currentItems == 0 then
-        local noItemsLabel = InventoryTab:Paragraph({
-            Title = string.format("No %s detected yet", category:lower()),
-            Desc = string.format("Click 'Detect %s' button to scan", category)
-        })
-        table.insert(allInventoryUIComponents, noItemsLabel)
-        return
-    end
-
-    -- Calculate statistics
-    local totalValue = 0
-    local mutatedCount = 0
-    for _, item in ipairs(currentItems) do
-        totalValue = totalValue + (item.price or 0)
-        if category == "Fishes" and item.mutation and item.mutation ~= "" then
-            mutatedCount = mutatedCount + 1
-        end
-    end
-
-    -- Update detection status
-    local statusText
-    if category == "Fishes" then
-        statusText = string.format(
-            "🐟 Fish: %d | 💎 Mutated: %d\n💰 Total Value: %s C$",
-            #currentItems,
-            mutatedCount,
-            formatPrice(totalValue)
-        )
-    else
-        statusText = string.format(
-            "📦 Items: %d\n💰 Total Value: %s C$",
-            #currentItems,
-            formatPrice(totalValue)
-        )
-    end
-
-    if detectionStatus then
-        detectionStatus:SetDesc(statusText)
-    end
-
-    -- GROUPED VIEW
-    if isGroupingEnabled then
-        local groups, groupOrder = groupInventoryItems(currentItems)
-
-        print(string.format("[Inventory] Rendering GROUPED view: %d groups", #groupOrder))
-
-        for _, groupName in ipairs(groupOrder) do
-            local group = groups[groupName]
-
-            -- Group Header Button
-            local expandIcon = group.isExpanded and "📂" or "📁"
-            local headerTitle = string.format(
-                "%s %s | Count: %d | Total: %s C$ | Avg: %s C$",
-                expandIcon,
-                groupName,
-                group.totalCount,
-                formatPrice(group.totalValue),
-                formatPrice(group.avgPrice)
-            )
-
-            local groupHeader = InventoryTab:Button({
-                Title = headerTitle,
-                Desc = "Click to expand/collapse",
-                Callback = function()
-                    -- Toggle expand state
-                    expandedGroups[groupName] = not expandedGroups[groupName]
-                    refreshInventoryDisplay(category)
-                end
-            })
-            table.insert(allInventoryUIComponents, groupHeader)
-
-            -- Child Items (if expanded)
-            if group.isExpanded then
-                -- Sort items by price (highest first)
-                table.sort(group.items, function(a, b) return (a.price or 0) > (b.price or 0) end)
-
-                for idx, item in ipairs(group.items) do
-                    local itemTitle = string.format(
-                        "  → %s%s - %s C$",
-                        item.originalName or item.name,
-                        item.mutation and (" (" .. item.mutation .. ")") or "",
-                        formatPrice(item.price)
-                    )
-
-                    local itemEntry = InventoryTab:Paragraph({
-                        Title = itemTitle,
-                        Desc = ""
-                    })
-                    table.insert(allInventoryUIComponents, itemEntry)
-
-                    -- Limit display to prevent UI overflow
-                    if idx >= 50 then
-                        local moreLabel = InventoryTab:Paragraph({
-                            Title = string.format("    ... and %d more items in this group", group.totalCount - 50),
-                            Desc = ""
-                        })
-                        table.insert(allInventoryUIComponents, moreLabel)
-                        break
-                    end
-                end
-            end
-        end
-
-    -- LIST VIEW
-    else
-        print(string.format("[Inventory] Rendering LIST view: %d items", #currentItems))
-
-        -- Sort by price (highest first)
-        local sortedItems = {}
-        for i, item in ipairs(currentItems) do
-            local itemCopy = {}
-            for k, v in pairs(item) do itemCopy[k] = v end
-            itemCopy.originalIndex = i
-            table.insert(sortedItems, itemCopy)
-        end
-        table.sort(sortedItems, function(a, b) return (a.price or 0) > (b.price or 0) end)
-
-        -- Display items (limit to 50 to prevent UI overflow)
-        local displayLimit = math.min(50, #sortedItems)
-        for i = 1, displayLimit do
-            local item = sortedItems[i]
-            local itemTitle = string.format(
-                "%d. %s%s - %s C$",
-                i,
-                item.originalName or item.name,
-                item.mutation and (" (" .. item.mutation .. ")") or "",
-                formatPrice(item.price)
-            )
-
-            local itemEntry = InventoryTab:Paragraph({
-                Title = itemTitle,
-                Desc = ""
-            })
-            table.insert(allInventoryUIComponents, itemEntry)
-        end
-
-        -- Show "more items" indicator
-        if #sortedItems > 50 then
-            local moreLabel = InventoryTab:Paragraph({
-                Title = string.format("... and %d more items", #sortedItems - 50),
-                Desc = ""
-            })
-            table.insert(allInventoryUIComponents, moreLabel)
-        end
-    end
-end
-
--- Helper function to create fish/item entry (DEPRECATED - kept for backward compatibility)
-local function createListEntry(tab, name, mutation, price, index)
-    local displayText = string.format(
-        "%d. %s%s - %s C$",
-        index,
-        name,
-        mutation and (" (" .. mutation .. ")") or "",
-        formatPrice(price)
-    )
-
-    return tab:Paragraph({
-        Title = displayText,
-        Desc = ""
-    })
-end
-
--- Grouping Toggle Button
-InventoryTab:Button({
-    Title = isGroupingEnabled and "📋 Switch to List View" or "📦 Switch to Group View",
-    Desc = "Toggle between grouped and list display",
-    Callback = function()
-        isGroupingEnabled = not isGroupingEnabled
-        print(string.format("[Inventory] Switched to %s view", isGroupingEnabled and "GROUPED" or "LIST"))
-
-        -- Refresh display if items are already loaded
-        if currentDisplayedCategory then
-            refreshInventoryDisplay(currentDisplayedCategory)
-        end
-    end
-})
-
-InventoryTab:Space({ Size = 10 })
-
--- Detect Fish Button
-InventoryTab:Button({
-    Title = "🐟 Detect Fish",
-    Desc = "Scan inventory for all fish",
-    Callback = function()
-        print("\n[Inventory] Starting fish detection...")
-
-        -- Set status to loading
-        if detectionStatus then
-            detectionStatus:SetDesc("⏳ Detecting fish...")
-        end
-
-        -- Detect fish from inventory
-        local fish = detectFish()
-        print(string.format("[Inventory] ✅ Detected %d fish", #fish))
-
-        -- Update current category and refresh display
-        currentDisplayedCategory = "Fishes"
-        refreshInventoryDisplay("Fishes")
-    end
-})
-
-InventoryTab:Space({ Size = 5 })
-
--- Detect Items Button
-InventoryTab:Button({
-    Title = "📦 Detect Items",
-    Desc = "Scan inventory for all items (non-fish)",
-    Callback = function()
-        print("\n[Inventory] Starting items detection...")
-
-        -- Set status to loading
-        if detectionStatus then
-            detectionStatus:SetDesc("⏳ Detecting items...")
-        end
-
-        -- Detect items from inventory
-        local items = detectItems()
-        print(string.format("[Inventory] ✅ Detected %d items", #items))
-
-        -- Update current category and refresh display
-        currentDisplayedCategory = "Items"
-        refreshInventoryDisplay("Items")
-    end
-})
-
-InventoryTab:Space({ Size = 15 })
-
-InventoryTab:Divider()
-
-InventoryTab:Space({ Size = 10 })
-
--- Status Display
-InventoryTab:Section({
-    Title = "📊 Detection Status"
-})
-
-detectionStatus = InventoryTab:Paragraph({
-    Title = "Status",
-    Desc = "⚪ No detection run yet\nClick 'Detect Fish' or 'Detect Items' to start"
-})
-
-print("✅ Inventory tab created")
 
 -- ─────────────────────────────────────────────────────────────────────────
--- UI: AUTO ELEMENT TAB
+-- UI: AUTO ELEMENT TAB CREATION FUNCTION
 -- ─────────────────────────────────────────────────────────────────────────
-
-local ElementTab = Window:Tab({
+local function createElementTab()
+    local ElementTab = Window:Tab({
     Title = "Auto Element",
     Icon = "star"
 })
@@ -6127,16 +6523,17 @@ task.spawn(function()
     end
 end)
 
-print("✅ Auto Element tab created")
+    print("✅ Auto Element tab created")
+end  -- End of createElementTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 4.5: WEATHER TAB
+-- SECTION 4.5: WEATHER TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local WeatherTab = Window:Tab({
-    Title = "Weather",
-    Icon = "cloud"
-})
+local function createWeatherTab()
+    local WeatherTab = Window:Tab({
+        Title = "Weather",
+        Icon = "cloud"
+    })
 
 WeatherTab:Section({
     Title = "🌤️ Weather Controls"
@@ -6204,16 +6601,17 @@ WeatherTab:Paragraph({
     Desc = "When enabled, this will automatically purchase Wind, Cloudy, and Storm weather in sequence every X seconds (configurable delay).\n\nUse this to keep weather effects active continuously."
 })
 
-print("✅ Auto Weather tab created")
+    print("✅ Auto Weather tab created")
+end  -- End of createWeatherTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 4.6: TELEPORT TAB
+-- SECTION 4.6: TELEPORT TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local TeleportTab = Window:Tab({
-    Title = "Teleport",
-    Icon = "map-pin"
-})
+local function createTeleportTab()
+    local TeleportTab = Window:Tab({
+        Title = "Teleport",
+        Icon = "map-pin"
+    })
 
 TeleportTab:Section({
     Title = "📍 Teleport Locations"
@@ -6277,9 +6675,21 @@ TeleportTab:Space({ Size = 10 })
 -- Ocean Button
 TeleportTab:Button({
     Title = "Ocean",
-    Desc = "Teleport to Ocean",
+    Desc = "Teleport to Ocean (Auto-locks position above water)",
     Callback = function()
         teleportToLocation("Ocean")
+    end
+})
+
+TeleportTab:Space({ Size = 5 })
+
+-- Disable Ocean Lock Button
+TeleportTab:Button({
+    Title = "🔓 Disable Ocean Lock",
+    Desc = "Unlock position to move freely",
+    Callback = function()
+        disableMegalodonLock()
+        print("[Teleport] 🔓 Ocean lock disabled - you can move freely now!")
     end
 })
 
@@ -6417,16 +6827,17 @@ TeleportTab:Paragraph({
     Desc = "1. Find the location's CFrame coordinates\n2. Add to TELEPORT_LOCATIONS table (line ~1770)\n3. Add button in this tab UI\n\nFormat:\n[\"Location Name\"] = CFrame.new(...)"
 })
 
-print("✅ Teleport tab created")
+    print("✅ Teleport tab created")
+end  -- End of createTeleportTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 4.7: CONFIG TAB (PRESETS)
+-- SECTION 4.7: CONFIG TAB CREATION FUNCTION (PRESETS)
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local ConfigTab = Window:Tab({
-    Title = "Config",
-    Icon = "settings"
-})
+local function createConfigTab()
+    local ConfigTab = Window:Tab({
+        Title = "Config",
+        Icon = "settings"
+    })
 
 ConfigTab:Section({
     Title = "⚙️ Preset Configurations"
@@ -6560,16 +6971,17 @@ ConfigTab:Paragraph({
     Desc = "• Make sure you have a quest active (Label2/Label3)\n• Ensure you're at the correct location before starting\n• Monitor the first few cycles to ensure everything works\n• You can toggle individual features off if needed"
 })
 
-print("✅ Config tab created")
+    print("✅ Config tab created")
+end  -- End of createConfigTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- MISC TAB
+-- MISC TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local MiscTab = Window:Tab({
-    Title = "Misc",
-    Icon = "sliders"
-})
+local function createMiscTab()
+    local MiscTab = Window:Tab({
+        Title = "Misc",
+        Icon = "sliders"
+    })
 
 -- Freeze Character Section
 MiscTab:Section({
@@ -6687,16 +7099,17 @@ MiscTab:Button({
     end
 })
 
-print("✅ Misc tab created")
+    print("✅ Misc tab created")
+end  -- End of createMiscTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- UPGRADE TAB
+-- UPGRADE TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local UpgradeTab = Window:Tab({
-    Title = "Upgrade",
-    Icon = "arrow-up"
-})
+local function createUpgradeTab()
+    local UpgradeTab = Window:Tab({
+        Title = "Upgrade",
+        Icon = "arrow-up"
+    })
 
 -- Auto Upgrade Section
 UpgradeTab:Section({
@@ -6828,16 +7241,17 @@ UpgradeTab:Paragraph({
     Desc = "Rods: Luck → Carbon → Grass → Demascus → Ice → Lucky → Midnight → Steampunk → Chrome → Astral → Ares → Angler\n\nBaits: Topwater → Luck → Midnight → Deep → Chroma → Dark Matter → Corrupt → Aether"
 })
 
-print("✅ Upgrade tab created")
+    print("✅ Upgrade tab created")
+end  -- End of createUpgradeTab()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- WEBHOOK TAB
+-- WEBHOOK TAB CREATION FUNCTION
 -- ═══════════════════════════════════════════════════════════════════════════
-
-local WebhookTab = Window:Tab({
-    Title = "Webhook",
-    Icon = "bell"
-})
+local function createWebhookTab()
+    local WebhookTab = Window:Tab({
+        Title = "Webhook",
+        Icon = "bell"
+    })
 
 -- Webhook Configuration Section
 WebhookTab:Section({
@@ -6907,10 +7321,26 @@ WebhookTab:Space({ Size = 10 })
 
 WebhookTab:Paragraph({
     Title = "🐟 Tier-Based Detection System",
-    Desc = "Webhooks automatically detect fish by tier:\n\n🔥 Mythic (Tier 6): Rarity 1 in 50,000+\n✨ SECRET (Tier 7): Rarity 1 in 250,000+\n\nAll fish matching these tiers will be detected automatically - no whitelist needed!"
+    Desc = "Webhooks automatically detect fish by tier:\n\n✨ SECRET (Tier 7): Rarity 1 in 250,000+\n\nOnly SECRET tier fish will be sent to webhook - no whitelist needed!"
 })
 
-print("✅ Webhook tab created")
+    print("✅ Webhook tab created")
+end  -- End of createWebhookTab()
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CALL ALL TAB CREATION FUNCTIONS (Solves local register limit)
+-- ═══════════════════════════════════════════════════════════════════════════
+print("[UI] 🔨 Creating all UI tabs...")
+createAutoFarmTab()
+-- createInventoryTab() -- REMOVED: Tab removed to fix "Out of local registers" error
+createElementTab()
+createWeatherTab()
+createTeleportTab()
+createConfigTab()
+createMiscTab()
+createUpgradeTab()
+createWebhookTab()
+print("[UI] ✅ All tabs created successfully!")
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- SECTION 5: MAIN EXECUTION
@@ -6923,6 +7353,25 @@ print("✅ Webhook tab created")
 
 -- Start the main loop thread (waits for AUTO_FARM_ENABLED)
 task.spawn(runMainLoop)
+
+-- Start Auto Megalodon detection loop
+task.spawn(function()
+    while true do
+        if _G.AUTO_MEGALODON_ENABLED then
+            local success, err = pcall(function()
+                autoDetectMegalodon()
+            end)
+
+            if not success then
+                if not (string.find(tostring(err):lower(), "asset is not approved") or
+                       string.find(tostring(err):lower(), "failed to load sound")) then
+                    warn("[Megalodon] Loop error: " .. tostring(err))
+                end
+            end
+        end
+        task.wait(12) -- Check every 12 seconds
+    end
+end)
 
 print(string.rep("=", 80))
 print("✅ ALL SYSTEMS LOADED!")
