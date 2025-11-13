@@ -1972,19 +1972,9 @@ local function sendUnifiedWebhook(webhookType, data)
 
     -- Configure embed based on webhook type
     if webhookType == "rare_fish_caught" then
-        -- Determine color and title based on tier
-        local embedColor = 16711680  -- Default red
-        local embedTitle = "🎣 RARE FISH CAUGHT!"
-
-        if data.tier == 7 then
-            -- SECRET fish - Cyan/Turquoise gradient
-            embedColor = 0x17FF97  -- Bright cyan
-            embedTitle = "✨ SECRET FISH CAUGHT!"
-        elseif data.tier == 6 then
-            -- Mythic fish - Red
-            embedColor = 0xFF1818  -- Bright red
-            embedTitle = "🔥 MYTHIC FISH CAUGHT!"
-        end
+        -- Only SECRET fish (Tier 7) will trigger this webhook
+        local embedColor = 0x17FF97  -- Bright cyan
+        local embedTitle = "✨ SECRET FISH CAUGHT!"
 
         embed = {
             title = embedTitle,
@@ -1999,7 +1989,7 @@ local function sendUnifiedWebhook(webhookType, data)
                 { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = true },
                 { name = "👤 Player", value = player.DisplayName or player.Name or "Unknown", inline = false },
             },
-            footer = { text = "Mythic/SECRET Fish Detector • Auto Fish" }
+            footer = { text = "SECRET Fish Detector • Auto Fish" }
         }
         -- Add fish thumbnail - convert rbxassetid to direct image URL
         if data.fishIcon and data.fishIcon ~= "" then
@@ -2050,72 +2040,7 @@ local function sendUnifiedWebhook(webhookType, data)
             end
         end
 
-    elseif webhookType == "new_species_caught" then
-        embed = {
-            title = "✨ NEW SPECIES DISCOVERED!",
-            description = string.format("**%s** has been caught for the first time!", data.fishId),
-            color = 16711935, -- Magenta for new species
-            fields = {
-                { name = "🐟 Fish", value = data.fishId, inline = true },
-                { name = "⚖️ Weight", value = tostring(data.weight) .. " kg", inline = true },
-                { name = "🎨 Variant", value = data.variant, inline = true },
-                { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = true },
-                { name = "👤 Player", value = player.DisplayName or player.Name or "Unknown", inline = false },
-            },
-            footer = { text = "Species Index • Auto Fish" }
-        }
-        -- Add fish thumbnail - convert rbxassetid to direct image URL
-        if data.fishIcon and data.fishIcon ~= "" then
-            local thumbnailUrl = nil
-
-            -- Extract asset ID from rbxassetid://
-            if string.match(data.fishIcon, "^rbxassetid://") then
-                local assetId = string.match(data.fishIcon, "rbxassetid://(%d+)")
-                if assetId then
-                    -- Method 1: Try to fetch actual image URL from Roblox API (768x432 for better quality)
-                    local success, result = pcall(function()
-                        local apiUrl = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=768x432&format=Png&isCircular=false", assetId)
-
-                        local req = syn and syn.request or http_request or (fluxus and fluxus.request) or request
-                        if req then
-                            local response = req({
-                                Url = apiUrl,
-                                Method = "GET"
-                            })
-
-                            if response and response.StatusCode == 200 and response.Body then
-                                local data = HttpService:JSONDecode(response.Body)
-                                if data and data.data and data.data[1] and data.data[1].imageUrl then
-                                    return data.data[1].imageUrl
-                                end
-                            end
-                        end
-                        return nil
-                    end)
-
-                    if success and result then
-                        thumbnailUrl = result
-                    else
-                        -- Fallback: Use assetdelivery direct link
-                        thumbnailUrl = string.format("https://assetdelivery.roblox.com/v1/asset/?id=%s", assetId)
-                    end
-                end
-            elseif string.match(data.fishIcon, "^https?://") then
-                -- Already a valid URL
-                thumbnailUrl = data.fishIcon
-            end
-
-            -- Add thumbnail to embed
-            if thumbnailUrl then
-                embed.thumbnail = {
-                    url = thumbnailUrl
-                }
-            end
-        end
-        -- Mention the Discord user for new species
-        if type(discordid) == "string" and discordid ~= "" then
-            embed.description = string.format("<@%s>\n**%s** has been caught for the first time!", discordid, data.fishId)
-        end
+    -- New species webhook removed - only SECRET tier (Tier 7) is sent
 
     elseif webhookType == "megalodon_missing" then
         embed = {
@@ -2259,10 +2184,9 @@ local function setupRareFishDetection()
         return
     end
 
-    -- Mythic/SECRET fish detection initialized (Tier 6 & 7 only)
+    -- SECRET fish detection initialized (Tier 7 ONLY)
 
     local rareFishCaught = 0
-    local newSpeciesCaught = 0
 
     -- Hook the event to monitor fish catches
     -- Event parameters:
@@ -2298,8 +2222,8 @@ local function setupRareFishDetection()
                     tierInfo = TierUtility:GetTierFromRarity(rarity.Chance)
                 end
 
-                -- Check if Mythic (Tier 6) or SECRET (Tier 7) only
-                if tierInfo and (tierInfo.Tier == 6 or tierInfo.Tier == 7) then
+                -- Check if SECRET (Tier 7) ONLY
+                if tierInfo and tierInfo.Tier == 7 then
                     rareFishCaught = rareFishCaught + 1
                     local rarityRatio = math.round(1 / rarity.Chance * 10) / 10
                     local weight = fishData and fishData.Weight or "unknown"
@@ -2309,7 +2233,7 @@ local function setupRareFishDetection()
                     -- Get fish NAME (not ID!)
                     local fishName = itemData.Data and itemData.Data.Name or tostring(fishId)
 
-                    -- Send webhook notification for Mythic/SECRET fish
+                    -- Send webhook notification for SECRET fish only
                     local webhookURL = getWebhookURL()
                     if webhookURL and webhookURL ~= "" then
                         sendUnifiedWebhook("rare_fish_caught", {
@@ -2320,32 +2244,14 @@ local function setupRareFishDetection()
                             isNew = isNewItem,
                             fishIcon = fishIcon,
                             tier = tierInfo.Tier,        -- Add tier number
-                            tierName = tierInfo.Name     -- Add tier name (Mythic/SECRET)
-                        })
-                    else
-                        warn("[Rare Fish Detection] ⚠️  Webhook URL not configured (webhook2 is empty)")
-                    end
-
-                elseif isNewItem then
-                    newSpeciesCaught = newSpeciesCaught + 1
-
-                    -- Get fish NAME (not ID!)
-                    local fishName = itemData.Data and itemData.Data.Name or tostring(fishId)
-
-                    -- Send webhook notification for new species
-                    local webhookURL = getWebhookURL()
-                    if webhookURL and webhookURL ~= "" then
-                        local fishIcon = itemData.Data and itemData.Data.Icon or nil
-                        sendUnifiedWebhook("new_species_caught", {
-                            fishId = fishName,  -- Use fish NAME instead of ID
-                            weight = fishData and fishData.Weight or "unknown",
-                            variant = fishData and fishData.VariantId or "none",
-                            fishIcon = fishIcon
+                            tierName = tierInfo.Name     -- Add tier name (SECRET)
                         })
                     else
                         warn("[Rare Fish Detection] ⚠️  Webhook URL not configured (webhook2 is empty)")
                     end
                 end
+
+                -- New Species webhook removed - only SECRET tier is sent
             end
         end)
     end)
@@ -3050,7 +2956,7 @@ local function teleportToNamedLocation(targetName)
 end
 
 -- ====== DAFTAR IDS ====== 
-local WeatherIDs = {"Cloudy", "Storm","Wind"}
+local WeatherIDs = {"Cloudy","Storm","Wind"}
 
 
 -- ====== CORE FUNCTIONS ====== 
