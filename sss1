@@ -3320,6 +3320,13 @@ end
 local function spawnTotem(totemUUID)
     print(string.format("✨ Spawning totem (UUID: %s)...", totemUUID))
 
+    -- Unequip all tools first to ensure clean state
+    print("🔓 Unequipping tools before spawn...")
+    pcall(function()
+        UnequipToolEvent:FireServer()
+    end)
+    task.wait(1)
+
     local success, err = pcall(function()
         SpawnTotemEvent:FireServer(totemUUID)
     end)
@@ -3366,6 +3373,7 @@ local function runTotemCycle()
     -- Step 1: Check totem status
     print("\n📊 Step 1: Checking totem status...")
     local invCount, hotbarCount, totalCount, invList, hotbarList = printTotemStatus()
+    task.wait(1)  -- Delay after step
 
     local totemUUID = nil
     local needsEquip = false
@@ -3376,17 +3384,20 @@ local function runTotemCycle()
         print("\n✅ Step 2: Totem found in hotbar (Slot " .. hotbarList[1].slot .. ")")
         totemUUID = hotbarList[1].uuid
         needsEquip = false
+        task.wait(1)  -- Delay after step
 
     elseif invCount > 0 then
         -- Case 2: Totem in inventory, need to equip to hotbar
         print("\n📦 Step 2: Totem found in inventory, need to equip to hotbar")
         totemUUID = invList[1].uuid
         needsEquip = true
+        task.wait(1)  -- Delay after step
 
     else
         -- Case 3: No totems available - Auto-buy totem
         print("\n❌ Step 2: NO TOTEMS AVAILABLE!")
         print("🛒 Auto-buy active, attempting to purchase...")
+        task.wait(1)  -- Delay before purchase
         local buySuccess = autoBuyTotem(_G.TOTEM_ITEM_ID)
 
         if buySuccess then
@@ -3406,9 +3417,9 @@ local function runTotemCycle()
                 if autoFishWasRunning then
                     print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
 
-                    -- Re-equip fishing rod 3x to ensure it's properly equipped
-                    print("🎣 Re-equipping fishing rod (3x for safety)...")
-                    for i = 1, 3 do
+                    -- Re-equip fishing rod 7x to ensure it's properly equipped
+                    print("🎣 Re-equipping fishing rod (7x for safety)...")
+                    for i = 1, 7 do
                         -- Unequip first
                         pcall(function()
                             UnequipToolEvent:FireServer()
@@ -3420,6 +3431,7 @@ local function runTotemCycle()
                             EquipToolEvent:FireServer(1)
                         end)
                         task.wait(0.5)
+                        print(string.format("  ✓ Equip attempt %d/7", i))
                     end
 
                     task.wait(1)
@@ -3436,9 +3448,9 @@ local function runTotemCycle()
             if autoFishWasRunning then
                 print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
 
-                -- Re-equip fishing rod 3x to ensure it's properly equipped
-                print("🎣 Re-equipping fishing rod (3x for safety)...")
-                for i = 1, 3 do
+                -- Re-equip fishing rod 7x to ensure it's properly equipped
+                print("🎣 Re-equipping fishing rod (7x for safety)...")
+                for i = 1, 7 do
                     -- Unequip first
                     pcall(function()
                         UnequipToolEvent:FireServer()
@@ -3450,6 +3462,7 @@ local function runTotemCycle()
                         EquipToolEvent:FireServer(1)
                     end)
                     task.wait(0.5)
+                    print(string.format("  ✓ Equip attempt %d/7", i))
                 end
 
                 task.wait(1)
@@ -3463,7 +3476,9 @@ local function runTotemCycle()
     -- Step 3: Equip totem to hotbar (if needed)
     if needsEquip then
         print("\n🎯 Step 3: Equipping totem to hotbar...")
+        task.wait(1)  -- Delay before equipping
         local equipSuccess = equipTotemToHotbar(totemUUID)
+        task.wait(1)  -- Delay after equipping
 
         if not equipSuccess then
             warn("❌ Failed to equip totem! Cycle aborted.")
@@ -3473,9 +3488,9 @@ local function runTotemCycle()
             if autoFishWasRunning then
                 print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
 
-                -- Re-equip fishing rod 3x to ensure it's properly equipped
-                print("🎣 Re-equipping fishing rod (3x for safety)...")
-                for i = 1, 3 do
+                -- Re-equip fishing rod 7x to ensure it's properly equipped
+                print("🎣 Re-equipping fishing rod (7x for safety)...")
+                for i = 1, 7 do
                     -- Unequip first
                     pcall(function()
                         UnequipToolEvent:FireServer()
@@ -3487,6 +3502,7 @@ local function runTotemCycle()
                         EquipToolEvent:FireServer(1)
                     end)
                     task.wait(0.5)
+                    print(string.format("  ✓ Equip attempt %d/7", i))
                 end
 
                 task.wait(1)
@@ -3501,7 +3517,9 @@ local function runTotemCycle()
 
     -- Step 4: Spawn totem
     print("\n✨ Step 4: Spawning totem...")
+    task.wait(1)  -- Delay before spawning
     local spawnSuccess = spawnTotem(totemUUID)
+    task.wait(1)  -- Delay after spawning
 
     if not spawnSuccess then
         warn("❌ Failed to spawn totem! Cycle aborted.")
@@ -3511,9 +3529,9 @@ local function runTotemCycle()
         if autoFishWasRunning then
             print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
 
-            -- Re-equip fishing rod 3x to ensure it's properly equipped
-            print("🎣 Re-equipping fishing rod (3x for safety)...")
-            for i = 1, 3 do
+            -- Re-equip fishing rod 7x to ensure it's properly equipped
+            print("🎣 Re-equipping fishing rod (7x for safety)...")
+            for i = 1, 7 do
                 -- Unequip first
                 pcall(function()
                     UnequipToolEvent:FireServer()
@@ -3525,6 +3543,7 @@ local function runTotemCycle()
                     EquipToolEvent:FireServer(1)
                 end)
                 task.wait(0.5)
+                print(string.format("  ✓ Equip attempt %d/7", i))
             end
 
             task.wait(1)
@@ -3544,9 +3563,9 @@ local function runTotemCycle()
     if autoFishWasRunning then
         print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
 
-        -- Re-equip fishing rod 3x to ensure it's properly equipped
-        print("🎣 Re-equipping fishing rod (3x for safety)...")
-        for i = 1, 3 do
+        -- Re-equip fishing rod 7x to ensure it's properly equipped
+        print("🎣 Re-equipping fishing rod (7x for safety)...")
+        for i = 1, 7 do
             -- Unequip first
             pcall(function()
                 UnequipToolEvent:FireServer()
@@ -3558,7 +3577,7 @@ local function runTotemCycle()
                 EquipToolEvent:FireServer(1)
             end)
             task.wait(0.5)
-            print(string.format("  ✓ Equip attempt %d/3", i))
+            print(string.format("  ✓ Equip attempt %d/7", i))
         end
 
         task.wait(1)
