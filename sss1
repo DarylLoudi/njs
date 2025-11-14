@@ -3405,6 +3405,17 @@ local function runTotemCycle()
                 -- Resume Auto Fish V2 if it was running
                 if autoFishWasRunning then
                     print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+
+                    -- Re-equip fishing rod 3x to ensure it's properly equipped
+                    print("🎣 Re-equipping fishing rod (3x for safety)...")
+                    for i = 1, 3 do
+                        pcall(function()
+                            EquipToolEvent:FireServer(1)
+                        end)
+                        task.wait(0.5)
+                    end
+
+                    task.wait(1)
                     startAutoFarmV2()
                 end
 
@@ -3417,6 +3428,17 @@ local function runTotemCycle()
             -- Resume Auto Fish V2 if it was running
             if autoFishWasRunning then
                 print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+
+                -- Re-equip fishing rod 3x to ensure it's properly equipped
+                print("🎣 Re-equipping fishing rod (3x for safety)...")
+                for i = 1, 3 do
+                    pcall(function()
+                        EquipToolEvent:FireServer(1)
+                    end)
+                    task.wait(0.5)
+                end
+
+                task.wait(1)
                 startAutoFarmV2()
             end
 
@@ -3436,6 +3458,17 @@ local function runTotemCycle()
             -- Resume Auto Fish V2 if it was running
             if autoFishWasRunning then
                 print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+
+                -- Re-equip fishing rod 3x to ensure it's properly equipped
+                print("🎣 Re-equipping fishing rod (3x for safety)...")
+                for i = 1, 3 do
+                    pcall(function()
+                        EquipToolEvent:FireServer(1)
+                    end)
+                    task.wait(0.5)
+                end
+
+                task.wait(1)
                 startAutoFarmV2()
             end
 
@@ -3456,6 +3489,17 @@ local function runTotemCycle()
         -- Resume Auto Fish V2 if it was running
         if autoFishWasRunning then
             print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+
+            -- Re-equip fishing rod 3x to ensure it's properly equipped
+            print("🎣 Re-equipping fishing rod (3x for safety)...")
+            for i = 1, 3 do
+                pcall(function()
+                    EquipToolEvent:FireServer(1)
+                end)
+                task.wait(0.5)
+            end
+
+            task.wait(1)
             startAutoFarmV2()
         end
 
@@ -3471,9 +3515,21 @@ local function runTotemCycle()
     -- ═══════════════════════════════════════════════════════════════════
     if autoFishWasRunning then
         print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+
+        -- Re-equip fishing rod 3x to ensure it's properly equipped
+        print("🎣 Re-equipping fishing rod (3x for safety)...")
+        for i = 1, 3 do
+            pcall(function()
+                EquipToolEvent:FireServer(1)
+            end)
+            task.wait(0.5)
+            print(string.format("  ✓ Equip attempt %d/3", i))
+        end
+
+        task.wait(1)
         startAutoFarmV2()
         task.wait(1)
-        print("✅ Auto Fish V2 resumed")
+        print("✅ Auto Fish V2 resumed with rod equipped")
     end
 
     -- Step 6: Complete
