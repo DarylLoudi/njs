@@ -3416,22 +3416,26 @@ local function runTotemCycle()
                 -- Resume Auto Fish V2 if it was running
                 if autoFishWasRunning then
                     print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+                    task.wait(2)
 
-                    -- Re-equip fishing rod 7x to ensure it's properly equipped
-                    print("🎣 Re-equipping fishing rod (7x for safety)...")
-                    for i = 1, 7 do
-                        -- Unequip first
-                        pcall(function()
-                            UnequipToolEvent:FireServer()
-                        end)
-                        task.wait(0.3)
-
-                        -- Then equip rod from hotbar slot 1
+                    -- SPAM equip rod 30x
+                    print("🎣 SPAM equipping fishing rod (30x)...")
+                    for i = 1, 30 do
                         pcall(function()
                             EquipToolEvent:FireServer(1)
                         end)
-                        task.wait(0.5)
-                        print(string.format("  ✓ Equip attempt %d/7", i))
+                        task.wait(0.1)
+                    end
+
+                    task.wait(2)
+
+                    -- SPAM equip rod 10x more
+                    print("🎣 SPAM equipping fishing rod (10x more)...")
+                    for i = 1, 10 do
+                        pcall(function()
+                            EquipToolEvent:FireServer(1)
+                        end)
+                        task.wait(0.1)
                     end
 
                     task.wait(1)
@@ -3447,22 +3451,26 @@ local function runTotemCycle()
             -- Resume Auto Fish V2 if it was running
             if autoFishWasRunning then
                 print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+                task.wait(2)
 
-                -- Re-equip fishing rod 7x to ensure it's properly equipped
-                print("🎣 Re-equipping fishing rod (7x for safety)...")
-                for i = 1, 7 do
-                    -- Unequip first
-                    pcall(function()
-                        UnequipToolEvent:FireServer()
-                    end)
-                    task.wait(0.3)
-
-                    -- Then equip rod from hotbar slot 1
+                -- SPAM equip rod 30x
+                print("🎣 SPAM equipping fishing rod (30x)...")
+                for i = 1, 30 do
                     pcall(function()
                         EquipToolEvent:FireServer(1)
                     end)
-                    task.wait(0.5)
-                    print(string.format("  ✓ Equip attempt %d/7", i))
+                    task.wait(0.1)
+                end
+
+                task.wait(2)
+
+                -- SPAM equip rod 10x more
+                print("🎣 SPAM equipping fishing rod (10x more)...")
+                for i = 1, 10 do
+                    pcall(function()
+                        EquipToolEvent:FireServer(1)
+                    end)
+                    task.wait(0.1)
                 end
 
                 task.wait(1)
@@ -3487,22 +3495,26 @@ local function runTotemCycle()
             -- Resume Auto Fish V2 if it was running
             if autoFishWasRunning then
                 print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+                task.wait(2)
 
-                -- Re-equip fishing rod 7x to ensure it's properly equipped
-                print("🎣 Re-equipping fishing rod (7x for safety)...")
-                for i = 1, 7 do
-                    -- Unequip first
-                    pcall(function()
-                        UnequipToolEvent:FireServer()
-                    end)
-                    task.wait(0.3)
-
-                    -- Then equip rod from hotbar slot 1
+                -- SPAM equip rod 30x
+                print("🎣 SPAM equipping fishing rod (30x)...")
+                for i = 1, 30 do
                     pcall(function()
                         EquipToolEvent:FireServer(1)
                     end)
-                    task.wait(0.5)
-                    print(string.format("  ✓ Equip attempt %d/7", i))
+                    task.wait(0.1)
+                end
+
+                task.wait(2)
+
+                -- SPAM equip rod 10x more
+                print("🎣 SPAM equipping fishing rod (10x more)...")
+                for i = 1, 10 do
+                    pcall(function()
+                        EquipToolEvent:FireServer(1)
+                    end)
+                    task.wait(0.1)
                 end
 
                 task.wait(1)
@@ -3528,22 +3540,26 @@ local function runTotemCycle()
         -- Resume Auto Fish V2 if it was running
         if autoFishWasRunning then
             print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+            task.wait(2)
 
-            -- Re-equip fishing rod 7x to ensure it's properly equipped
-            print("🎣 Re-equipping fishing rod (7x for safety)...")
-            for i = 1, 7 do
-                -- Unequip first
-                pcall(function()
-                    UnequipToolEvent:FireServer()
-                end)
-                task.wait(0.3)
-
-                -- Then equip rod from hotbar slot 1
+            -- SPAM equip rod 30x
+            print("🎣 SPAM equipping fishing rod (30x)...")
+            for i = 1, 30 do
                 pcall(function()
                     EquipToolEvent:FireServer(1)
                 end)
-                task.wait(0.5)
-                print(string.format("  ✓ Equip attempt %d/7", i))
+                task.wait(0.1)
+            end
+
+            task.wait(2)
+
+            -- SPAM equip rod 10x more
+            print("🎣 SPAM equipping fishing rod (10x more)...")
+            for i = 1, 10 do
+                pcall(function()
+                    EquipToolEvent:FireServer(1)
+                end)
+                task.wait(0.1)
             end
 
             task.wait(1)
@@ -3562,23 +3578,29 @@ local function runTotemCycle()
     -- ═══════════════════════════════════════════════════════════════════
     if autoFishWasRunning then
         print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
+        task.wait(2)  -- Wait 2 seconds before equipping
 
-        -- Re-equip fishing rod 7x to ensure it's properly equipped
-        print("🎣 Re-equipping fishing rod (7x for safety)...")
-        for i = 1, 7 do
-            -- Unequip first
-            pcall(function()
-                UnequipToolEvent:FireServer()
-            end)
-            task.wait(0.3)
-
-            -- Then equip rod from hotbar slot 1
+        -- SPAM equip rod 30x (no unequip, just pure spam)
+        print("🎣 SPAM equipping fishing rod (30x)...")
+        for i = 1, 30 do
             pcall(function()
                 EquipToolEvent:FireServer(1)
             end)
-            task.wait(0.5)
-            print(string.format("  ✓ Equip attempt %d/7", i))
+            task.wait(0.1)
         end
+        print("  ✓ First spam wave completed (30x)")
+
+        task.wait(2)  -- Wait 2 seconds
+
+        -- SPAM equip rod 10x more
+        print("🎣 SPAM equipping fishing rod (10x more)...")
+        for i = 1, 10 do
+            pcall(function()
+                EquipToolEvent:FireServer(1)
+            end)
+            task.wait(0.1)
+        end
+        print("  ✓ Second spam wave completed (10x)")
 
         task.wait(1)
         startAutoFarmV2()
