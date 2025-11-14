@@ -3409,6 +3409,13 @@ local function runTotemCycle()
                     -- Re-equip fishing rod 3x to ensure it's properly equipped
                     print("🎣 Re-equipping fishing rod (3x for safety)...")
                     for i = 1, 3 do
+                        -- Unequip first
+                        pcall(function()
+                            UnequipToolEvent:FireServer()
+                        end)
+                        task.wait(0.3)
+
+                        -- Then equip rod from hotbar slot 1
                         pcall(function()
                             EquipToolEvent:FireServer(1)
                         end)
@@ -3432,6 +3439,13 @@ local function runTotemCycle()
                 -- Re-equip fishing rod 3x to ensure it's properly equipped
                 print("🎣 Re-equipping fishing rod (3x for safety)...")
                 for i = 1, 3 do
+                    -- Unequip first
+                    pcall(function()
+                        UnequipToolEvent:FireServer()
+                    end)
+                    task.wait(0.3)
+
+                    -- Then equip rod from hotbar slot 1
                     pcall(function()
                         EquipToolEvent:FireServer(1)
                     end)
@@ -3462,6 +3476,13 @@ local function runTotemCycle()
                 -- Re-equip fishing rod 3x to ensure it's properly equipped
                 print("🎣 Re-equipping fishing rod (3x for safety)...")
                 for i = 1, 3 do
+                    -- Unequip first
+                    pcall(function()
+                        UnequipToolEvent:FireServer()
+                    end)
+                    task.wait(0.3)
+
+                    -- Then equip rod from hotbar slot 1
                     pcall(function()
                         EquipToolEvent:FireServer(1)
                     end)
@@ -3493,6 +3514,13 @@ local function runTotemCycle()
             -- Re-equip fishing rod 3x to ensure it's properly equipped
             print("🎣 Re-equipping fishing rod (3x for safety)...")
             for i = 1, 3 do
+                -- Unequip first
+                pcall(function()
+                    UnequipToolEvent:FireServer()
+                end)
+                task.wait(0.3)
+
+                -- Then equip rod from hotbar slot 1
                 pcall(function()
                     EquipToolEvent:FireServer(1)
                 end)
@@ -3519,6 +3547,13 @@ local function runTotemCycle()
         -- Re-equip fishing rod 3x to ensure it's properly equipped
         print("🎣 Re-equipping fishing rod (3x for safety)...")
         for i = 1, 3 do
+            -- Unequip first
+            pcall(function()
+                UnequipToolEvent:FireServer()
+            end)
+            task.wait(0.3)
+
+            -- Then equip rod from hotbar slot 1
             pcall(function()
                 EquipToolEvent:FireServer(1)
             end)
