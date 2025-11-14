@@ -3418,25 +3418,20 @@ local function runTotemCycle()
                     print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
                     task.wait(2)
 
-                    -- SPAM equip rod 30x
-                    print("🎣 SPAM equipping fishing rod (30x)...")
-                    for i = 1, 30 do
+                    -- SPAM equip rod continuously for 70 seconds
+                    print("🎣 SPAM equipping fishing rod (70 seconds continuous loop)...")
+                    local equipStartTime = tick()
+                    local equipCount = 0
+
+                    while (tick() - equipStartTime) < 70 do
                         pcall(function()
                             EquipToolEvent:FireServer(1)
                         end)
+                        equipCount = equipCount + 1
                         task.wait(0.1)
                     end
 
-                    task.wait(2)
-
-                    -- SPAM equip rod 10x more
-                    print("🎣 SPAM equipping fishing rod (10x more)...")
-                    for i = 1, 10 do
-                        pcall(function()
-                            EquipToolEvent:FireServer(1)
-                        end)
-                        task.wait(0.1)
-                    end
+                    print(string.format("  ✓ Equip spam completed (%d attempts)", equipCount))
 
                     task.wait(1)
                     startAutoFarmV2()
@@ -3453,25 +3448,20 @@ local function runTotemCycle()
                 print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
                 task.wait(2)
 
-                -- SPAM equip rod 30x
-                print("🎣 SPAM equipping fishing rod (30x)...")
-                for i = 1, 30 do
+                -- SPAM equip rod continuously for 70 seconds
+                print("🎣 SPAM equipping fishing rod (70 seconds continuous loop)...")
+                local equipStartTime = tick()
+                local equipCount = 0
+
+                while (tick() - equipStartTime) < 70 do
                     pcall(function()
                         EquipToolEvent:FireServer(1)
                     end)
+                    equipCount = equipCount + 1
                     task.wait(0.1)
                 end
 
-                task.wait(2)
-
-                -- SPAM equip rod 10x more
-                print("🎣 SPAM equipping fishing rod (10x more)...")
-                for i = 1, 10 do
-                    pcall(function()
-                        EquipToolEvent:FireServer(1)
-                    end)
-                    task.wait(0.1)
-                end
+                print(string.format("  ✓ Equip spam completed (%d attempts)", equipCount))
 
                 task.wait(1)
                 startAutoFarmV2()
@@ -3497,25 +3487,20 @@ local function runTotemCycle()
                 print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
                 task.wait(2)
 
-                -- SPAM equip rod 30x
-                print("🎣 SPAM equipping fishing rod (30x)...")
-                for i = 1, 30 do
+                -- SPAM equip rod continuously for 70 seconds
+                print("🎣 SPAM equipping fishing rod (70 seconds continuous loop)...")
+                local equipStartTime = tick()
+                local equipCount = 0
+
+                while (tick() - equipStartTime) < 70 do
                     pcall(function()
                         EquipToolEvent:FireServer(1)
                     end)
+                    equipCount = equipCount + 1
                     task.wait(0.1)
                 end
 
-                task.wait(2)
-
-                -- SPAM equip rod 10x more
-                print("🎣 SPAM equipping fishing rod (10x more)...")
-                for i = 1, 10 do
-                    pcall(function()
-                        EquipToolEvent:FireServer(1)
-                    end)
-                    task.wait(0.1)
-                end
+                print(string.format("  ✓ Equip spam completed (%d attempts)", equipCount))
 
                 task.wait(1)
                 startAutoFarmV2()
@@ -3542,25 +3527,20 @@ local function runTotemCycle()
             print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
             task.wait(2)
 
-            -- SPAM equip rod 30x
-            print("🎣 SPAM equipping fishing rod (30x)...")
-            for i = 1, 30 do
+            -- SPAM equip rod continuously for 70 seconds
+            print("🎣 SPAM equipping fishing rod (70 seconds continuous loop)...")
+            local equipStartTime = tick()
+            local equipCount = 0
+
+            while (tick() - equipStartTime) < 70 do
                 pcall(function()
                     EquipToolEvent:FireServer(1)
                 end)
+                equipCount = equipCount + 1
                 task.wait(0.1)
             end
 
-            task.wait(2)
-
-            -- SPAM equip rod 10x more
-            print("🎣 SPAM equipping fishing rod (10x more)...")
-            for i = 1, 10 do
-                pcall(function()
-                    EquipToolEvent:FireServer(1)
-                end)
-                task.wait(0.1)
-            end
+            print(string.format("  ✓ Equip spam completed (%d attempts)", equipCount))
 
             task.wait(1)
             startAutoFarmV2()
@@ -3580,27 +3560,20 @@ local function runTotemCycle()
         print("\n▶️  COORDINATION: Resuming Auto Fish V2...")
         task.wait(2)  -- Wait 2 seconds before equipping
 
-        -- SPAM equip rod 30x (no unequip, just pure spam)
-        print("🎣 SPAM equipping fishing rod (30x)...")
-        for i = 1, 30 do
+        -- SPAM equip rod continuously for 70 seconds (independent loop)
+        print("🎣 SPAM equipping fishing rod (70 seconds continuous loop)...")
+        local equipStartTime = tick()
+        local equipCount = 0
+
+        while (tick() - equipStartTime) < 70 do
             pcall(function()
                 EquipToolEvent:FireServer(1)
             end)
+            equipCount = equipCount + 1
             task.wait(0.1)
         end
-        print("  ✓ First spam wave completed (30x)")
 
-        task.wait(2)  -- Wait 2 seconds
-
-        -- SPAM equip rod 10x more
-        print("🎣 SPAM equipping fishing rod (10x more)...")
-        for i = 1, 10 do
-            pcall(function()
-                EquipToolEvent:FireServer(1)
-            end)
-            task.wait(0.1)
-        end
-        print("  ✓ Second spam wave completed (10x)")
+        print(string.format("  ✓ Equip spam completed (%d attempts in 70 seconds)", equipCount))
 
         task.wait(1)
         startAutoFarmV2()
