@@ -2723,6 +2723,123 @@ end
 print("✅ Auto Upgrade System loaded\n")
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 1.5: QUEST DETECTION SYSTEM
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    Quest Detection System - For UI Quest Tracker
+
+    Functions:
+    - getQuestTextFromTracker() - Get quest text from workspace
+    - getGhostfinnQuests() - Get Ghostfinn quest definitions
+    - getElementRodQuests() - Get Element Rod quest definitions
+    - getIncompleteQuestsForUI() - Get all incomplete quests for display
+]]
+
+-- Get quest text from specific tracker and label
+local function getQuestTextFromTracker(trackerName, labelName)
+    local success, result = pcall(function()
+        local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
+        if not menuRings then return "Quest not found" end
+
+        local tracker = menuRings:FindFirstChild(trackerName)
+        if not tracker then return "Quest not found" end
+
+        local board = tracker:FindFirstChild("Board")
+        if not board then return "Quest not found" end
+
+        local gui = board:FindFirstChild("Gui")
+        if not gui then return "Quest not found" end
+
+        local content = gui:FindFirstChild("Content")
+        if not content then return "Quest not found" end
+
+        local label = content:FindFirstChild(labelName)
+        if not label then return "Quest not found" end
+
+        return label.Text or "No data"
+    end)
+
+    return success and result or "Error fetching quest"
+end
+
+-- Check if quest is 100% complete
+local function isQuestComplete(questText)
+    if not questText or questText == "" then return false end
+    if questText:find("Quest not found") or questText:find("Error") then return false end
+
+    -- Check for 100% completion patterns
+    if questText:find("100%%") or questText:find("100 %%") then
+        return true
+    end
+
+    -- Check for completion patterns like "Completed" or "Done"
+    if questText:lower():find("completed") or questText:lower():find("done") then
+        return true
+    end
+
+    return false
+end
+
+-- Get all Ghostfinn quests (Deep Sea Tracker)
+local function getGhostfinnQuests()
+    return {
+        {tracker = "Deep Sea Tracker", label = "Label1", location = "Treasure Room"},
+        {tracker = "Deep Sea Tracker", label = "Label2", location = "Sisyphus Statue"},
+        {tracker = "Deep Sea Tracker", label = "Label3", location = "Sisyphus Statue"}
+    }
+end
+
+-- Get all Element Rod quests (Element Tracker)
+local function getElementRodQuests()
+    return {
+        {tracker = "Element Tracker", label = "Label1", location = "Auto", note = "Auto-completes"},
+        {tracker = "Element Tracker", label = "Label2", location = "Ancient Jungle"},
+        {tracker = "Element Tracker", label = "Label3", location = "Sacred Temple"}
+    }
+end
+
+-- Get all incomplete quests for UI display (simplified version)
+local function getIncompleteQuestsForUI()
+    local incomplete = {}
+
+    -- Check Ghostfinn quests
+    local ghostfinnQuests = getGhostfinnQuests()
+    for _, quest in ipairs(ghostfinnQuests) do
+        local questText = getQuestTextFromTracker(quest.tracker, quest.label)
+        local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
+
+        if isValidData and not isQuestComplete(questText) then
+            table.insert(incomplete, {
+                name = "Ghostfinn " .. quest.label,
+                text = questText,
+                location = quest.location,
+                type = "Ghostfinn"
+            })
+        end
+    end
+
+    -- Check Element Rod quests
+    local elementQuests = getElementRodQuests()
+    for _, quest in ipairs(elementQuests) do
+        local questText = getQuestTextFromTracker(quest.tracker, quest.label)
+        local isValidData = questText ~= "Quest not found" and questText ~= "Error fetching quest" and questText ~= "No data"
+
+        if isValidData and not isQuestComplete(questText) then
+            table.insert(incomplete, {
+                name = "Element " .. quest.label,
+                text = questText,
+                location = quest.location,
+                type = "Element"
+            })
+        end
+    end
+
+    return incomplete
+end
+
+print("✅ Quest Detection System loaded\n")
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- SECTION 2: AUTO FARM MODULE
 -- ═══════════════════════════════════════════════════════════════════════════
 --[[
@@ -5910,6 +6027,89 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
         autoSaveConfig()
     end
 })
+
+        FarmTab:Space({ Size = 20 })
+
+        FarmTab:Divider()
+
+        FarmTab:Space({ Size = 15 })
+
+        -- ─────────────────────────────────────────────────────────────────────────
+        -- QUEST TRACKER SECTION
+        -- ─────────────────────────────────────────────────────────────────────────
+
+        FarmTab:Section({
+            Title = "📋 Quest Tracker"
+        })
+
+        FarmTab:Paragraph({
+            Title = "Incomplete Quests Monitor",
+            Desc = "Shows quests that are not yet 100% complete\nUpdates every 5 minutes automatically"
+        })
+
+        FarmTab:Space({ Size = 10 })
+
+        -- Quest display paragraph (will be updated dynamically)
+        local questDisplayParagraph = FarmTab:Paragraph({
+            Title = "🔄 Loading quests...",
+            Desc = "Fetching quest data from workspace..."
+        })
+
+        -- Function to update quest display
+        local function updateQuestDisplay()
+            pcall(function()
+                local incompleteQuests = getIncompleteQuestsForUI()
+
+                if #incompleteQuests == 0 then
+                    -- All quests complete or not found
+                    questDisplayParagraph:UpdateParagraph({
+                        Title = "✅ All Quests Complete!",
+                        Desc = "No incomplete quests found.\nAll quests are 100% complete or quest system not loaded."
+                    })
+                else
+                    -- Build quest list string
+                    local questList = {}
+
+                    for i, quest in ipairs(incompleteQuests) do
+                        local questLine = string.format("%d. %s: %s", i, quest.name, quest.text)
+                        table.insert(questList, questLine)
+                    end
+
+                    local descText = table.concat(questList, "\n")
+
+                    questDisplayParagraph:UpdateParagraph({
+                        Title = string.format("📋 Incomplete Quests (%d)", #incompleteQuests),
+                        Desc = descText
+                    })
+                end
+
+                print(string.format("[Quest Tracker] ✅ Updated - %d incomplete quest(s)", #incompleteQuests))
+            end)
+        end
+
+        -- Initial update after 3 seconds (wait for workspace to load)
+        task.delay(3, function()
+            updateQuestDisplay()
+        end)
+
+        -- Auto-update every 5 minutes (300 seconds)
+        -- V6.6: Using controlled loop with long delays (safe - 5 minute intervals)
+        task.spawn(function()
+            task.wait(5) -- Wait 5 seconds before starting loop
+            while true do
+                task.wait(300) -- 5 minutes (safe interval, minimal CPU usage)
+                pcall(updateQuestDisplay) -- Protected call
+            end
+        end)
+
+        -- Manual refresh button
+        FarmTab:Button({
+            Title = "🔄 Refresh Quest List",
+            Desc = "Manually update quest display now",
+            Callback = function()
+                updateQuestDisplay()
+            end
+        })
 
         FarmTab:Space({ Size = 20 })
 
