@@ -2735,55 +2735,32 @@ print("✅ Auto Upgrade System loaded\n")
     - getIncompleteQuestsForUI() - Get all incomplete quests for display
 ]]
 
--- Get quest text from specific tracker and label
+-- Get quest text from specific tracker and label (DIRECT PATH METHOD)
 local function getQuestTextFromTracker(trackerName, labelName)
     local success, result = pcall(function()
-        local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
-        if not menuRings then
-            warn("[Quest] '!!! MENU RINGS' not found in workspace")
-            return "Quest not found"
-        end
+        -- Direct path access (faster and more reliable)
+        local label = workspace["!!! MENU RINGS"][trackerName].Board.Gui.Content[labelName]
 
-        local tracker = menuRings:FindFirstChild(trackerName)
-        if not tracker then
-            warn(string.format("[Quest] Tracker '%s' not found", trackerName))
-            return "Quest not found"
-        end
-
-        local board = tracker:FindFirstChild("Board")
-        if not board then
-            warn(string.format("[Quest] Board not found in '%s'", trackerName))
-            return "Quest not found"
-        end
-
-        local gui = board:FindFirstChild("Gui")
-        if not gui then
-            warn(string.format("[Quest] Gui not found in '%s'", trackerName))
-            return "Quest not found"
-        end
-
-        local content = gui:FindFirstChild("Content")
-        if not content then
-            warn(string.format("[Quest] Content not found in '%s'", trackerName))
-            return "Quest not found"
-        end
-
-        local label = content:FindFirstChild(labelName)
         if not label then
-            warn(string.format("[Quest] Label '%s' not found in '%s'", labelName, trackerName))
+            warn(string.format("[Quest] Label path not found: %s > %s", trackerName, labelName))
             return "Quest not found"
         end
 
-        local text = label.Text or "No data"
+        local text = label.Text
+        if not text or text == "" then
+            return "No data"
+        end
+
         print(string.format("[Quest] ✅ %s > %s: %s", trackerName, labelName, text))
         return text
     end)
 
     if not success then
-        warn("[Quest] Error in getQuestTextFromTracker: " .. tostring(result))
+        warn(string.format("[Quest] Error accessing %s > %s: %s", trackerName, labelName, tostring(result)))
+        return "Quest not found"
     end
 
-    return success and result or "Error fetching quest"
+    return result
 end
 
 -- Check if quest is 100% complete
@@ -2805,20 +2782,24 @@ local function isQuestComplete(questText)
 end
 
 -- Get all Ghostfinn quests (Deep Sea Tracker)
+-- Direct path: workspace["!!! MENU RINGS"]["Deep Sea Tracker"].Board.Gui.Content.Label1-4
 local function getGhostfinnQuests()
     return {
         {tracker = "Deep Sea Tracker", label = "Label1", location = "Treasure Room"},
         {tracker = "Deep Sea Tracker", label = "Label2", location = "Sisyphus Statue"},
-        {tracker = "Deep Sea Tracker", label = "Label3", location = "Sisyphus Statue"}
+        {tracker = "Deep Sea Tracker", label = "Label3", location = "Sisyphus Statue"},
+        {tracker = "Deep Sea Tracker", label = "Label4", location = "Unknown"}
     }
 end
 
 -- Get all Element Rod quests (Element Tracker)
+-- Direct path: workspace["!!! MENU RINGS"]["Element Tracker"].Board.Gui.Content.Label1-4
 local function getElementRodQuests()
     return {
         {tracker = "Element Tracker", label = "Label1", location = "Auto", note = "Auto-completes"},
         {tracker = "Element Tracker", label = "Label2", location = "Ancient Jungle"},
-        {tracker = "Element Tracker", label = "Label3", location = "Sacred Temple"}
+        {tracker = "Element Tracker", label = "Label3", location = "Sacred Temple"},
+        {tracker = "Element Tracker", label = "Label4", location = "Unknown"}
     }
 end
 
@@ -6080,28 +6061,37 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
         })
 
         task.delay(2, function()
-            pcall(function()
-                local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
-                if menuRings then
-                    local deepSeaTracker = menuRings:FindFirstChild("Deep Sea Tracker")
-                    local elementTracker = menuRings:FindFirstChild("Element Tracker")
+            local success, error = pcall(function()
+                -- Direct access test
+                local menuRings = workspace["!!! MENU RINGS"]
+                local deepSeaTracker = workspace["!!! MENU RINGS"]["Deep Sea Tracker"]
+                local elementTracker = workspace["!!! MENU RINGS"]["Element Tracker"]
 
-                    local info = "Workspace Status:\n"
-                    info = info .. "✅ !!! MENU RINGS: Found\n"
-                    info = info .. (deepSeaTracker and "✅ Deep Sea Tracker: Found\n" or "❌ Deep Sea Tracker: Not Found\n")
-                    info = info .. (elementTracker and "✅ Element Tracker: Found" or "❌ Element Tracker: Not Found")
+                local info = "Workspace Status (Direct Access):\n"
+                info = info .. "✅ !!! MENU RINGS: Found\n"
+                info = info .. "✅ Deep Sea Tracker: Found\n"
+                info = info .. "✅ Element Tracker: Found\n\n"
 
-                    debugParagraph:UpdateParagraph({
-                        Title = "🔍 Workspace Status",
-                        Desc = info
-                    })
-                else
-                    debugParagraph:UpdateParagraph({
-                        Title = "⚠️ Workspace Not Ready",
-                        Desc = "!!! MENU RINGS not found.\nWait for game to fully load, then click Refresh."
-                    })
-                end
+                -- Test Label1 access
+                local ghostLabel1 = pcall(function() return workspace["!!! MENU RINGS"]["Deep Sea Tracker"].Board.Gui.Content.Label1.Text end)
+                local elemLabel1 = pcall(function() return workspace["!!! MENU RINGS"]["Element Tracker"].Board.Gui.Content.Label1.Text end)
+
+                info = info .. "Label Access Test:\n"
+                info = info .. (ghostLabel1 and "✅ Ghostfinn Label1: Accessible\n" or "❌ Ghostfinn Label1: Failed\n")
+                info = info .. (elemLabel1 and "✅ Element Label1: Accessible" or "❌ Element Label1: Failed")
+
+                debugParagraph:UpdateParagraph({
+                    Title = "🔍 Workspace Status",
+                    Desc = info
+                })
             end)
+
+            if not success then
+                debugParagraph:UpdateParagraph({
+                    Title = "⚠️ Workspace Not Ready",
+                    Desc = "Cannot access quest paths.\nError: " .. tostring(error) .. "\n\nWait for game to fully load, then click Refresh."
+                })
+            end
         end)
 
         FarmTab:Space({ Size = 10 })
@@ -6115,8 +6105,9 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
         -- Function to update quest display
         local function updateQuestDisplay()
             local success, error = pcall(function()
-                -- Check if workspace is ready
-                local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
+                -- Direct access check (faster than FindFirstChild)
+                local menuRings = workspace["!!! MENU RINGS"]
+
                 if not menuRings then
                     questDisplayParagraph:UpdateParagraph({
                         Title = "⚠️ Quest System Not Ready",
@@ -6129,34 +6120,22 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
                 local incompleteQuests = getIncompleteQuestsForUI()
 
                 if #incompleteQuests == 0 then
-                    -- Check if trackers exist at all
-                    local deepSeaTracker = menuRings:FindFirstChild("Deep Sea Tracker")
-                    local elementTracker = menuRings:FindFirstChild("Element Tracker")
-
-                    if not deepSeaTracker and not elementTracker then
-                        questDisplayParagraph:UpdateParagraph({
-                            Title = "⚠️ Quest Trackers Not Found",
-                            Desc = "Quest trackers not detected in workspace.\nMake sure you're in the correct location."
-                        })
-                        print("[Quest Tracker] ⚠️ Quest trackers not found in workspace")
-                    else
-                        -- Trackers found but all complete
-                        questDisplayParagraph:UpdateParagraph({
-                            Title = "✅ All Quests Complete!",
-                            Desc = "No incomplete quests found.\nAll quests are 100% complete!"
-                        })
-                        print("[Quest Tracker] ✅ All quests complete")
-                    end
+                    -- Trackers found but all complete
+                    questDisplayParagraph:UpdateParagraph({
+                        Title = "✅ All Quests Complete!",
+                        Desc = "No incomplete quests found.\nAll quests are 100% complete!"
+                    })
+                    print("[Quest Tracker] ✅ All quests complete")
                 else
-                    -- Build quest list string
+                    -- Build quest list string with better formatting
                     local questList = {}
 
                     for i, quest in ipairs(incompleteQuests) do
-                        local questLine = string.format("%d. %s: %s", i, quest.name, quest.text)
+                        local questLine = string.format("%d. %s\n   %s", i, quest.name, quest.text)
                         table.insert(questList, questLine)
                     end
 
-                    local descText = table.concat(questList, "\n")
+                    local descText = table.concat(questList, "\n\n")
 
                     questDisplayParagraph:UpdateParagraph({
                         Title = string.format("📋 Incomplete Quests (%d)", #incompleteQuests),
@@ -6169,7 +6148,7 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
             if not success then
                 questDisplayParagraph:UpdateParagraph({
                     Title = "❌ Error Loading Quests",
-                    Desc = "Failed to fetch quest data.\nError: " .. tostring(error)
+                    Desc = "Failed to fetch quest data.\nError: " .. tostring(error) .. "\n\nCheck console (F9) for details."
                 })
                 warn("[Quest Tracker] ❌ Error: " .. tostring(error))
             end
@@ -6183,8 +6162,12 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
             for attempt = 1, maxRetries do
                 task.wait(retryDelay * attempt) -- Progressive delay: 3s, 6s, 9s, 12s, 15s
 
-                local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
-                if menuRings then
+                local success = pcall(function()
+                    local menuRings = workspace["!!! MENU RINGS"]
+                    return menuRings ~= nil
+                end)
+
+                if success then
                     print(string.format("[Quest Tracker] ✅ Workspace ready on attempt %d", attempt))
                     updateQuestDisplay()
                     break
@@ -6192,7 +6175,7 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
                     print(string.format("[Quest Tracker] ⏳ Attempt %d/%d - Waiting for workspace...", attempt, maxRetries))
                     questDisplayParagraph:UpdateParagraph({
                         Title = string.format("⏳ Loading... (Attempt %d/%d)", attempt, maxRetries),
-                        Desc = "Waiting for workspace to load..."
+                        Desc = "Waiting for workspace to load...\nUsing direct path access."
                     })
                 end
 
@@ -6200,7 +6183,7 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
                 if attempt == maxRetries then
                     questDisplayParagraph:UpdateParagraph({
                         Title = "❌ Failed to Load",
-                        Desc = "Could not find quest workspace after " .. maxRetries .. " attempts.\nTry manual refresh later."
+                        Desc = "Could not find quest workspace after " .. maxRetries .. " attempts.\n\nClick 'Refresh Quest List' button to try again."
                     })
                     warn("[Quest Tracker] ❌ Failed to load after " .. maxRetries .. " attempts")
                 end
