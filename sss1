@@ -6080,17 +6080,11 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
                 info = info .. (ghostLabel1 and "✅ Ghostfinn Label1: Accessible\n" or "❌ Ghostfinn Label1: Failed\n")
                 info = info .. (elemLabel1 and "✅ Element Label1: Accessible" or "❌ Element Label1: Failed")
 
-                debugParagraph:UpdateParagraph({
-                    Title = "🔍 Workspace Status",
-                    Desc = info
-                })
+                debugParagraph:SetDesc(info)
             end)
 
             if not success then
-                debugParagraph:UpdateParagraph({
-                    Title = "⚠️ Workspace Not Ready",
-                    Desc = "Cannot access quest paths.\nError: " .. tostring(error) .. "\n\nWait for game to fully load, then click Refresh."
-                })
+                debugParagraph:SetDesc("Cannot access quest paths.\nError: " .. tostring(error) .. "\n\nWait for game to fully load, then click Refresh.")
             end
         end)
 
@@ -6109,10 +6103,7 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
                 local menuRings = workspace["!!! MENU RINGS"]
 
                 if not menuRings then
-                    questDisplayParagraph:UpdateParagraph({
-                        Title = "⚠️ Quest System Not Ready",
-                        Desc = "Workspace '!!! MENU RINGS' not found.\nWaiting for game to fully load..."
-                    })
+                    questDisplayParagraph:SetDesc("Workspace '!!! MENU RINGS' not found.\nWaiting for game to fully load...")
                     print("[Quest Tracker] ⚠️ Workspace not ready yet")
                     return
                 end
@@ -6121,10 +6112,7 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
 
                 if #incompleteQuests == 0 then
                     -- Trackers found but all complete
-                    questDisplayParagraph:UpdateParagraph({
-                        Title = "✅ All Quests Complete!",
-                        Desc = "No incomplete quests found.\nAll quests are 100% complete!"
-                    })
+                    questDisplayParagraph:SetDesc("✅ No incomplete quests found.\nAll quests are 100% complete!")
                     print("[Quest Tracker] ✅ All quests complete")
                 else
                     -- Build quest list string with better formatting
@@ -6135,21 +6123,15 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
                         table.insert(questList, questLine)
                     end
 
-                    local descText = table.concat(questList, "\n\n")
+                    local descText = string.format("📋 Found %d incomplete quest(s):\n\n", #incompleteQuests) .. table.concat(questList, "\n\n")
 
-                    questDisplayParagraph:UpdateParagraph({
-                        Title = string.format("📋 Incomplete Quests (%d)", #incompleteQuests),
-                        Desc = descText
-                    })
+                    questDisplayParagraph:SetDesc(descText)
                     print(string.format("[Quest Tracker] ✅ Updated - %d incomplete quest(s)", #incompleteQuests))
                 end
             end)
 
             if not success then
-                questDisplayParagraph:UpdateParagraph({
-                    Title = "❌ Error Loading Quests",
-                    Desc = "Failed to fetch quest data.\nError: " .. tostring(error) .. "\n\nCheck console (F9) for details."
-                })
+                questDisplayParagraph:SetDesc("❌ Failed to fetch quest data.\nError: " .. tostring(error) .. "\n\nCheck console (F9) for details.")
                 warn("[Quest Tracker] ❌ Error: " .. tostring(error))
             end
         end
@@ -6173,18 +6155,12 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
                     break
                 else
                     print(string.format("[Quest Tracker] ⏳ Attempt %d/%d - Waiting for workspace...", attempt, maxRetries))
-                    questDisplayParagraph:UpdateParagraph({
-                        Title = string.format("⏳ Loading... (Attempt %d/%d)", attempt, maxRetries),
-                        Desc = "Waiting for workspace to load...\nUsing direct path access."
-                    })
+                    questDisplayParagraph:SetDesc(string.format("⏳ Loading... (Attempt %d/%d)\nWaiting for workspace to load...\nUsing direct path access.", attempt, maxRetries))
                 end
 
                 -- Last attempt
                 if attempt == maxRetries then
-                    questDisplayParagraph:UpdateParagraph({
-                        Title = "❌ Failed to Load",
-                        Desc = "Could not find quest workspace after " .. maxRetries .. " attempts.\n\nClick 'Refresh Quest List' button to try again."
-                    })
+                    questDisplayParagraph:SetDesc("❌ Could not find quest workspace after " .. maxRetries .. " attempts.\n\nClick 'Refresh Quest List' button to try again.")
                     warn("[Quest Tracker] ❌ Failed to load after " .. maxRetries .. " attempts")
                 end
             end
