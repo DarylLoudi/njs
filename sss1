@@ -6092,87 +6092,57 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
 
         -- Quest display paragraph (will be updated dynamically)
         local questDisplayParagraph = FarmTab:Paragraph({
-            Title = "🔄 Loading quests...",
-            Desc = "Fetching quest data from workspace..."
+            Title = "📋 Incomplete Quests",
+            Desc = "Loading quest data..."
         })
 
-        -- Function to update quest display
-        local function updateQuestDisplay()
-            local success, error = pcall(function()
-                -- Direct access check (faster than FindFirstChild)
-                local menuRings = workspace["!!! MENU RINGS"]
-
-                if not menuRings then
-                    questDisplayParagraph:SetDesc("Workspace '!!! MENU RINGS' not found.\nWaiting for game to fully load...")
-                    print("[Quest Tracker] ⚠️ Workspace not ready yet")
-                    return
-                end
-
-                local incompleteQuests = getIncompleteQuestsForUI()
-
-                if #incompleteQuests == 0 then
-                    -- Trackers found but all complete
-                    questDisplayParagraph:SetDesc("✅ No incomplete quests found.\nAll quests are 100% complete!")
-                    print("[Quest Tracker] ✅ All quests complete")
-                else
-                    -- Build quest list string with better formatting
-                    local questList = {}
-
-                    for i, quest in ipairs(incompleteQuests) do
-                        local questLine = string.format("%d. %s\n   %s", i, quest.name, quest.text)
-                        table.insert(questList, questLine)
-                    end
-
-                    local descText = string.format("📋 Found %d incomplete quest(s):\n\n", #incompleteQuests) .. table.concat(questList, "\n\n")
-
-                    questDisplayParagraph:SetDesc(descText)
-                    print(string.format("[Quest Tracker] ✅ Updated - %d incomplete quest(s)", #incompleteQuests))
-                end
-            end)
-
-            if not success then
-                questDisplayParagraph:SetDesc("❌ Failed to fetch quest data.\nError: " .. tostring(error) .. "\n\nCheck console (F9) for details.")
-                warn("[Quest Tracker] ❌ Error: " .. tostring(error))
-            end
-        end
-
-        -- Initial update with retry logic
+        -- Quest updater (similar to V2 Stats updater pattern)
         task.spawn(function()
-            local maxRetries = 5
-            local retryDelay = 3
+            task.wait(3) -- Initial wait for workspace to load
+            local updateInterval = 0
+            local REFRESH_INTERVAL = 300 -- 5 minutes = 300 seconds
 
-            for attempt = 1, maxRetries do
-                task.wait(retryDelay * attempt) -- Progressive delay: 3s, 6s, 9s, 12s, 15s
-
-                local success = pcall(function()
-                    local menuRings = workspace["!!! MENU RINGS"]
-                    return menuRings ~= nil
-                end)
-
-                if success then
-                    print(string.format("[Quest Tracker] ✅ Workspace ready on attempt %d", attempt))
-                    updateQuestDisplay()
-                    break
-                else
-                    print(string.format("[Quest Tracker] ⏳ Attempt %d/%d - Waiting for workspace...", attempt, maxRetries))
-                    questDisplayParagraph:SetDesc(string.format("⏳ Loading... (Attempt %d/%d)\nWaiting for workspace to load...\nUsing direct path access.", attempt, maxRetries))
-                end
-
-                -- Last attempt
-                if attempt == maxRetries then
-                    questDisplayParagraph:SetDesc("❌ Could not find quest workspace after " .. maxRetries .. " attempts.\n\nClick 'Refresh Quest List' button to try again.")
-                    warn("[Quest Tracker] ❌ Failed to load after " .. maxRetries .. " attempts")
-                end
-            end
-        end)
-
-        -- Auto-update every 5 minutes (300 seconds)
-        -- V6.6: Using controlled loop with long delays (safe - 5 minute intervals)
-        task.spawn(function()
-            task.wait(5) -- Wait 5 seconds before starting loop
             while true do
-                task.wait(300) -- 5 minutes (safe interval, minimal CPU usage)
-                pcall(updateQuestDisplay) -- Protected call
+                task.wait(1) -- Check every second
+                updateInterval = updateInterval + 1
+
+                -- Update every 5 minutes OR on first load
+                if updateInterval >= REFRESH_INTERVAL or updateInterval == 1 then
+                    updateInterval = 0 -- Reset counter
+
+                    local success, error = pcall(function()
+                        -- Direct access check
+                        local menuRings = workspace["!!! MENU RINGS"]
+
+                        if not menuRings then
+                            questDisplayParagraph:SetDesc("⚠️ Workspace not ready\nWaiting for game to load...")
+                            return
+                        end
+
+                        local incompleteQuests = getIncompleteQuestsForUI()
+
+                        if #incompleteQuests == 0 then
+                            questDisplayParagraph:SetDesc("✅ All quests complete!\nNo incomplete quests found.")
+                        else
+                            -- Build quest list
+                            local questLines = {}
+                            for i, quest in ipairs(incompleteQuests) do
+                                table.insert(questLines, string.format("%d. %s: %s", i, quest.name, quest.text))
+                            end
+
+                            questDisplayParagraph:SetDesc(string.format(
+                                "Found %d incomplete quest(s):\n\n%s",
+                                #incompleteQuests,
+                                table.concat(questLines, "\n")
+                            ))
+                        end
+                    end)
+
+                    if not success then
+                        questDisplayParagraph:SetDesc("❌ Error loading quests\n" .. tostring(error))
+                        warn("[Quest Tracker] Error: " .. tostring(error))
+                    end
+                end
             end
         end)
 
@@ -6181,7 +6151,33 @@ UIComponents.SuccessDelayInput = FarmTab:Input({
             Title = "🔄 Refresh Quest List",
             Desc = "Manually update quest display now",
             Callback = function()
-                updateQuestDisplay()
+                pcall(function()
+                    local menuRings = workspace["!!! MENU RINGS"]
+                    if not menuRings then
+                        questDisplayParagraph:SetDesc("⚠️ Workspace not ready\nPlease wait for game to load...")
+                        print("[Quest Tracker] Manual refresh - workspace not ready")
+                        return
+                    end
+
+                    local incompleteQuests = getIncompleteQuestsForUI()
+
+                    if #incompleteQuests == 0 then
+                        questDisplayParagraph:SetDesc("✅ All quests complete!\nNo incomplete quests found.")
+                        print("[Quest Tracker] Manual refresh - all complete")
+                    else
+                        local questLines = {}
+                        for i, quest in ipairs(incompleteQuests) do
+                            table.insert(questLines, string.format("%d. %s: %s", i, quest.name, quest.text))
+                        end
+
+                        questDisplayParagraph:SetDesc(string.format(
+                            "Found %d incomplete quest(s):\n\n%s",
+                            #incompleteQuests,
+                            table.concat(questLines, "\n")
+                        ))
+                        print(string.format("[Quest Tracker] Manual refresh - %d incomplete", #incompleteQuests))
+                    end
+                end)
             end
         })
 
