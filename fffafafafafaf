@@ -270,7 +270,7 @@ local sessionStats = {
 }
 
 -- GPU FPS Limit constant
-local GPU_FPS_LIMIT = 15
+local GPU_FPS_LIMIT = 10
 
 -- Alias for LocalPlayer (reference module uses LocalPlayer, this script uses player)
 local LocalPlayer = player
@@ -1153,7 +1153,7 @@ function disableGPUSaver()
         -- The lighting children were deleted, so re-enabling them is not possible.
         -- This part of the restoration is omitted.
 
-        pcall(function() setfpscap(0) end) -- Remove FPS limit
+        pcall(function() setfpscap(10) end) -- Remove FPS limit
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
 
         if workspace.CurrentCamera then
@@ -6401,7 +6401,7 @@ end
 -- 5. UNLOCK FPS (jika enabled)
 if unlockFPS then
     pcall(function()
-        setfpscap(240)
+        setfpscap(10)
         print("      📊 ✅ FPS unlocked to 240")
     end)
 end
