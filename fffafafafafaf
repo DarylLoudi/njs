@@ -5565,10 +5565,10 @@ print(string.format("  📜 Auto Quest: %s",
     _G.AUTO_QUEST_ENABLED and "✅ ENABLED" or "❌ DISABLED"))
 
 -- Auto Sell Settings
-_G.AUTO_SELL_ENABLED = config["Auto Sell"]["Enabled"]
+local autoSellConfigEnabled = config["Auto Sell"]["Enabled"]
 _G.AUTO_SELL_DELAY = config["Auto Sell"]["Delay"]
 print(string.format("  💰 Auto Sell: %s (Delay: %ds)",
-    _G.AUTO_SELL_ENABLED and "✅ ENABLED" or "❌ DISABLED", _G.AUTO_SELL_DELAY))
+    autoSellConfigEnabled and "✅ ENABLED" or "❌ DISABLED", _G.AUTO_SELL_DELAY))
 
 -- Auto Artifact Settings
 _G.AUTO_ARTIFACT_ENABLED = config["Auto Artifact"]["Enabled"]
@@ -5585,10 +5585,10 @@ print(string.format("      Skip Temples: [T1:%s, T2:%s, T3:%s, T4:%s]",
     artifactSkipToggles[4] and "⏭️" or "✅"))
 
 -- Auto Weather Settings
-_G.AUTO_WEATHER_ENABLED = config["Auto Weather"]["Enabled"]
+local autoWeatherConfigEnabled = config["Auto Weather"]["Enabled"]
 _G.WEATHER_PURCHASE_DELAY = config["Auto Weather"]["Purchase Delay"]
 print(string.format("  🌤️ Auto Weather: %s (Delay: %ds)",
-    _G.AUTO_WEATHER_ENABLED and "✅ ENABLED" or "❌ DISABLED", _G.WEATHER_PURCHASE_DELAY))
+    autoWeatherConfigEnabled and "✅ ENABLED" or "❌ DISABLED", _G.WEATHER_PURCHASE_DELAY))
 
 -- Auto Totem Settings
 _G.AUTO_TOTEM_ENABLED = config["Auto Totem"]["Enabled"]
@@ -5675,7 +5675,7 @@ end
 -- STEP 2: START AUTO SELL
 -- ─────────────────────────────────────────────────────────────────────────────
 
-if _G.AUTO_SELL_ENABLED then
+if autoSellConfigEnabled then
     print(string.format("\n  💰 Starting Auto Sell (Delay: %ds)...", _G.AUTO_SELL_DELAY))
     task.wait(2)
     startAutoSell()
@@ -5704,7 +5704,7 @@ end
 -- STEP 4: START AUTO WEATHER
 -- ─────────────────────────────────────────────────────────────────────────────
 
-if _G.AUTO_WEATHER_ENABLED then
+if autoWeatherConfigEnabled then
     print(string.format("\n  🌤️ Starting Auto Weather (Delay: %ds)...", _G.WEATHER_PURCHASE_DELAY))
     task.wait(2)
     startAutoWeather()
