@@ -4383,16 +4383,6 @@ local function stopAutoArtifact()
     print("\n🛑 Stopping Auto Artifact System...")
     isAutoArtifactOn = false
     _G.AUTO_ARTIFACT_ENABLED = false
-
-    -- V6.6: Stop inventory background system
-    InventoryBackgroundSystem.stop()
-
-    print("✅ Auto Artifact stopped\n")
-end
-
-print("✅ Auto artifact module ready\n")
-
--- ═══════════════════════════════════════════════════════════════════════════
 -- SECTION 2.6: AUTO SELL MODULE
 -- ═══════════════════════════════════════════════════════════════════════════
 --[[
@@ -4516,6 +4506,8 @@ local function stopAutoSell()
 end
 
 print("✅ Auto sell module ready\n")
+
+-- ═══════════════════════════════════════════════════════════════════════════
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- SECTION 2.7: AUTO WEATHER MODULE
