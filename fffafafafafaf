@@ -248,31 +248,35 @@ local PurchaseMarketItemFunc = Net["RF/PurchaseMarketItem"]
 print("✅ Network events loaded\n")
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- GPU SAVER MODULE
+-- HELPER FUNCTIONS & VARIABLES FOR GPU SAVER MODULE
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- Additional services needed by GPU Saver
 local Lighting = game:GetService("Lighting")
 local StarterGui = game:GetService("StarterGui")
 local workspace = game:GetService("Workspace")
 
--- GPU Saver Variables
+-- GPU Saver state variables
+local whiteScreenGui = nil
 local gpuSaverEnabled = false
 local originalSettings = {}
-local whiteScreenGui = nil
 local connections = {}
-local gpuSaverQuestConnections = nil  -- Will be initialized in createWhiteScreen()
-
--- Session stats for white screen display
-local startTime = os.time()
+local fpsCapConnection = nil
+local startTime = tick()
 local sessionStats = {
-    totalFish = 0,
-    totalValue = 0,
-    bestFish = {name = "None", value = 0},
-    fishTypes = {}
+    fishCaught = 0,
+    bestFish = "None",
+    coinsEarned = 0
 }
 
--- Helper Functions
-local function FormatTime(seconds)
+-- GPU FPS Limit constant
+local GPU_FPS_LIMIT = 15
+
+-- Alias for LocalPlayer (reference module uses LocalPlayer, this script uses player)
+local LocalPlayer = player
+
+-- ====== FORMAT HELPER FUNCTIONS ======
+function FormatTime(seconds)
     seconds = tonumber(seconds) or 0
     seconds = math.max(0, math.floor(seconds))
     local hours = math.floor(seconds / 3600)
@@ -281,8 +285,9 @@ local function FormatTime(seconds)
     return string.format("%02d:%02d:%02d", hours, minutes, secs)
 end
 
-local function FormatNumber(num)
-    local formatted = tostring(math.floor(tonumber(num) or 0))
+function FormatNumber(num)
+    local numStr = tonumber(num) or 0
+    local formatted = tostring(math.floor(numStr))
     local k
     while true do
         formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
@@ -291,7 +296,7 @@ local function FormatNumber(num)
     return formatted
 end
 
-local function FormatCoins(coins)
+function FormatCoins(coins)
     local num = tonumber(coins) or 0
     if num >= 1000000 then
         return string.format("%.1fM", num / 1000000)
@@ -302,24 +307,43 @@ local function FormatCoins(coins)
     end
 end
 
-local function getCurrentCoins()
+-- ====== QUEST & STAT HELPER FUNCTIONS ======
+function getCurrentCoins()
+    local coinsText = "0"
     local success, result = pcall(function()
-        if PlayerData then
-            local coins = PlayerData:GetExpect("Coins")
-            return tonumber(coins) or 0
-        end
-        return 0
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        local events = playerGui and playerGui:FindFirstChild("Events")
+        local frame = events and events:FindFirstChild("Frame")
+        local currencyCounter = frame and frame:FindFirstChild("CurrencyCounter")
+        local counter = currencyCounter and currencyCounter:FindFirstChild("Counter")
+        return counter and counter.Text
     end)
-    return success and result or 0
+    if success and result then
+        coinsText = result
+    end
+
+    -- Parse coins text (handles K, M suffixes)
+    local cleanText = coinsText:gsub(",", "")
+    local coins = 0
+    if cleanText:lower():find("k") then
+        local numK = cleanText:lower():gsub("k", "")
+        coins = (tonumber(numK) or 0) * 1000
+    elseif cleanText:lower():find("m") then
+        local numM = cleanText:lower():gsub("m", "")
+        coins = (tonumber(numM) or 0) * 1000000
+    else
+        coins = tonumber(cleanText) or 0
+    end
+    return coins
 end
 
-local function getCurrentLevel()
+function getCurrentLevel()
     local success, result = pcall(function()
-        local playerGui = player:FindFirstChild("PlayerGui")
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
         if not playerGui then return "Lvl 0" end
-        local xpFrame = playerGui:FindFirstChild("XP")
-        if not xpFrame then return "Lvl 0" end
-        local frame = xpFrame:FindFirstChild("Frame")
+        local xpGui = playerGui:FindFirstChild("XP")
+        if not xpGui then return "Lvl 0" end
+        local frame = xpGui:FindFirstChild("Frame")
         if not frame then return "Lvl 0" end
         local levelCount = frame:FindFirstChild("LevelCount")
         if not levelCount then return "Lvl 0" end
@@ -328,29 +352,74 @@ local function getCurrentLevel()
     return success and result or "Lvl 0"
 end
 
-local function getQuestText(labelName)
+function getFishCaught()
     local success, result = pcall(function()
-        local playerGui = player:FindFirstChild("PlayerGui")
-        if not playerGui then return "No Quest" end
-        local quests = playerGui:FindFirstChild("Quests")
-        if not quests then return "No Quest" end
-        local main = quests:FindFirstChild("Main")
-        if not main then return "No Quest" end
-        local content = main:FindFirstChild("Content")
-        if not content then return "No Quest" end
-        local label = content:FindFirstChild(labelName)
-        if not label then return "No Quest" end
-
-        local questText = label:FindFirstChild("QuestText")
-        if not questText then return "No Quest" end
-
-        return questText.Text or "No Quest"
+        if LocalPlayer.leaderstats and LocalPlayer.leaderstats.Caught then
+            return LocalPlayer.leaderstats.Caught.Value
+        end
+        return 0
     end)
-    return success and result or "No Quest"
+    return success and result or 0
 end
 
--- VRAM Optimization Functions
+function getBestFish()
+    local success, result = pcall(function()
+        if LocalPlayer.leaderstats and LocalPlayer.leaderstats["Rarest Fish"] then
+            return LocalPlayer.leaderstats["Rarest Fish"].Value
+        end
+        return "None"
+    end)
+    return success and result or "None"
+end
+
+function getQuestTextFromTracker(trackerName, labelName)
+    local success, result = pcall(function()
+        local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
+        if not menuRings then return "Quest not found" end
+
+        local tracker = menuRings:FindFirstChild(trackerName)
+        if not tracker then return "Quest not found" end
+
+        local board = tracker:FindFirstChild("Board")
+        if not board then return "Quest not found" end
+
+        local gui = board:FindFirstChild("Gui")
+        if not gui then return "Quest not found" end
+
+        local content = gui:FindFirstChild("Content")
+        if not content then return "Quest not found" end
+
+        local label = content:FindFirstChild(labelName)
+        if not label then return "Quest not found" end
+
+        return label.Text or "No data"
+    end)
+
+    return success and result or "Error fetching quest"
+end
+
+function isQuestComplete(questText)
+    if not questText or questText == "" then return false end
+    if questText:find("Quest not found") or questText:find("Error") then return false end
+
+    -- Check for 100% completion patterns
+    if questText:find("100%%") or questText:find("100 %%") then
+        return true
+    end
+
+    -- Check for completion patterns like "Completed" or "Done"
+    if questText:lower():find("completed") or questText:lower():find("done") then
+        return true
+    end
+
+    return false
+end
+
+-- ====== VRAM OPTIMIZATION FUNCTIONS ======
 local function ultimatePerformance()
+    local workspace = game:GetService("Workspace")
+    local lighting = game:GetService("Lighting")
+
     pcall(function()
         local terrain = workspace:FindFirstChild("Terrain")
         if terrain then
@@ -364,17 +433,19 @@ local function ultimatePerformance()
             terrain.WaterTransparency = 0
         end
 
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 9e9
-        Lighting.Brightness = 0
-        Lighting.Technology = Enum.Technology.Compatibility
-        Lighting:ClearAllChildren()
+        lighting.GlobalShadows = false
+        lighting.FogEnd = 9e9
+        lighting.Brightness = 0
+        lighting.Technology = Enum.Technology.Compatibility
+        lighting:ClearAllChildren()
     end)
 end
 
 local function optimizeMaterials()
     pcall(function()
+        local workspace = game:GetService("Workspace")
         local materialsOptimized = 0
+
         local function optimizePart(part)
             if part:IsA("BasePart") then
                 part.Material = Enum.Material.Plastic
@@ -394,7 +465,9 @@ end
 
 local function removeTextures()
     pcall(function()
+        local workspace = game:GetService("Workspace")
         local texturesRemoved = 0
+
         for _, descendant in ipairs(workspace:GetDescendants()) do
             pcall(function()
                 if descendant:IsA("Decal") or descendant:IsA("Texture") or descendant:IsA("SurfaceAppearance") then
@@ -406,9 +479,31 @@ local function removeTextures()
     end)
 end
 
+local function optimizeMeshes()
+    pcall(function()
+        local workspace = game:GetService("Workspace")
+        local meshesOptimized = 0
+
+        for _, descendant in ipairs(workspace:GetDescendants()) do
+            pcall(function()
+                if descendant:IsA("SpecialMesh") or descendant:IsA("MeshPart") then
+                    if descendant:IsA("SpecialMesh") then
+                        descendant.TextureId = ""
+                    elseif descendant:IsA("MeshPart") then
+                        descendant.TextureID = ""
+                    end
+                    meshesOptimized = meshesOptimized + 1
+                end
+            end)
+        end
+    end)
+end
+
 local function destroyParticlesAndEffects()
     pcall(function()
+        local workspace = game:GetService("Workspace")
         local effectsDestroyed = 0
+
         for _, descendant in ipairs(workspace:GetDescendants()) do
             pcall(function()
                 if descendant:IsA("ParticleEmitter") or
@@ -425,25 +520,8 @@ local function destroyParticlesAndEffects()
     end)
 end
 
-local function optimizeMeshes()
-    pcall(function()
-        local meshesOptimized = 0
-        for _, descendant in ipairs(workspace:GetDescendants()) do
-            pcall(function()
-                if descendant:IsA("SpecialMesh") or descendant:IsA("MeshPart") then
-                    if descendant:IsA("SpecialMesh") then
-                        descendant.TextureId = ""
-                    elseif descendant:IsA("MeshPart") then
-                        descendant.TextureID = ""
-                    end
-                    meshesOptimized = meshesOptimized + 1
-                end
-            end)
-        end
-    end)
-end
-
 local function cleanupEnvironment()
+    -- Delete waves children
     pcall(function()
         local waves = workspace:FindFirstChild("!! WAVES ")
         if waves then
@@ -451,41 +529,81 @@ local function cleanupEnvironment()
         end
     end)
 
+    -- Delete other players' characters
     pcall(function()
+        local Players = game:GetService("Players")
+        local LocalPlayer = Players.LocalPlayer
         for _, otherPlayer in ipairs(Players:GetPlayers()) do
-            if otherPlayer ~= player and otherPlayer.Character then
+            if otherPlayer ~= LocalPlayer and otherPlayer.Character then
                 otherPlayer.Character:Destroy()
             end
         end
     end)
 end
 
--- White Screen Functions
+-- Status variable mappings (reference module uses isAutoFarmOn, etc.)
+-- We'll create getter functions to map _G variables to the expected format
+local function isAutoFarmOn()
+    return _G.AUTO_FARM_ENABLED or _G.AUTO_FARM_V2_ENABLED
+end
+
+local function isAutoSellOn()
+    return _G.AUTO_SELL_ENABLED
+end
+
+local function isAutoCatchOn()
+    return _G.AUTO_ARTIFACT_ENABLED
+end
+
+local function isAutoMegalodonOn()
+    return _G.AUTO_MEGALODON_ENABLED
+end
+
+local function isAutoWeatherOn()
+    return _G.AUTO_WEATHER_ENABLED
+end
+
+-- Stub for buyTotem (not fully implemented in this script yet)
+local function buyTotem()
+    -- This function is referenced in GPU Saver but implementation varies
+    -- Leaving as stub for now
+    return false
+end
+
+print("✅ GPU Saver helper functions loaded")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- GPU SAVER MODULE (FROM MAIN SCRIPT V3.LUA - COMPLETE REFERENCE)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ====== SIMPLIFIED GPU SAVER WITH CENTER LAYOUT ====== 
 local function createWhiteScreen()
     if whiteScreenGui then return end
-
+    
     whiteScreenGui = Instance.new("ScreenGui")
     whiteScreenGui.Name = "GPUSaverScreen"
     whiteScreenGui.ResetOnSpawn = false
     whiteScreenGui.IgnoreGuiInset = true
     whiteScreenGui.DisplayOrder = 999999
-
+    
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.Position = UDim2.new(0, 0, 0, 0)
     frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
     frame.BorderSizePixel = 0
     frame.Parent = whiteScreenGui
-
-    -- Main title
+    
+    -- Main title with Total Caught and Best Caught
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "TitleLabel"
     titleLabel.Size = UDim2.new(0, 600, 0, 100)
     titleLabel.Position = UDim2.new(0.5, -300, 0, 50)
     titleLabel.BackgroundTransparency = 1
-    local totalCaught = (player.leaderstats and player.leaderstats.Caught and player.leaderstats.Caught.Value) or 0
-    local bestCaught = (player.leaderstats and player.leaderstats["Rarest Fish"] and player.leaderstats["Rarest Fish"].Value) or "None"
-    titleLabel.Text = "🟢 " .. player.Name .. "\nTotal Caught: " .. totalCaught .. "\nBest Caught: " .. bestCaught
+    local totalCaught = (LocalPlayer.leaderstats and LocalPlayer.leaderstats.Caught and LocalPlayer.leaderstats.Caught.Value) or 0
+    local bestCaught = (LocalPlayer.leaderstats and LocalPlayer.leaderstats["Rarest Fish"] and LocalPlayer.leaderstats["Rarest Fish"].Value) or "None"
+    titleLabel.Text = "🟢 " .. LocalPlayer.Name .. "\nTotal Caught: " .. totalCaught .. "\nBest Caught: " .. bestCaught
     titleLabel.TextColor3 = Color3.new(0, 1, 0)
     titleLabel.TextScaled = false
     titleLabel.TextSize = 32
@@ -493,8 +611,8 @@ local function createWhiteScreen()
     titleLabel.TextXAlignment = Enum.TextXAlignment.Center
     titleLabel.TextYAlignment = Enum.TextYAlignment.Center
     titleLabel.Parent = frame
-
-    -- Session time
+    
+    -- Session time (centered)
     local sessionLabel = Instance.new("TextLabel")
     sessionLabel.Name = "SessionLabel"
     sessionLabel.Size = UDim2.new(0, 400, 0, 40)
@@ -507,24 +625,24 @@ local function createWhiteScreen()
     sessionLabel.TextXAlignment = Enum.TextXAlignment.Center
     sessionLabel.Parent = frame
 
-    -- FPS Label
+    -- FPS Counter (centered) - DISABLED to save CPU
     local fpsLabel = Instance.new("TextLabel")
     fpsLabel.Name = "FPSLabel"
     fpsLabel.Size = UDim2.new(0, 400, 0, 40)
-    fpsLabel.Position = UDim2.new(0.5, -200, 0, 220)
+    fpsLabel.Position = UDim2.new(0.5, -200, 0, 200)
     fpsLabel.BackgroundTransparency = 1
-    fpsLabel.Text = "📊 FPS: 0"
-    fpsLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    fpsLabel.Text = "📊 FPS Tracking: Disabled"  -- Changed from currentFPS
+    fpsLabel.TextColor3 = Color3.new(0.7, 0.7, 0.7)  -- Gray color to indicate disabled
     fpsLabel.TextSize = 22
     fpsLabel.Font = Enum.Font.SourceSansBold
     fpsLabel.TextXAlignment = Enum.TextXAlignment.Center
     fpsLabel.Parent = frame
-
-    -- Fish stats
+    
+    -- Fishing stats (centered)
     local fishStatsLabel = Instance.new("TextLabel")
     fishStatsLabel.Name = "FishStatsLabel"
     fishStatsLabel.Size = UDim2.new(0, 400, 0, 40)
-    fishStatsLabel.Position = UDim2.new(0.5, -200, 0, 260)
+    fishStatsLabel.Position = UDim2.new(0.5, -200, 0, 220)
     fishStatsLabel.BackgroundTransparency = 1
     fishStatsLabel.Text = "🎣 Fish Caught: " .. FormatNumber(sessionStats.totalFish)
     fishStatsLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
@@ -533,11 +651,11 @@ local function createWhiteScreen()
     fishStatsLabel.TextXAlignment = Enum.TextXAlignment.Center
     fishStatsLabel.Parent = frame
 
-    -- Coin display
+-- Coin display (mengganti earnings)
     local coinLabel = Instance.new("TextLabel")
     coinLabel.Name = "CoinLabel"
     coinLabel.Size = UDim2.new(0, 400, 0, 40)
-    coinLabel.Position = UDim2.new(0.5, -200, 0, 300)
+    coinLabel.Position = UDim2.new(0.5, -200, 0, 240)
     coinLabel.BackgroundTransparency = 1
     coinLabel.Text = "💰 Coins: " .. FormatCoins(getCurrentCoins())
     coinLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
@@ -546,11 +664,11 @@ local function createWhiteScreen()
     coinLabel.TextXAlignment = Enum.TextXAlignment.Center
     coinLabel.Parent = frame
 
-    -- Level display
+    -- Level display (tambahan baru)
     local levelLabel = Instance.new("TextLabel")
     levelLabel.Name = "LevelLabel"
     levelLabel.Size = UDim2.new(0, 400, 0, 40)
-    levelLabel.Position = UDim2.new(0.5, -200, 0, 340)
+    levelLabel.Position = UDim2.new(0.5, -200, 0, 260)
     levelLabel.BackgroundTransparency = 1
     levelLabel.Text = "⭐ " .. getCurrentLevel()
     levelLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
@@ -559,28 +677,26 @@ local function createWhiteScreen()
     levelLabel.TextXAlignment = Enum.TextXAlignment.Center
     levelLabel.Parent = frame
 
-    -- Auto features status
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Name = "StatusLabel"
-    statusLabel.Size = UDim2.new(0, 600, 0, 40)
-    statusLabel.Position = UDim2.new(0.5, -300, 0, 420)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "🤖 Auto Farm: " .. (_G.AUTO_FARM_ENABLED and "🟢 ON" or "🔴 OFF") ..
-                      " | Auto Sell: " .. (_G.AUTO_SELL_ENABLED and "🟢 ON" or "🔴 OFF")
-    statusLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
-    statusLabel.TextSize = 16
-    statusLabel.Font = Enum.Font.SourceSans
-    statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-    statusLabel.TextYAlignment = Enum.TextYAlignment.Center
-    statusLabel.Parent = frame
+    -- Current Location display (NEW)
+    local locationLabel = Instance.new("TextLabel")
+    locationLabel.Name = "LocationLabel"
+    locationLabel.Size = UDim2.new(0, 400, 0, 40)
+    locationLabel.Position = UDim2.new(0.5, -200, 0, 280)
+    locationLabel.BackgroundTransparency = 1
+    locationLabel.Text = "📍 Location: Loading..."
+    locationLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    locationLabel.TextSize = 22
+    locationLabel.Font = Enum.Font.SourceSans
+    locationLabel.TextXAlignment = Enum.TextXAlignment.Center
+    locationLabel.Parent = frame
 
-    -- Quest Progress Labels (6 labels for Ghostfinn + Element Rod quests)
+    -- Dynamic quest labels (up to 6 for incomplete quests)
     local questLabels = {}
     for i = 1, 6 do
         local questLabel = Instance.new("TextLabel")
         questLabel.Name = "QuestLabel" .. i
         questLabel.Size = UDim2.new(0, 600, 0, 30)
-        questLabel.Position = UDim2.new(0.5, -300, 0, 330 + (i * 20))
+        questLabel.Position = UDim2.new(0.5, -300, 0, 330 + (i * 20))  -- Adjusted for location label
         questLabel.BackgroundTransparency = 1
         questLabel.Text = ""
         questLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
@@ -595,7 +711,7 @@ local function createWhiteScreen()
 
     -- Quest display data (updated by listeners)
     local questDisplayData = {}
-    gpuSaverQuestConnections = {}  -- Initialize module-level variable
+    local gpuSaverQuestConnections = {}
 
     -- Update quest labels display from cached data
     local function updateQuestLabelsDisplay()
@@ -701,25 +817,99 @@ local function createWhiteScreen()
             updateQuestLabelsDisplay()
         end)
     end)
+    
+    -- Auto features status (centered)
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Name = "StatusLabel"
+    statusLabel.Size = UDim2.new(0, 600, 0, 40)
+    statusLabel.Position = UDim2.new(0.5, -300, 0, 450)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "🤖 Auto Farm: " .. (isAutoFarmOn and "🟢 ON" or "🔴 OFF") .. 
+                      " | Auto Sell: " .. (isAutoSellOn and "🟢 ON" or "🔴 OFF") ..
+                      " | Auto Catch: " .. (isAutoCatchOn and "🟢 ON" or "🔴 OFF")
+    statusLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    statusLabel.TextSize = 16
+    statusLabel.Font = Enum.Font.SourceSans
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+    statusLabel.TextYAlignment = Enum.TextYAlignment.Center
+    statusLabel.Parent = frame
 
-    -- Close button
+    local extraStatusLabel = Instance.new("TextLabel")
+    extraStatusLabel.Name = "ExtraStatusLabel"
+    extraStatusLabel.Size = UDim2.new(0, 600, 0, 40)
+    extraStatusLabel.Position = UDim2.new(0.5, -300, 0, 470)
+    extraStatusLabel.BackgroundTransparency = 1
+    extraStatusLabel.Text = "🦈 Auto Megalodon: " .. (isAutoMegalodonOn and "🟢 ON" or "🔴 OFF") ..
+                          " | 🌤️ Auto Weather: " .. (isAutoWeatherOn and "🟢 ON" or "🔴 OFF")
+    extraStatusLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    extraStatusLabel.TextSize = 16
+    extraStatusLabel.Font = Enum.Font.SourceSans
+    extraStatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+    extraStatusLabel.TextYAlignment = Enum.TextYAlignment.Center
+    extraStatusLabel.Parent = frame
+
+    -- Buttons container di bawah (2 buttons horizontal)
+    -- Close button (kiri)
     local closeButton = Instance.new("TextButton")
-    closeButton.Size = UDim2.new(0, 200, 0, 50)
-    closeButton.Position = UDim2.new(0.5, -100, 1, -80)
+    closeButton.Size = UDim2.new(0, 150, 0, 40)
+    closeButton.Position = UDim2.new(0.5, -160, 1, -60)
     closeButton.AnchorPoint = Vector2.new(0, 1)
     closeButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
     closeButton.BorderSizePixel = 0
-    closeButton.Text = "⚠️ Disable GPU Saver"
+    closeButton.Text = "⚠️ Restore 3D"
     closeButton.TextColor3 = Color3.new(1, 0.8, 0)
-    closeButton.TextSize = 16
+    closeButton.TextSize = 14
     closeButton.Font = Enum.Font.SourceSansBold
     closeButton.Parent = frame
 
+    -- V3.3: Add tooltip warning
+    local tooltip = Instance.new("TextLabel")
+    tooltip.Name = "Tooltip"
+    tooltip.Size = UDim2.new(0, 300, 0, 50)
+    tooltip.Position = UDim2.new(0.5, -150, 1, -120)
+    tooltip.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+    tooltip.BackgroundTransparency = 0.2
+    tooltip.BorderSizePixel = 1
+    tooltip.BorderColor3 = Color3.new(1, 0.8, 0)
+    tooltip.Text = "⚠️ WARNING: Disabling GPU Saver\nwill INCREASE VRAM usage!"
+    tooltip.TextColor3 = Color3.new(1, 1, 0)
+    tooltip.TextSize = 12
+    tooltip.Font = Enum.Font.SourceSansBold
+    tooltip.TextWrapped = true
+    tooltip.Visible = false
+    tooltip.Parent = frame
+
+    closeButton.MouseEnter:Connect(function()
+        tooltip.Visible = true
+    end)
+
+    closeButton.MouseLeave:Connect(function()
+        tooltip.Visible = false
+    end)
+
     closeButton.MouseButton1Click:Connect(function()
+        tooltip.Visible = false
         disableGPUSaver()
     end)
 
-    -- Update loop
+    -- Buy Totem button (kanan)
+    local buyTotemButton = Instance.new("TextButton")
+    buyTotemButton.Size = UDim2.new(0, 150, 0, 40)
+    buyTotemButton.Position = UDim2.new(0.5, 10, 1, -60)
+    buyTotemButton.AnchorPoint = Vector2.new(0, 1)
+    buyTotemButton.BackgroundColor3 = Color3.new(0.2, 0.6, 0.2)
+    buyTotemButton.BorderSizePixel = 0
+    buyTotemButton.Text = "💰 Buy Totem"
+    buyTotemButton.TextColor3 = Color3.new(1, 1, 1)
+    buyTotemButton.TextSize = 14
+    buyTotemButton.Font = Enum.Font.SourceSansBold
+    buyTotemButton.Parent = frame
+
+    buyTotemButton.MouseButton1Click:Connect(function()
+        buyTotem()
+    end)
+
+    -- ====== IMPROVED UPDATE SYSTEM (from reference) ======
     task.spawn(function()
         local lastUpdate = tick()
         local frameCount = 0
@@ -730,60 +920,119 @@ local function createWhiteScreen()
 
             if currentTime - lastUpdate >= 1 then
                 local fps = frameCount / (currentTime - lastUpdate)
-
+                
+                -- Safe FPS update
                 pcall(function()
                     if fpsLabel and fpsLabel.Parent then
                         fpsLabel.Text = string.format("📊 FPS: %.0f", fps)
                     end
                 end)
-
+                
+                -- Safe session time update
                 pcall(function()
                     if sessionLabel and sessionLabel.Parent then
                         local currentUptime = math.max(0, os.time() - startTime)
                         sessionLabel.Text = "⏱️ Uptime: " .. FormatTime(currentUptime)
                     end
                 end)
-
+                
+                -- Safe fishing stats update
                 pcall(function()
                     if fishStatsLabel and fishStatsLabel.Parent then
                         local fishCount = math.max(0, sessionStats.totalFish)
                         fishStatsLabel.Text = "🎣 Fish Caught: " .. FormatNumber(fishCount)
                     end
                 end)
-
+                
+                -- Safe coins update
                 pcall(function()
                     if coinLabel and coinLabel.Parent then
                         coinLabel.Text = "💰 Coins: " .. FormatCoins(getCurrentCoins())
                     end
                 end)
 
+                -- Safe level update
                 pcall(function()
                     if levelLabel and levelLabel.Parent then
                         levelLabel.Text = "⭐ " .. getCurrentLevel()
                     end
                 end)
 
+                -- Safe location update (NEW)
+                pcall(function()
+                    if locationLabel and locationLabel.Parent then
+                        local success, locationText = pcall(function()
+                            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                            if playerGui then
+                                local events = playerGui:FindFirstChild("Events")
+                                if events then
+                                    local frame = events:FindFirstChild("Frame")
+                                    if frame then
+                                        local location = frame:FindFirstChild("Location")
+                                        if location then
+                                            local label = location:FindFirstChild("Label")
+                                            if label and label.Text then
+                                                return label.Text
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            return "Unknown"
+                        end)
+                        locationLabel.Text = "📍 Location: " .. (success and locationText or "Unknown")
+                    end
+                end)
+
+                -- Quest updates handled by listeners (no polling needed)
+
+                -- Safe status update
                 pcall(function()
                     if statusLabel and statusLabel.Parent then
-                        statusLabel.Text = "🤖 Auto Farm: " .. (_G.AUTO_FARM_ENABLED and "🟢 ON" or "🔴 OFF") ..
-                                         " | Auto Sell: " .. (_G.AUTO_SELL_ENABLED and "🟢 ON" or "🔴 OFF")
+                        statusLabel.Text = "🤖 Auto Farm: " .. (isAutoFarmOn and "🟢 ON" or "🔴 OFF") .. 
+                                         " | Auto Sell: " .. (isAutoSellOn and "🟢 ON" or "🔴 OFF") ..
+                                         " | Auto Catch: " .. (isAutoCatchOn and "🟢 ON" or "🔴 OFF")
+                    end
+                    if extraStatusLabel and extraStatusLabel.Parent then
+                        extraStatusLabel.Text = "🦈 Auto Megalodon: " .. (isAutoMegalodonOn and "🟢 ON" or "🔴 OFF") ..
+                                              " | 🌤️ Auto Weather: " .. (isAutoWeatherOn and "🟢 ON" or "🔴 OFF")
                     end
                 end)
-
+                
+                -- Safe Total Caught & Best Caught update
                 pcall(function()
                     if titleLabel and titleLabel.Parent then
-                        local currentCaught = (player.leaderstats and player.leaderstats.Caught and player.leaderstats.Caught.Value) or 0
-                        local currentBest = (player.leaderstats and player.leaderstats["Rarest Fish"] and player.leaderstats["Rarest Fish"].Value) or "None"
-                        titleLabel.Text = "🟢 " .. player.Name .. "\nTotal Caught: " .. FormatNumber(currentCaught) .. "\nBest Caught: " .. currentBest
+                        local currentCaught = (LocalPlayer.leaderstats and LocalPlayer.leaderstats.Caught and LocalPlayer.leaderstats.Caught.Value) or 0
+                        local currentBest = (LocalPlayer.leaderstats and LocalPlayer.leaderstats["Rarest Fish"] and LocalPlayer.leaderstats["Rarest Fish"].Value) or "None"
+                        titleLabel.Text = "🟢 " .. LocalPlayer.Name .. "\nTotal Caught: " .. FormatNumber(currentCaught) .. "\nBest Caught: " .. currentBest
                     end
                 end)
-
+                
                 frameCount = 0
                 lastUpdate = currentTime
             end
         end)
     end)
-
+    
+    -- Real-time listeners for Total Caught and Best Caught
+    if LocalPlayer.leaderstats and LocalPlayer.leaderstats.Caught then
+        connections.caughtConnection = LocalPlayer.leaderstats.Caught.Changed:Connect(function(newValue)
+            if titleLabel then
+                local currentBest = (LocalPlayer.leaderstats["Rarest Fish"] and LocalPlayer.leaderstats["Rarest Fish"].Value) or "None"
+                titleLabel.Text = "🟢 " .. LocalPlayer.Name .. "\nTotal Caught: " .. newValue .. "\nBest Caught: " .. currentBest
+            end
+        end)
+    end
+    
+    if LocalPlayer.leaderstats and LocalPlayer.leaderstats["Rarest Fish"] then
+        connections.bestCaughtConnection = LocalPlayer.leaderstats["Rarest Fish"].Changed:Connect(function(newValue)
+            if titleLabel then
+                local currentCaught = (LocalPlayer.leaderstats.Caught and LocalPlayer.leaderstats.Caught.Value) or 0
+                titleLabel.Text = "🟢 " .. LocalPlayer.Name .. "\nTotal Caught: " .. currentCaught .. "\nBest Caught: " .. newValue
+            end
+        end)
+    end
+    
     whiteScreenGui.Parent = game:GetService("CoreGui")
 end
 
@@ -792,25 +1041,34 @@ local function removeWhiteScreen()
         whiteScreenGui:Destroy()
         whiteScreenGui = nil
     end
-
+    
     if connections.renderConnection then
         connections.renderConnection:Disconnect()
         connections.renderConnection = nil
     end
+    
+    if connections.caughtConnection then
+        connections.caughtConnection:Disconnect()
+        connections.caughtConnection = nil
+    end
+    
+    if connections.bestCaughtConnection then
+        connections.bestCaughtConnection:Disconnect()
+        connections.bestCaughtConnection = nil
+    end
 end
 
--- Main GPU Saver Functions
 function enableGPUSaver()
-    -- Check if already enabled
     if gpuSaverEnabled then return end
     gpuSaverEnabled = true
-    _G.GPU_SAVER_ENABLED = true
 
-    print("[GPU Saver] ✅ Enabling GPU Saver...")
 
-    -- Apply VRAM optimizations
+    -- ====== V3.3: RE-APPLY ALL VRAM OPTIMIZATIONS ======
+    -- Run cleanup and performance optimizations again to ensure paths are removed
     pcall(ultimatePerformance)
     pcall(cleanupEnvironment)
+
+    -- V3.3: Re-apply material & texture optimizations
     pcall(optimizeMaterials)
     pcall(removeTextures)
     pcall(optimizeMeshes)
@@ -829,25 +1087,58 @@ function enableGPUSaver()
         Lighting.FogEnd = 1
         Lighting.Brightness = 0
 
+        -- This loop is likely redundant since ultimatePerformance() clears lighting children, but it's safe to keep.
         for _, v in pairs(Lighting:GetChildren()) do
             if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then
                 v.Enabled = false
             end
         end
 
+        pcall(function() setfpscap(GPU_FPS_LIMIT) end) -- Limit FPS based on GPU_FPS_LIMIT
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
     end)
 
+    -- Create FPS cap monitor to ensure it stays at GPU_FPS_LIMIT
+    if fpsCapConnection then
+        fpsCapConnection:Disconnect()
+        fpsCapConnection = nil
+    end
+
+    fpsCapConnection = RunService.Heartbeat:Connect(function()
+        if gpuSaverEnabled then
+            pcall(function()
+                if setfpscap then
+                    setfpscap(GPU_FPS_LIMIT)
+                end
+            end)
+        end
+    end)
+
     createWhiteScreen()
-    print("[GPU Saver] ✅ GPU Saver enabled successfully!")
+
+    print("[GPU Saver] ✅ GPU Saver enabled")
+
 end
 
 function disableGPUSaver()
     if not gpuSaverEnabled then return end
     gpuSaverEnabled = false
-    _G.GPU_SAVER_ENABLED = false
 
-    print("[GPU Saver] ⚠️ Disabling GPU Saver...")
+    -- Cleanup GPU Saver quest listeners
+    if gpuSaverQuestConnections then
+        for _, connection in pairs(gpuSaverQuestConnections) do
+            if connection then
+                connection:Disconnect()
+            end
+        end
+        gpuSaverQuestConnections = {}
+    end
+
+    -- Disconnect FPS cap monitor
+    if fpsCapConnection then
+        fpsCapConnection:Disconnect()
+        fpsCapConnection = nil
+    end
 
     -- Restore settings
     pcall(function()
@@ -859,6 +1150,10 @@ function disableGPUSaver()
         Lighting.FogEnd = originalSettings.FogEnd or 100000
         Lighting.Brightness = originalSettings.Brightness or 1
 
+        -- The lighting children were deleted, so re-enabling them is not possible.
+        -- This part of the restoration is omitted.
+
+        pcall(function() setfpscap(0) end) -- Remove FPS limit
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
 
         if workspace.CurrentCamera then
@@ -866,21 +1161,12 @@ function disableGPUSaver()
         end
     end)
 
-    -- Cleanup GPU Saver quest listeners
-    if gpuSaverQuestConnections then
-        for _, connection in pairs(gpuSaverQuestConnections) do
-            if connection and connection.Connected then
-                connection:Disconnect()
-            end
-        end
-        gpuSaverQuestConnections = {}
-    end
-
     removeWhiteScreen()
-    print("[GPU Saver] ❌ GPU Saver disabled!")
+
+    print("[GPU Saver] ✅ GPU Saver disabled")
+
 end
 
-print("✅ GPU Saver module loaded\n")
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- DISCORD WEBHOOK NOTIFIER MODULE (TIER-BASED EVENT-DRIVEN)
