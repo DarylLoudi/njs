@@ -5707,18 +5707,25 @@ end
 local config = _G.AutoFishConfig
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- LOAD CONFIG: Check if Load Config is enabled
+-- UNIFIED SAVE/LOAD CONFIG SYSTEM
 -- ═══════════════════════════════════════════════════════════════════════════
+-- Logic:
+-- IF Save Config = true → Save config_loader.lua settings to JSON (replace existing)
+-- IF Save Config = false → Load from JSON (if exists), otherwise use config_loader.lua
 
-local loadConfigEnabled = config["Load Config"] and config["Load Config"]["Enabled"] or false
+local saveConfigEnabled = config["Save Config"] and config["Save Config"]["Enabled"] or false
 
-if loadConfigEnabled then
-    print("\n🔄 Load Config ENABLED - Attempting to load from saved file...")
+if saveConfigEnabled then
+    print("\n💾 Save Config ENABLED - Config from config_loader.lua will be saved to JSON file")
+    print("⚠️  Existing JSON file (if any) will be REPLACED with current config_loader.lua settings\n")
+    -- Don't load, use config_loader.lua settings directly (will be saved later)
+else
+    print("\n📂 Save Config DISABLED - Attempting to load from existing JSON file...")
 
     local loadedConfig = loadConfig()
 
     if loadedConfig then
-        print("✅ Successfully loaded config from file!")
+        print("✅ Successfully loaded config from JSON file!")
         print("📋 Applying settings from saved config file...")
         print("⚠️  Settings from config_loader.lua will be IGNORED\n")
 
@@ -5804,12 +5811,13 @@ if loadConfigEnabled then
             config["Webhook"]["URL"] = loadedConfig.WEBHOOK_SECRET
         end
 
-        print("✅ All settings from saved file have been applied!\n")
+        print("✅ All settings from JSON file have been applied!\n")
     else
-        print("⚠️  No saved config file found, using settings from config_loader.lua\n")
+        print("⚠️  No saved config file found")
+        print("📋 Using settings from config_loader.lua")
+        print("💾 Config will be auto-saved to JSON file after startup\n")
+        -- File not found, will auto-save later
     end
-else
-    print("\n📋 Load Config DISABLED - Using settings from config_loader.lua\n")
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -5936,7 +5944,10 @@ task.wait(2)
 -- STEP 0: TELEPORT TO LOCATION (EXECUTES FIRST BEFORE ALL OTHER FEATURES)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-if teleportEnabled then
+-- Skip teleport if Auto Quest is enabled (quest system handles its own teleports)
+if _G.AUTO_QUEST_ENABLED then
+    print("\n  📜 Auto Quest ENABLED - Skipping initial teleport (quest system will handle teleports)\n")
+elseif teleportEnabled then
     print(string.format("\n  🌐 Teleport ENABLED - Teleporting to: %s", teleportLocation))
     print("      This will execute 3x rapidly to ensure arrival at location...")
     task.wait(1)
@@ -6183,33 +6194,54 @@ print("🎮 Ready to fish! Configuration is controlled via config_loader.lua")
 print(string.rep("=", 80))
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- AUTO SAVE CONFIG (jika enabled di config_loader.lua)
+-- AUTO SAVE CONFIG LOGIC
 -- ═══════════════════════════════════════════════════════════════════════════
+-- IF Save Config = true → Save config_loader.lua to JSON (replace existing)
+-- IF Save Config = false AND JSON not found → Auto-save to create JSON file
 
-local saveConfigEnabled = config["Save Config"] and config["Save Config"]["Enabled"] or false
+task.spawn(function()
+    task.wait(5)  -- Wait 5 seconds after everything is loaded
 
-if saveConfigEnabled then
-    print("\n💾 Save Config ENABLED - Current settings will be saved to file")
+    local saveConfigEnabled = config["Save Config"] and config["Save Config"]["Enabled"] or false
+    local configFilePath = getConfigFilePath()
+    local configExists = isfile and isfile(configFilePath) or false
 
-    task.spawn(function()
-        task.wait(5)  -- Wait 5 seconds after everything is loaded
-
+    if saveConfigEnabled then
+        -- Save Config = true: Always save (replace existing JSON)
         print("\n" .. string.rep("=", 80))
-        print("💾 AUTO-SAVING CURRENT CONFIGURATION...")
+        print("💾 SAVING CONFIG TO JSON (Save Config = true)...")
         print(string.rep("=", 80))
 
         local saveSuccess = saveConfig()
 
         if saveSuccess then
             print("✅ Configuration saved successfully!")
-            print("📁 File location: " .. getConfigFilePath())
-            print("🔄 Settings will be auto-loaded next time if 'Load Config' is enabled")
+            print("📁 File location: " .. configFilePath)
+            print("🔄 Next time: Set 'Save Config' = false to load from this JSON")
         else
             warn("❌ Failed to save configuration")
         end
 
         print(string.rep("=", 80) .. "\n")
-    end)
-else
-    print("\n💾 Save Config DISABLED - Settings will NOT be saved to file\n")
-end
+    elseif not configExists then
+        -- Save Config = false AND no JSON file: Auto-save to create JSON
+        print("\n" .. string.rep("=", 80))
+        print("💾 AUTO-CREATING CONFIG FILE (No JSON found)...")
+        print(string.rep("=", 80))
+
+        local saveSuccess = saveConfig()
+
+        if saveSuccess then
+            print("✅ Configuration file created successfully!")
+            print("📁 File location: " .. configFilePath)
+            print("🔄 Next time: Config will auto-load from this JSON file")
+        else
+            warn("❌ Failed to create configuration file")
+        end
+
+        print(string.rep("=", 80) .. "\n")
+    else
+        -- Save Config = false AND JSON exists: Already loaded, no action needed
+        print("\n📂 Config loaded from JSON file (Save Config = false)\n")
+    end
+end)
