@@ -4383,6 +4383,7 @@ local function stopAutoArtifact()
     print("\n🛑 Stopping Auto Artifact System...")
     isAutoArtifactOn = false
     _G.AUTO_ARTIFACT_ENABLED = false
+end
 -- SECTION 2.6: AUTO SELL MODULE
 -- ═══════════════════════════════════════════════════════════════════════════
 --[[
