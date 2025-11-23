@@ -260,7 +260,7 @@ local gpuSaverEnabled = false
 local originalSettings = {}
 local whiteScreenGui = nil
 local connections = {}
-local gpuSaverQuestConnections = {}
+local gpuSaverQuestConnections = nil  -- Will be initialized in createWhiteScreen()
 
 -- Session stats for white screen display
 local startTime = os.time()
@@ -579,15 +579,14 @@ local function createWhiteScreen()
     for i = 1, 6 do
         local questLabel = Instance.new("TextLabel")
         questLabel.Name = "QuestLabel" .. i
-        questLabel.Size = UDim2.new(0, 700, 0, 22)
-        questLabel.Position = UDim2.new(0.5, -350, 0, 375 + (i - 1) * 24)
+        questLabel.Size = UDim2.new(0, 600, 0, 30)
+        questLabel.Position = UDim2.new(0.5, -300, 0, 330 + (i * 20))
         questLabel.BackgroundTransparency = 1
         questLabel.Text = ""
-        questLabel.TextColor3 = Color3.new(1, 1, 0.5)
-        questLabel.TextSize = 16
+        questLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+        questLabel.TextSize = 20
         questLabel.Font = Enum.Font.SourceSans
-        questLabel.TextXAlignment = Enum.TextXAlignment.Left
-        questLabel.TextYAlignment = Enum.TextYAlignment.Top
+        questLabel.TextXAlignment = Enum.TextXAlignment.Center
         questLabel.TextWrapped = true
         questLabel.Visible = false
         questLabel.Parent = frame
@@ -596,6 +595,7 @@ local function createWhiteScreen()
 
     -- Quest display data (updated by listeners)
     local questDisplayData = {}
+    gpuSaverQuestConnections = {}  -- Initialize module-level variable
 
     -- Update quest labels display from cached data
     local function updateQuestLabelsDisplay()
@@ -605,7 +605,7 @@ local function createWhiteScreen()
         for i = 1, 3 do
             if questDisplayData["Ghostfinn_" .. i] then
                 if visibleIndex <= 6 then
-                    questLabels[visibleIndex].Text = "🦈 Ghostfinn L" .. i .. ": " .. questDisplayData["Ghostfinn_" .. i]
+                    questLabels[visibleIndex].Text = "🏆 Ghostfinn L" .. i .. ": " .. questDisplayData["Ghostfinn_" .. i]
                     questLabels[visibleIndex].Visible = true
                     visibleIndex = visibleIndex + 1
                 end
@@ -616,7 +616,7 @@ local function createWhiteScreen()
         for i = 1, 3 do
             if questDisplayData["Element_" .. i] then
                 if visibleIndex <= 6 then
-                    questLabels[visibleIndex].Text = "⚡ Element L" .. i .. ": " .. questDisplayData["Element_" .. i]
+                    questLabels[visibleIndex].Text = "🏆 Element L" .. i .. ": " .. questDisplayData["Element_" .. i]
                     questLabels[visibleIndex].Visible = true
                     visibleIndex = visibleIndex + 1
                 end
