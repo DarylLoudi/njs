@@ -5739,20 +5739,31 @@ end
 -- ─────────────────────────────────────────────────────────────────────────────
 -- STEP 6: START MISC FEATURES (Freeze, GPU Saver, Animations, etc.)
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Urutan eksekusi: Freeze Character → Disable Animations → Remove Islands → GPU Saver
 
 print("\n  ⚙️ Initializing Misc features...")
 task.wait(1)
 
-if unlockFPS then
-    pcall(function()
-        setfpscap(240)
-        print("      📊 ✅ FPS unlocked to 240")
-    end)
+-- 1. FREEZE CHARACTER (jika enabled)
+if _G.FREEZE_CHAR_ENABLED then
+    print("      🔒 Enabling Freeze Character...")
+    task.wait(0.5)
+    freezeCharPosition()
+    print("      🔒 ✅ Freeze Character enabled")
 end
 
+-- 2. DISABLE ANIMATIONS (jika enabled)
+if _G.DISABLE_ANIMATIONS_ENABLED then
+    print("      🎬 Setting up animation hooks...")
+    setupAnimationHook()
+    task.wait(0.5)
+    deleteAllAnimations()
+    print("      🎬 ✅ Animations disabled")
+end
+
+-- 3. REMOVE ISLANDS (jika enabled)
 if removeIslands then
     pcall(function()
-        -- Fix: nama folder adalah "Islands" bukan "!! ISLANDS !!"
         local islandsFolder = workspace:FindFirstChild("Islands")
         if islandsFolder then
             local count = 0
@@ -5767,27 +5778,22 @@ if removeIslands then
     end)
 end
 
-if _G.DISABLE_ANIMATIONS_ENABLED then
-    print("      🎬 Setting up animation hooks...")
-    setupAnimationHook()
-    task.wait(0.5)
-    deleteAllAnimations()
-    print("      🎬 ✅ Animations disabled")
-end
-
+-- 4. GPU SAVER (jika enabled)
 if _G.GPU_SAVER_ENABLED then
     print("      💾 Enabling GPU Saver...")
     enableGPUSaver()
     print("      💾 ✅ GPU Saver enabled")
 end
 
-if _G.FREEZE_CHAR_ENABLED then
-    print("      🔒 Enabling Freeze Character...")
-    task.wait(1)
-    freezeCharPosition()
-    print("      🔒 ✅ Freeze Character enabled")
+-- 5. UNLOCK FPS (jika enabled)
+if unlockFPS then
+    pcall(function()
+        setfpscap(240)
+        print("      📊 ✅ FPS unlocked to 240")
+    end)
 end
 
+-- 6. AUTO MEGALODON (jika enabled)
 if _G.AUTO_MEGALODON_ENABLED then
     print("      🦈 Enabling Auto Megalodon...")
     task.wait(0.5)
@@ -5795,6 +5801,7 @@ if _G.AUTO_MEGALODON_ENABLED then
     print("      🦈 ✅ Auto Megalodon enabled")
 end
 
+-- 7. AUTO QUEST (jika enabled)
 if _G.AUTO_QUEST_ENABLED then
     print("      📜 Enabling Auto Quest...")
     task.wait(0.5)
