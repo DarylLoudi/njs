@@ -801,8 +801,8 @@ end
 
 -- Main GPU Saver Functions
 function enableGPUSaver()
-    -- Sync local variable with global variable
-    if _G.GPU_SAVER_ENABLED and gpuSaverEnabled then return end
+    -- Check if already enabled
+    if gpuSaverEnabled then return end
     gpuSaverEnabled = true
     _G.GPU_SAVER_ENABLED = true
 
@@ -5899,8 +5899,9 @@ _G.DISABLE_ANIMATIONS_ENABLED = config["Misc"]["Disable Animations"]
 local removeIslands = config["Misc"]["Remove Islands"]
 local unlockFPS = config["Misc"]["Unlock FPS"]
 
--- Sync local GPU Saver variable with global variable
-gpuSaverEnabled = _G.GPU_SAVER_ENABLED
+-- NOTE: Do NOT sync gpuSaverEnabled here!
+-- gpuSaverEnabled is a local flag that tracks if white screen is created
+-- It must remain false until enableGPUSaver() is actually called
 print(string.format("  🔒 Freeze Character: %s",
     _G.FREEZE_CHAR_ENABLED and "✅ ENABLED" or "❌ DISABLED"))
 print(string.format("  💾 GPU Saver: %s",
@@ -5985,6 +5986,15 @@ if _G.AUTO_FARM_V2_ENABLED then
 elseif _G.AUTO_FARM_ENABLED then
     print("\n  🎣 Starting Auto Farm V1...")
     print(string.format("      Success Delay: %.1fs", _G.FARM_SUCCESS_DELAY))
+
+    -- Auto-equip rod from hotbar slot 1 before starting Auto Farm V1
+    print("      🎣 Auto-equipping rod from hotbar slot 1...")
+    pcall(function()
+        local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_net@0.2.0"].net["RE/EquipToolFromHotbar"]
+        Event:FireServer(1)
+        print("      🎣 ✅ Rod equipped from slot 1")
+    end)
+
     task.wait(2)
     task.spawn(runMainLoop)
     task.wait(1)
