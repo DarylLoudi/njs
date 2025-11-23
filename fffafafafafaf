@@ -5651,67 +5651,7 @@ print("")
 task.wait(2)
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- START OPTIMIZATION FEATURES FIRST
--- ─────────────────────────────────────────────────────────────────────────────
-
-if unlockFPS then
-    pcall(function()
-        setfpscap(240)
-        print("  📊 ✅ FPS unlocked to 240")
-    end)
-end
-
-if removeIslands then
-    pcall(function()
-        -- Remove islands (if function exists in original script)
-        local islandsFolder = workspace:FindFirstChild("!! ISLANDS !!")
-        if islandsFolder then
-            islandsFolder:Destroy()
-            print("  🏝️ ✅ Islands removed")
-        end
-    end)
-end
-
-if _G.DISABLE_ANIMATIONS_ENABLED then
-    print("  🎬 ✅ Setting up animation hooks...")
-    setupAnimationHook()
-    task.wait(0.5)
-    deleteAllAnimations()
-    print("  🎬 ✅ Animations disabled")
-end
-
-if _G.GPU_SAVER_ENABLED then
-    print("  💾 ✅ Enabling GPU Saver...")
-    enableGPUSaver()
-end
-
-if _G.FREEZE_CHAR_ENABLED then
-    print("  🔒 ✅ Enabling Freeze Character...")
-    task.wait(1)
-    freezeCharPosition()
-end
-
--- ─────────────────────────────────────────────────────────────────────────────
--- START AUTO UPGRADE FEATURES
--- ─────────────────────────────────────────────────────────────────────────────
-
-if _G.AUTO_UPGRADE_ROD_ENABLED or _G.AUTO_UPGRADE_BAIT_ENABLED then
-    print("\n  ⬆️ Initializing Auto Upgrade System...")
-    task.wait(1)
-
-    if _G.AUTO_UPGRADE_ROD_ENABLED then
-        print("  ⬆️ ✅ Starting Auto Upgrade Rod...")
-        startAutoUpgradeRod()
-    end
-
-    if _G.AUTO_UPGRADE_BAIT_ENABLED then
-        print("  ⬆️ ✅ Starting Auto Upgrade Bait...")
-        startAutoUpgradeBait()
-    end
-end
-
--- ─────────────────────────────────────────────────────────────────────────────
--- START FARMING FEATURES (ONLY ONE CAN BE ACTIVE)
+-- STEP 1: START AUTO FARM (V1 or V2)
 -- ─────────────────────────────────────────────────────────────────────────────
 
 if _G.AUTO_FARM_V2_ENABLED and _G.AUTO_FARM_ENABLED then
@@ -5720,74 +5660,172 @@ if _G.AUTO_FARM_V2_ENABLED and _G.AUTO_FARM_ENABLED then
 end
 
 if _G.AUTO_FARM_V2_ENABLED then
-    print("\n  ⚡ ✅ Starting Auto Farm V2 (Jung Fast)...")
-    print(string.format("      Base Delay Reel: %.1fs, Base Delay Complete: %.1fs",
+    print("\n  ⚡ Starting Auto Farm V2 (Jung Fast)...")
+    print(string.format("      Base Delay Reel: %.1fs, Complete: %.1fs",
         _G.JUNG_V2_STATE.baseDelayReel, _G.JUNG_V2_STATE.baseDelayComplete))
-    task.wait(1)
+    task.wait(2)
     startAutoFarmV2()
-elseif _G.AUTO_FARM_ENABLED then
-    print("\n  🎣 ✅ Starting Auto Farm V1...")
-    print(string.format("      Success Delay: %.1fs", _G.FARM_SUCCESS_DELAY))
     task.wait(1)
+    print("  ⚡ ✅ Auto Farm V2 started")
+elseif _G.AUTO_FARM_ENABLED then
+    print("\n  🎣 Starting Auto Farm V1...")
+    print(string.format("      Success Delay: %.1fs", _G.FARM_SUCCESS_DELAY))
+    task.wait(2)
     task.spawn(runMainLoop)
+    task.wait(1)
+    print("  🎣 ✅ Auto Farm V1 started")
 else
     print("\n  ⚠️ No Auto Farm enabled (both V1 and V2 are OFF)")
 end
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- START AUTOMATION FEATURES
+-- STEP 2: START AUTO SELL
 -- ─────────────────────────────────────────────────────────────────────────────
 
 if _G.AUTO_SELL_ENABLED then
-    print(string.format("\n  💰 ✅ Starting Auto Sell (Delay: %ds)...", _G.AUTO_SELL_DELAY))
-    task.wait(0.5)
+    print(string.format("\n  💰 Starting Auto Sell (Delay: %ds)...", _G.AUTO_SELL_DELAY))
+    task.wait(2)
     startAutoSell()
+    task.wait(1)
+    print("  💰 ✅ Auto Sell started")
 end
 
-if _G.AUTO_WEATHER_ENABLED then
-    print(string.format("\n  🌤️ ✅ Starting Auto Weather (Delay: %ds)...", _G.WEATHER_PURCHASE_DELAY))
-    task.wait(0.5)
-    startAutoWeather()
-end
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STEP 3: START AUTO ARTIFACT
+-- ─────────────────────────────────────────────────────────────────────────────
 
 if _G.AUTO_ARTIFACT_ENABLED then
-    print("\n  🗿 ✅ Starting Auto Artifact...")
+    print("\n  🗿 Starting Auto Artifact...")
     print(string.format("      Skip Temples: [T1:%s, T2:%s, T3:%s, T4:%s]",
-        artifactSkipToggles[1] and "⏭️SKIP" or "✅FARM",
-        artifactSkipToggles[2] and "⏭️SKIP" or "✅FARM",
-        artifactSkipToggles[3] and "⏭️SKIP" or "✅FARM",
-        artifactSkipToggles[4] and "⏭️SKIP" or "✅FARM"))
-    task.wait(0.5)
+        artifactSkipToggles[1] and "⏭️" or "✅",
+        artifactSkipToggles[2] and "⏭️" or "✅",
+        artifactSkipToggles[3] and "⏭️" or "✅",
+        artifactSkipToggles[4] and "⏭️" or "✅"))
+    task.wait(2)
     startAutoArtifact()
+    task.wait(1)
+    print("  🗿 ✅ Auto Artifact started")
 end
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STEP 4: START AUTO WEATHER
+-- ─────────────────────────────────────────────────────────────────────────────
+
+if _G.AUTO_WEATHER_ENABLED then
+    print(string.format("\n  🌤️ Starting Auto Weather (Delay: %ds)...", _G.WEATHER_PURCHASE_DELAY))
+    task.wait(2)
+    startAutoWeather()
+    task.wait(1)
+    print("  🌤️ ✅ Auto Weather started")
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STEP 5: START AUTO TOTEM
+-- ─────────────────────────────────────────────────────────────────────────────
+
 if _G.AUTO_TOTEM_ENABLED then
-    print(string.format("\n  🗿 ✅ Starting Auto Totem (Cycle: %d min, Item ID: %d)...",
+    print(string.format("\n  🗿 Starting Auto Totem (Cycle: %d min, Item ID: %d)...",
         _G.TOTEM_CYCLE_DELAY, _G.TOTEM_ITEM_ID))
-    task.wait(0.5)
+    task.wait(2)
     startAutoTotemLoop()
+    task.wait(1)
+    print("  🗿 ✅ Auto Totem started")
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STEP 6: START AUTO UPGRADE (Rod & Bait)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+if _G.AUTO_UPGRADE_ROD_ENABLED or _G.AUTO_UPGRADE_BAIT_ENABLED then
+    print("\n  ⬆️ Starting Auto Upgrade System...")
+    task.wait(2)
+
+    if _G.AUTO_UPGRADE_ROD_ENABLED then
+        print("      ⬆️ Auto Upgrade Rod...")
+        startAutoUpgradeRod()
+        task.wait(1)
+    end
+
+    if _G.AUTO_UPGRADE_BAIT_ENABLED then
+        print("      ⬆️ Auto Upgrade Bait...")
+        startAutoUpgradeBait()
+        task.wait(1)
+    end
+
+    print("  ⬆️ ✅ Auto Upgrade started")
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STEP 7: START MISC FEATURES (Freeze, GPU Saver, Animations, etc.)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+print("\n  ⚙️ Initializing Misc features...")
+task.wait(1)
+
+if unlockFPS then
+    pcall(function()
+        setfpscap(240)
+        print("      📊 ✅ FPS unlocked to 240")
+    end)
+end
+
+if removeIslands then
+    pcall(function()
+        local islandsFolder = workspace:FindFirstChild("!! ISLANDS !!")
+        if islandsFolder then
+            islandsFolder:Destroy()
+            print("      🏝️ ✅ Islands removed")
+        end
+    end)
+end
+
+if _G.DISABLE_ANIMATIONS_ENABLED then
+    print("      🎬 Setting up animation hooks...")
+    setupAnimationHook()
+    task.wait(0.5)
+    deleteAllAnimations()
+    print("      🎬 ✅ Animations disabled")
+end
+
+if _G.GPU_SAVER_ENABLED then
+    print("      💾 Enabling GPU Saver...")
+    enableGPUSaver()
+    print("      💾 ✅ GPU Saver enabled")
+end
+
+if _G.FREEZE_CHAR_ENABLED then
+    print("      🔒 Enabling Freeze Character...")
+    task.wait(1)
+    freezeCharPosition()
+    print("      🔒 ✅ Freeze Character enabled")
 end
 
 if _G.AUTO_MEGALODON_ENABLED then
-    print("\n  🦈 ✅ Starting Auto Megalodon...")
+    print("      🦈 Enabling Auto Megalodon...")
     task.wait(0.5)
     setAutoMegalodon(true)
+    print("      🦈 ✅ Auto Megalodon enabled")
 end
 
 if _G.AUTO_QUEST_ENABLED then
-    print("\n  📜 ✅ Starting Auto Quest...")
+    print("      📜 Enabling Auto Quest...")
     task.wait(0.5)
     setAutoQuest(true)
+    print("      📜 ✅ Auto Quest enabled")
 end
 
+print("  ⚙️ ✅ Misc features initialized")
+
 -- ─────────────────────────────────────────────────────────────────────────────
--- START WEBHOOK SYSTEM
+-- STEP 8: START WEBHOOK NOTIFICATIONS
 -- ─────────────────────────────────────────────────────────────────────────────
 
 if _G.WEBHOOK_ENABLED and _G.WEBHOOK_SECRET and _G.WEBHOOK_SECRET ~= "" then
-    print("\n  🔔 ✅ Starting Webhook Notifier (SECRET fish detection)...")
-    task.wait(1)
+    print("\n  🔔 Starting Webhook Notifier (SECRET fish detection)...")
+    task.wait(2)
     startWebhookNotifier()
+    task.wait(1)
+    print("  🔔 ✅ Webhook Notifier started")
 elseif _G.WEBHOOK_ENABLED and (_G.WEBHOOK_SECRET == nil or _G.WEBHOOK_SECRET == "") then
     warn("\n  ⚠️ Webhook enabled but URL is empty! Please set URL in config_loader.lua")
 end
