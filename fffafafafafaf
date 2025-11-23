@@ -1,0 +1,3724 @@
+--[[
+═══════════════════════════════════════════════════════════════════════════════
+    AUTO FISHING SYSTEM v7.0 - CONFIG-BASED (NO GUI)
+
+    Features:
+    - Auto Fishing V1 & V2 (Jung Fast)
+    - Auto Sell
+    - Auto Artifact (with skip options)
+    - Auto Weather
+    - Auto Upgrade (Rod & Bait)
+    - Freeze Character
+    - GPU Saver
+    - Disable Animations
+    - Remove Islands
+    - Unlock FPS
+    - Webhook Integration
+
+    REMOVED FROM v6.7:
+    ✘ WindUI and all GUI components
+    ✘ Auto Totem
+    ✘ Auto Megalodon
+    ✘ Auto Quest
+    ✘ Performance settings (handled by Misc)
+
+    V7.0 CHANGES:
+    ✅ Config-based system - no GUI
+    ✅ All settings via _G.AutoFishConfig
+    ✅ Auto-start enabled modules on load
+    ✅ ~2,400 lines removed (UI code)
+    ✅ Faster initialization
+    ✅ Cleaner codebase
+
+    Usage:
+    1. Edit _G.AutoFishConfig at top of file
+    2. Execute: loadstring(readfile("auto_farm_v7.0.lua"))()
+    3. Script auto-starts enabled modules
+═══════════════════════════════════════════════════════════════════════════════
+]]
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CONFIG STRUCTURE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+_G.AutoFishConfig = _G.AutoFishConfig or {
+    ["Auto Farm"] = {
+        ["Auto Farm V1"] = {
+            ["Enabled"] = true,
+            ["Success Delay"] = 1.0,
+        },
+        ["Auto Farm V2"] = {
+            ["Enabled"] = false,
+            ["Base Delay Reel"] = 1.5,
+            ["Base Delay Complete"] = 0.7,
+        },
+    },
+
+    ["Auto Sell"] = {
+        ["Enabled"] = true,
+        ["Delay"] = 60,
+    },
+
+    ["Auto Artifact"] = {
+        ["Enabled"] = false,
+        ["Skip Hourglass Diamond"] = false,
+        ["Skip Arrow Artifact"] = false,
+        ["Skip Diamond Artifact"] = false,
+        ["Skip Crescent Artifact"] = false,
+    },
+
+    ["Auto Weather"] = {
+        ["Enabled"] = false,
+        ["Purchase Delay"] = 32,
+    },
+
+    ["Auto Upgrade"] = {
+        ["Auto Upgrade Rod"] = false,
+        ["Auto Upgrade Bait"] = false,
+    },
+
+    ["Misc"] = {
+        ["Freeze Character"] = false,
+        ["GPU Saver"] = false,
+        ["Disable Animations"] = false,
+        ["Remove Islands"] = false,
+        ["Unlock FPS"] = false,
+    },
+
+    ["Webhook"] = {
+        ["Enabled"] = false,
+        ["URL"] = "",
+    },
+}
+
+print(string.rep("=", 80))
+print("🚀 AUTO FISHING SYSTEM v7.0 - CONFIG-BASED (NO GUI)")
+print("✅ Initializing from _G.AutoFishConfig...")
+print(string.rep("=", 80))
+print("\n⏳ Loading modules...\n")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 1: DEPENDENCIES & SETUP
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- Global State Variables (will be populated from config)
+_G.AUTO_FARM_ENABLED = false
+_G.FARM_SUCCESS_DELAY = 1
+_G.AUTO_FARM_V2_ENABLED = false
+_G.AUTO_ARTIFACT_ENABLED = false
+_G.AUTO_SELL_ENABLED = false
+_G.AUTO_SELL_DELAY = 60
+_G.AUTO_WEATHER_ENABLED = false
+_G.WEATHER_PURCHASE_DELAY = 32
+_G.FREEZE_CHAR_ENABLED = false
+_G.GPU_SAVER_ENABLED = false
+_G.AUTO_UPGRADE_ROD_ENABLED = false
+_G.AUTO_UPGRADE_BAIT_ENABLED = false
+_G.DISABLE_ANIMATIONS_ENABLED = false
+_G.WEBHOOK_ENABLED = false
+_G.WEBHOOK_SECRET = ""
+
+-- Jung V2 State Variables (Auto Farm V2)
+_G.JUNG_V2_STATE = {
+    isRunning = false,
+    cycleCount = 0,
+    startTime = 0,
+    pendingCompletes = 0,
+    totalRequests = 0,
+    baseDelayReel = 1.5,
+    baseDelayComplete = 0.7,
+}
+
+-- Freeze Character state variables
+local FreezeCharState = {
+	bodyVelocity = nil,
+	bodyGyro = nil,
+	lockedCFrame = nil,
+	lockConnection = nil,
+	lockActive = false
+}
+
+-- Artifact Skip Toggles
+local artifactSkipToggles = {
+    skipHourglassDiamond = false,
+    skipArrowArtifact = false,
+    skipDiamondArtifact = false,
+    skipCrescentArtifact = false
+}
+
+print("✅ Services loaded")
+
+-- Required Modules
+local ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
+local VendorUtility = require(ReplicatedStorage.Shared.VendorUtility)
+local Replion = require(ReplicatedStorage.Packages.Replion)
+local PlayerData = Replion.Client:WaitReplion("Data")
+
+print("✅ Game modules loaded")
+
+-- Network Events
+local Net = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
+
+-- Fishing Remote Events
+local EquipToolEvent = Net["RE/EquipToolFromHotbar"]
+local ChargeEvent = Net["RF/ChargeFishingRod"]
+local RequestEvent = Net["RF/RequestFishingMinigameStarted"]
+local CompletedEvent = Net["RE/FishingCompleted"]
+local CancelEvent = Net["RF/CancelFishingInputs"]
+
+print("✅ Network events loaded\n")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CONFIG LOADER - Apply config to global variables
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local function applyConfigToGlobals()
+    local config = _G.AutoFishConfig
+
+    print("📋 Applying config to global variables...")
+
+    -- Auto Farm V1
+    local farmV1 = config["Auto Farm"]["Auto Farm V1"]
+    _G.AUTO_FARM_ENABLED = farmV1["Enabled"]
+    _G.FARM_SUCCESS_DELAY = farmV1["Success Delay"]
+
+    -- Auto Farm V2
+    local farmV2 = config["Auto Farm"]["Auto Farm V2"]
+    _G.AUTO_FARM_V2_ENABLED = farmV2["Enabled"]
+    _G.JUNG_V2_STATE.baseDelayReel = farmV2["Base Delay Reel"]
+    _G.JUNG_V2_STATE.baseDelayComplete = farmV2["Base Delay Complete"]
+
+    -- Auto Sell
+    local sell = config["Auto Sell"]
+    _G.AUTO_SELL_ENABLED = sell["Enabled"]
+    _G.AUTO_SELL_DELAY = sell["Delay"]
+
+    -- Auto Artifact
+    local artifact = config["Auto Artifact"]
+    _G.AUTO_ARTIFACT_ENABLED = artifact["Enabled"]
+    artifactSkipToggles.skipHourglassDiamond = artifact["Skip Hourglass Diamond"]
+    artifactSkipToggles.skipArrowArtifact = artifact["Skip Arrow Artifact"]
+    artifactSkipToggles.skipDiamondArtifact = artifact["Skip Diamond Artifact"]
+    artifactSkipToggles.skipCrescentArtifact = artifact["Skip Crescent Artifact"]
+
+    -- Auto Weather
+    local weather = config["Auto Weather"]
+    _G.AUTO_WEATHER_ENABLED = weather["Enabled"]
+    _G.WEATHER_PURCHASE_DELAY = weather["Purchase Delay"]
+
+    -- Auto Upgrade
+    local upgrade = config["Auto Upgrade"]
+    _G.AUTO_UPGRADE_ROD_ENABLED = upgrade["Auto Upgrade Rod"]
+    _G.AUTO_UPGRADE_BAIT_ENABLED = upgrade["Auto Upgrade Bait"]
+
+    -- Misc
+    local misc = config["Misc"]
+    _G.FREEZE_CHAR_ENABLED = misc["Freeze Character"]
+    _G.GPU_SAVER_ENABLED = misc["GPU Saver"]
+    _G.DISABLE_ANIMATIONS_ENABLED = misc["Disable Animations"]
+
+    -- Webhook
+    local webhook = config["Webhook"]
+    _G.WEBHOOK_ENABLED = webhook["Enabled"]
+    _G.WEBHOOK_SECRET = webhook["URL"]
+
+    print("✅ Config applied successfully!")
+    print("\n📊 Active Settings:")
+    print(string.format("   Auto Farm V1: %s (Delay: %.2fs)", _G.AUTO_FARM_ENABLED and "✅ ON" or "❌ OFF", _G.FARM_SUCCESS_DELAY))
+    print(string.format("   Auto Farm V2: %s (Reel: %.2fs, Complete: %.2fs)", _G.AUTO_FARM_V2_ENABLED and "✅ ON" or "❌ OFF", _G.JUNG_V2_STATE.baseDelayReel, _G.JUNG_V2_STATE.baseDelayComplete))
+    print(string.format("   Auto Sell: %s (Delay: %ds)", _G.AUTO_SELL_ENABLED and "✅ ON" or "❌ OFF", _G.AUTO_SELL_DELAY))
+    print(string.format("   Auto Artifact: %s", _G.AUTO_ARTIFACT_ENABLED and "✅ ON" or "❌ OFF"))
+    print(string.format("   Auto Weather: %s (Delay: %ds)", _G.AUTO_WEATHER_ENABLED and "✅ ON" or "❌ OFF", _G.WEATHER_PURCHASE_DELAY))
+    print(string.format("   Auto Upgrade Rod: %s", _G.AUTO_UPGRADE_ROD_ENABLED and "✅ ON" or "❌ OFF"))
+    print(string.format("   Auto Upgrade Bait: %s", _G.AUTO_UPGRADE_BAIT_ENABLED and "✅ ON" or "❌ OFF"))
+    print(string.format("   Freeze Character: %s", _G.FREEZE_CHAR_ENABLED and "✅ ON" or "❌ OFF"))
+    print(string.format("   GPU Saver: %s", _G.GPU_SAVER_ENABLED and "✅ ON" or "❌ OFF"))
+    print(string.format("   Disable Animations: %s", _G.DISABLE_ANIMATIONS_ENABLED and "✅ ON" or "❌ OFF"))
+    print(string.format("   Webhook: %s", _G.WEBHOOK_ENABLED and "✅ ON" or "❌ OFF"))
+    print("")
+end
+
+-- Apply config immediately
+applyConfigToGlobals()
+-- ═══════════════════════════════════════════════════════════════════════════
+-- GPU SAVER MODULE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local Lighting = game:GetService("Lighting")
+local StarterGui = game:GetService("StarterGui")
+local workspace = game:GetService("Workspace")
+
+-- GPU Saver Variables
+local gpuSaverEnabled = false
+local originalSettings = {}
+local whiteScreenGui = nil
+local connections = {}
+
+-- Session stats for white screen display
+local startTime = os.time()
+local sessionStats = {
+    totalFish = 0,
+    totalValue = 0,
+    bestFish = {name = "None", value = 0},
+    fishTypes = {}
+}
+
+-- Helper Functions
+local function FormatTime(seconds)
+    seconds = tonumber(seconds) or 0
+    seconds = math.max(0, math.floor(seconds))
+    local hours = math.floor(seconds / 3600)
+    local minutes = math.floor((seconds % 3600) / 60)
+    local secs = seconds % 60
+    return string.format("%02d:%02d:%02d", hours, minutes, secs)
+end
+
+local function FormatNumber(num)
+    local formatted = tostring(math.floor(tonumber(num) or 0))
+    local k
+    while true do
+        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
+        if k == 0 then break end
+    end
+    return formatted
+end
+
+local function FormatCoins(coins)
+    local num = tonumber(coins) or 0
+    if num >= 1000000 then
+        return string.format("%.1fM", num / 1000000)
+    elseif num >= 1000 then
+        return string.format("%.1fK", num / 1000)
+    else
+        return tostring(math.floor(num))
+    end
+end
+
+local function getCurrentCoins()
+    local success, result = pcall(function()
+        if PlayerData then
+            local coins = PlayerData:GetExpect("Coins")
+            return tonumber(coins) or 0
+        end
+        return 0
+    end)
+    return success and result or 0
+end
+
+local function getCurrentLevel()
+    local success, result = pcall(function()
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if not playerGui then return "Lvl 0" end
+        local xpFrame = playerGui:FindFirstChild("XP")
+        if not xpFrame then return "Lvl 0" end
+        local frame = xpFrame:FindFirstChild("Frame")
+        if not frame then return "Lvl 0" end
+        local levelCount = frame:FindFirstChild("LevelCount")
+        if not levelCount then return "Lvl 0" end
+        return levelCount.Text or "Lvl 0"
+    end)
+    return success and result or "Lvl 0"
+end
+
+local function getQuestText(labelName)
+    local success, result = pcall(function()
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if not playerGui then return "No Quest" end
+        local quests = playerGui:FindFirstChild("Quests")
+        if not quests then return "No Quest" end
+        local main = quests:FindFirstChild("Main")
+        if not main then return "No Quest" end
+        local content = main:FindFirstChild("Content")
+        if not content then return "No Quest" end
+        local label = content:FindFirstChild(labelName)
+        if not label then return "No Quest" end
+
+        local questText = label:FindFirstChild("QuestText")
+        if not questText then return "No Quest" end
+
+        return questText.Text or "No Quest"
+    end)
+    return success and result or "No Quest"
+end
+
+-- VRAM Optimization Functions
+local function ultimatePerformance()
+    pcall(function()
+        local terrain = workspace:FindFirstChild("Terrain")
+        if terrain then
+            local clouds = terrain:FindFirstChild("Clouds")
+            if clouds then
+                clouds:ClearAllChildren()
+            end
+            terrain.WaterWaveSize = 0
+            terrain.WaterWaveSpeed = 0
+            terrain.WaterReflectance = 0
+            terrain.WaterTransparency = 0
+        end
+
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        Lighting.Brightness = 0
+        Lighting.Technology = Enum.Technology.Compatibility
+        Lighting:ClearAllChildren()
+    end)
+end
+
+local function optimizeMaterials()
+    pcall(function()
+        local materialsOptimized = 0
+        local function optimizePart(part)
+            if part:IsA("BasePart") then
+                part.Material = Enum.Material.Plastic
+                part.Reflectance = 0
+                part.Transparency = part.Transparency > 0.5 and 1 or part.Transparency
+                materialsOptimized = materialsOptimized + 1
+            end
+        end
+
+        for _, descendant in ipairs(workspace:GetDescendants()) do
+            pcall(function()
+                optimizePart(descendant)
+            end)
+        end
+    end)
+end
+
+local function removeTextures()
+    pcall(function()
+        local texturesRemoved = 0
+        for _, descendant in ipairs(workspace:GetDescendants()) do
+            pcall(function()
+                if descendant:IsA("Decal") or descendant:IsA("Texture") or descendant:IsA("SurfaceAppearance") then
+                    descendant:Destroy()
+                    texturesRemoved = texturesRemoved + 1
+                end
+            end)
+        end
+    end)
+end
+
+local function destroyParticlesAndEffects()
+    pcall(function()
+        local effectsDestroyed = 0
+        for _, descendant in ipairs(workspace:GetDescendants()) do
+            pcall(function()
+                if descendant:IsA("ParticleEmitter") or
+                   descendant:IsA("Fire") or
+                   descendant:IsA("Smoke") or
+                   descendant:IsA("Sparkles") or
+                   descendant:IsA("Trail") or
+                   descendant:IsA("Beam") then
+                    descendant:Destroy()
+                    effectsDestroyed = effectsDestroyed + 1
+                end
+            end)
+        end
+    end)
+end
+
+local function optimizeMeshes()
+    pcall(function()
+        local meshesOptimized = 0
+        for _, descendant in ipairs(workspace:GetDescendants()) do
+            pcall(function()
+                if descendant:IsA("SpecialMesh") or descendant:IsA("MeshPart") then
+                    if descendant:IsA("SpecialMesh") then
+                        descendant.TextureId = ""
+                    elseif descendant:IsA("MeshPart") then
+                        descendant.TextureID = ""
+                    end
+                    meshesOptimized = meshesOptimized + 1
+                end
+            end)
+        end
+    end)
+end
+
+local function cleanupEnvironment()
+    pcall(function()
+        local waves = workspace:FindFirstChild("!! WAVES ")
+        if waves then
+            waves:ClearAllChildren()
+        end
+    end)
+
+    pcall(function()
+        for _, otherPlayer in ipairs(Players:GetPlayers()) do
+            if otherPlayer ~= player and otherPlayer.Character then
+                otherPlayer.Character:Destroy()
+            end
+        end
+    end)
+end
+
+-- White Screen Functions
+local function createWhiteScreen()
+    if whiteScreenGui then return end
+
+    whiteScreenGui = Instance.new("ScreenGui")
+    whiteScreenGui.Name = "GPUSaverScreen"
+    whiteScreenGui.ResetOnSpawn = false
+    whiteScreenGui.IgnoreGuiInset = true
+    whiteScreenGui.DisplayOrder = 999999
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.Position = UDim2.new(0, 0, 0, 0)
+    frame.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+    frame.BorderSizePixel = 0
+    frame.Parent = whiteScreenGui
+
+    -- Main title
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "TitleLabel"
+    titleLabel.Size = UDim2.new(0, 600, 0, 100)
+    titleLabel.Position = UDim2.new(0.5, -300, 0, 50)
+    titleLabel.BackgroundTransparency = 1
+    local totalCaught = (player.leaderstats and player.leaderstats.Caught and player.leaderstats.Caught.Value) or 0
+    local bestCaught = (player.leaderstats and player.leaderstats["Rarest Fish"] and player.leaderstats["Rarest Fish"].Value) or "None"
+    titleLabel.Text = "🟢 " .. player.Name .. "\nTotal Caught: " .. totalCaught .. "\nBest Caught: " .. bestCaught
+    titleLabel.TextColor3 = Color3.new(0, 1, 0)
+    titleLabel.TextScaled = false
+    titleLabel.TextSize = 32
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    titleLabel.TextYAlignment = Enum.TextYAlignment.Center
+    titleLabel.Parent = frame
+
+    -- Session time
+    local sessionLabel = Instance.new("TextLabel")
+    sessionLabel.Name = "SessionLabel"
+    sessionLabel.Size = UDim2.new(0, 400, 0, 40)
+    sessionLabel.Position = UDim2.new(0.5, -200, 0, 180)
+    sessionLabel.BackgroundTransparency = 1
+    sessionLabel.Text = "⏱️ Uptime: 00:00:00"
+    sessionLabel.TextColor3 = Color3.new(1, 1, 1)
+    sessionLabel.TextSize = 22
+    sessionLabel.Font = Enum.Font.SourceSansBold
+    sessionLabel.TextXAlignment = Enum.TextXAlignment.Center
+    sessionLabel.Parent = frame
+
+    -- FPS Label
+    local fpsLabel = Instance.new("TextLabel")
+    fpsLabel.Name = "FPSLabel"
+    fpsLabel.Size = UDim2.new(0, 400, 0, 40)
+    fpsLabel.Position = UDim2.new(0.5, -200, 0, 220)
+    fpsLabel.BackgroundTransparency = 1
+    fpsLabel.Text = "📊 FPS: 0"
+    fpsLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    fpsLabel.TextSize = 22
+    fpsLabel.Font = Enum.Font.SourceSansBold
+    fpsLabel.TextXAlignment = Enum.TextXAlignment.Center
+    fpsLabel.Parent = frame
+
+    -- Fish stats
+    local fishStatsLabel = Instance.new("TextLabel")
+    fishStatsLabel.Name = "FishStatsLabel"
+    fishStatsLabel.Size = UDim2.new(0, 400, 0, 40)
+    fishStatsLabel.Position = UDim2.new(0.5, -200, 0, 260)
+    fishStatsLabel.BackgroundTransparency = 1
+    fishStatsLabel.Text = "🎣 Fish Caught: " .. FormatNumber(sessionStats.totalFish)
+    fishStatsLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    fishStatsLabel.TextSize = 22
+    fishStatsLabel.Font = Enum.Font.SourceSans
+    fishStatsLabel.TextXAlignment = Enum.TextXAlignment.Center
+    fishStatsLabel.Parent = frame
+
+    -- Coin display
+    local coinLabel = Instance.new("TextLabel")
+    coinLabel.Name = "CoinLabel"
+    coinLabel.Size = UDim2.new(0, 400, 0, 40)
+    coinLabel.Position = UDim2.new(0.5, -200, 0, 300)
+    coinLabel.BackgroundTransparency = 1
+    coinLabel.Text = "💰 Coins: " .. FormatCoins(getCurrentCoins())
+    coinLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    coinLabel.TextSize = 22
+    coinLabel.Font = Enum.Font.SourceSans
+    coinLabel.TextXAlignment = Enum.TextXAlignment.Center
+    coinLabel.Parent = frame
+
+    -- Level display
+    local levelLabel = Instance.new("TextLabel")
+    levelLabel.Name = "LevelLabel"
+    levelLabel.Size = UDim2.new(0, 400, 0, 40)
+    levelLabel.Position = UDim2.new(0.5, -200, 0, 340)
+    levelLabel.BackgroundTransparency = 1
+    levelLabel.Text = "⭐ " .. getCurrentLevel()
+    levelLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    levelLabel.TextSize = 22
+    levelLabel.Font = Enum.Font.SourceSans
+    levelLabel.TextXAlignment = Enum.TextXAlignment.Center
+    levelLabel.Parent = frame
+
+    -- Auto features status
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Name = "StatusLabel"
+    statusLabel.Size = UDim2.new(0, 600, 0, 40)
+    statusLabel.Position = UDim2.new(0.5, -300, 0, 420)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "🤖 Auto Farm: " .. (_G.AUTO_FARM_ENABLED and "🟢 ON" or "🔴 OFF") ..
+                      " | Auto Sell: " .. (_G.AUTO_SELL_ENABLED and "🟢 ON" or "🔴 OFF")
+    statusLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
+    statusLabel.TextSize = 16
+    statusLabel.Font = Enum.Font.SourceSans
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+    statusLabel.TextYAlignment = Enum.TextYAlignment.Center
+    statusLabel.Parent = frame
+
+    -- Close button
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 200, 0, 50)
+    closeButton.Position = UDim2.new(0.5, -100, 1, -80)
+    closeButton.AnchorPoint = Vector2.new(0, 1)
+    closeButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    closeButton.BorderSizePixel = 0
+    closeButton.Text = "⚠️ Disable GPU Saver"
+    closeButton.TextColor3 = Color3.new(1, 0.8, 0)
+    closeButton.TextSize = 16
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.Parent = frame
+
+    closeButton.MouseButton1Click:Connect(function()
+        disableGPUSaver()
+    end)
+
+    -- Update loop
+    task.spawn(function()
+        local lastUpdate = tick()
+        local frameCount = 0
+
+        connections.renderConnection = RunService.RenderStepped:Connect(function()
+            frameCount = frameCount + 1
+            local currentTime = tick()
+
+            if currentTime - lastUpdate >= 1 then
+                local fps = frameCount / (currentTime - lastUpdate)
+
+                pcall(function()
+                    if fpsLabel and fpsLabel.Parent then
+                        fpsLabel.Text = string.format("📊 FPS: %.0f", fps)
+                    end
+                end)
+
+                pcall(function()
+                    if sessionLabel and sessionLabel.Parent then
+                        local currentUptime = math.max(0, os.time() - startTime)
+                        sessionLabel.Text = "⏱️ Uptime: " .. FormatTime(currentUptime)
+                    end
+                end)
+
+                pcall(function()
+                    if fishStatsLabel and fishStatsLabel.Parent then
+                        local fishCount = math.max(0, sessionStats.totalFish)
+                        fishStatsLabel.Text = "🎣 Fish Caught: " .. FormatNumber(fishCount)
+                    end
+                end)
+
+                pcall(function()
+                    if coinLabel and coinLabel.Parent then
+                        coinLabel.Text = "💰 Coins: " .. FormatCoins(getCurrentCoins())
+                    end
+                end)
+
+                pcall(function()
+                    if levelLabel and levelLabel.Parent then
+                        levelLabel.Text = "⭐ " .. getCurrentLevel()
+                    end
+                end)
+
+                pcall(function()
+                    if statusLabel and statusLabel.Parent then
+                        statusLabel.Text = "🤖 Auto Farm: " .. (_G.AUTO_FARM_ENABLED and "🟢 ON" or "🔴 OFF") ..
+                                         " | Auto Sell: " .. (_G.AUTO_SELL_ENABLED and "🟢 ON" or "🔴 OFF")
+                    end
+                end)
+
+                pcall(function()
+                    if titleLabel and titleLabel.Parent then
+                        local currentCaught = (player.leaderstats and player.leaderstats.Caught and player.leaderstats.Caught.Value) or 0
+                        local currentBest = (player.leaderstats and player.leaderstats["Rarest Fish"] and player.leaderstats["Rarest Fish"].Value) or "None"
+                        titleLabel.Text = "🟢 " .. player.Name .. "\nTotal Caught: " .. FormatNumber(currentCaught) .. "\nBest Caught: " .. currentBest
+                    end
+                end)
+
+                frameCount = 0
+                lastUpdate = currentTime
+            end
+        end)
+    end)
+
+    whiteScreenGui.Parent = game:GetService("CoreGui")
+end
+
+local function removeWhiteScreen()
+    if whiteScreenGui then
+        whiteScreenGui:Destroy()
+        whiteScreenGui = nil
+    end
+
+    if connections.renderConnection then
+        connections.renderConnection:Disconnect()
+        connections.renderConnection = nil
+    end
+end
+
+-- Main GPU Saver Functions
+function enableGPUSaver()
+    if gpuSaverEnabled then return end
+    gpuSaverEnabled = true
+    _G.GPU_SAVER_ENABLED = true
+
+    print("[GPU Saver] ✅ Enabling GPU Saver...")
+
+    -- Apply VRAM optimizations
+    pcall(ultimatePerformance)
+    pcall(cleanupEnvironment)
+    pcall(optimizeMaterials)
+    pcall(removeTextures)
+    pcall(optimizeMeshes)
+    pcall(destroyParticlesAndEffects)
+
+    -- Store original settings
+    originalSettings.GlobalShadows = Lighting.GlobalShadows
+    originalSettings.FogEnd = Lighting.FogEnd
+    originalSettings.Brightness = Lighting.Brightness
+    originalSettings.QualityLevel = settings().Rendering.QualityLevel
+
+    -- Apply GPU saving settings
+    pcall(function()
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 1
+        Lighting.Brightness = 0
+
+        for _, v in pairs(Lighting:GetChildren()) do
+            if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then
+                v.Enabled = false
+            end
+        end
+
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+    end)
+
+    createWhiteScreen()
+    print("[GPU Saver] ✅ GPU Saver enabled successfully!")
+end
+
+function disableGPUSaver()
+    if not gpuSaverEnabled then return end
+    gpuSaverEnabled = false
+    _G.GPU_SAVER_ENABLED = false
+
+    print("[GPU Saver] ⚠️ Disabling GPU Saver...")
+
+    -- Restore settings
+    pcall(function()
+        if originalSettings.QualityLevel then
+            settings().Rendering.QualityLevel = originalSettings.QualityLevel
+        end
+
+        Lighting.GlobalShadows = originalSettings.GlobalShadows or true
+        Lighting.FogEnd = originalSettings.FogEnd or 100000
+        Lighting.Brightness = originalSettings.Brightness or 1
+
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+
+        if workspace.CurrentCamera then
+            workspace.CurrentCamera.FieldOfView = 70
+        end
+    end)
+
+    removeWhiteScreen()
+    print("[GPU Saver] ❌ GPU Saver disabled!")
+end
+
+print("✅ GPU Saver module loaded\n")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- DISCORD WEBHOOK NOTIFIER MODULE (TIER-BASED EVENT-DRIVEN)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local HttpService = game:GetService("HttpService")
+
+-- Get ObtainedNewFishNotification event (deferred loading)
+local newFishEvent = nil
+
+-- Function to initialize event (called later after UI loads)
+local function initializeWebhookEvent()
+    task.spawn(function()
+        local success, result = pcall(function()
+            -- Method 1: Use Net module (correct path from notifcontroller.lua)
+            local netModule = require(ReplicatedStorage:WaitForChild("Packages", 5):WaitForChild("Net", 5))
+            if netModule and netModule.RemoteEvent then
+                newFishEvent = netModule:RemoteEvent("ObtainedNewFishNotification")
+                if newFishEvent then
+                    print("[Webhook] ✅ ObtainedNewFishNotification event found (via Net module)")
+                    return true
+                end
+            end
+            return false
+        end)
+
+        if not success or not result then
+            warn("[Webhook] ⚠️ ObtainedNewFishNotification event not available - webhook detection disabled")
+            warn("[Webhook] Error: " .. tostring(result))
+        end
+    end)
+end
+
+-- Webhook setup
+local webhookLastSendTime = {}
+local WEBHOOK_COOLDOWN = 1
+_G.WEBHOOK_SECRET = _G.WEBHOOK_SECRET or ""
+
+-- Function to get webhook URL
+local function getWebhookURL()
+    return type(_G.WEBHOOK_SECRET) == "string" and _G.WEBHOOK_SECRET or ""
+end
+
+-- Unified webhook function (Mythic & SECRET fish only)
+local function sendUnifiedWebhook(webhookType, data)
+    local UNIFIED_WEBHOOK_URL = getWebhookURL()
+
+    if not UNIFIED_WEBHOOK_URL or UNIFIED_WEBHOOK_URL == "" then
+        warn('[Webhook] URL not configured!')
+        return
+    end
+
+    -- Rate limiting
+    local currentTime = tick()
+    local lastTime = webhookLastSendTime[webhookType] or 0
+    if currentTime - lastTime < WEBHOOK_COOLDOWN then
+        return
+    end
+
+    local embed = {}
+
+    if webhookType == "rare_fish_caught" then
+        -- Only SECRET fish (Tier 7) will trigger this webhook
+        local embedColor = 0x17FF97  -- Bright cyan
+        local embedTitle = "✨ SECRET FISH CAUGHT!"
+
+        embed = {
+            title = embedTitle,
+            description = string.format("**%s** has been caught!", data.fishId),
+            color = embedColor,
+            fields = {
+                { name = "🏆 Tier", value = data.tierName or "Unknown", inline = true },
+                { name = "🐟 Fish", value = data.fishId, inline = true },
+                { name = "✨ Rarity", value = string.format("1 in %.1f", data.rarity), inline = true },
+                { name = "⚖️ Weight", value = tostring(data.weight) .. " kg", inline = true },
+                { name = "🎨 Variant", value = data.variant, inline = true },
+                { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = true },
+                { name = "👤 Player", value = player.DisplayName or player.Name or "Unknown", inline = false },
+            },
+            footer = { text = "SECRET Fish Detector • Auto Fish" }
+        }
+
+        -- Add fish thumbnail
+        if data.fishIcon and data.fishIcon ~= "" then
+            local thumbnailUrl = nil
+
+            if string.match(data.fishIcon, "^rbxassetid://") then
+                local assetId = string.match(data.fishIcon, "rbxassetid://(%d+)")
+                if assetId then
+                    local success, result = pcall(function()
+                        local apiUrl = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&returnPolicy=PlaceHolder&size=768x432&format=Png&isCircular=false", assetId)
+                        local req = syn and syn.request or http_request or (fluxus and fluxus.request) or request
+                        if req then
+                            local response = req({ Url = apiUrl, Method = "GET" })
+                            if response and response.StatusCode == 200 and response.Body then
+                                local data = HttpService:JSONDecode(response.Body)
+                                if data and data.data and data.data[1] and data.data[1].imageUrl then
+                                    return data.data[1].imageUrl
+                                end
+                            end
+                        end
+                        return nil
+                    end)
+
+                    thumbnailUrl = (success and result) or string.format("https://assetdelivery.roblox.com/v1/asset/?id=%s", assetId)
+                end
+            elseif string.match(data.fishIcon, "^https?://") then
+                thumbnailUrl = data.fishIcon
+            end
+
+            if thumbnailUrl then
+                embed.thumbnail = { url = thumbnailUrl }
+            end
+        end
+    end
+
+    -- Prepare payload
+    local payload = { embeds = {embed}, wait = true }
+    local body = HttpService:JSONEncode(payload)
+
+    -- Retry logic
+    local maxRetries = 3
+    local retryDelay = 2
+    local overallSuccess = false
+    local lastError = nil
+
+    for attempt = 1, maxRetries do
+        if attempt > 1 then
+            task.wait(retryDelay)
+        end
+
+        local sendSuccess, response = pcall(function()
+            local req = syn and syn.request or http_request or (fluxus and fluxus.request) or request
+            if not req then error("No HTTP library") end
+
+            return req({
+                Url = UNIFIED_WEBHOOK_URL,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = body
+            })
+        end)
+
+        if sendSuccess and response then
+            local statusCode = response.StatusCode or response.status_code or 0
+            if statusCode == 200 or statusCode == 204 then
+                webhookLastSendTime[webhookType] = tick()
+                overallSuccess = true
+                break
+            else
+                lastError = string.format("HTTP %d", statusCode)
+                warn(string.format("[Webhook] ⚠️ Status %d (attempt %d/%d)", statusCode, attempt, maxRetries))
+            end
+        else
+            lastError = tostring(response)
+            warn(string.format("[Webhook] ⚠️ Failed: %s (attempt %d/%d)", lastError, attempt, maxRetries))
+        end
+    end
+
+    if not overallSuccess then
+        warn(string.format("[Webhook] ❌ %s failed after %d attempts: %s", webhookType, maxRetries, tostring(lastError)))
+    end
+end
+
+-- Setup fish detection
+local function setupRareFishDetection()
+    if not newFishEvent then
+        warn("[Rare Fish Detection] ❌ ObtainedNewFishNotification event not available")
+        return
+    end
+
+    newFishEvent.OnClientEvent:Connect(function(fishId, fishData, textNotif, isNewItem)
+        pcall(function()
+            local itemUtility = require(ReplicatedStorage:WaitForChild("Shared", 5):WaitForChild("ItemUtility", 5))
+            if not itemUtility then return end
+
+            local itemData = itemUtility:GetItemData(fishId)
+            if not itemData then return end
+
+            if itemData and (itemData.Probability or itemData.ForcedProbability) then
+                local rarity = itemData.Probability or itemData.ForcedProbability
+                local TierUtility = require(ReplicatedStorage:WaitForChild("Shared", 5):WaitForChild("TierUtility", 5))
+
+                local tierInfo = nil
+                if rarity.Chance then
+                    tierInfo = TierUtility:GetTierFromRarity(rarity.Chance)
+                end
+
+                -- Check if SECRET (Tier 7) ONLY
+                if tierInfo and tierInfo.Tier == 7 then
+                    local rarityRatio = math.round(1 / rarity.Chance * 10) / 10
+                    local weight = fishData and fishData.Weight or "unknown"
+                    local variant = fishData and fishData.VariantId or "none"
+                    local fishIcon = itemData.Data and itemData.Data.Icon or nil
+                    local fishName = itemData.Data and itemData.Data.Name or tostring(fishId)
+
+                    local webhookURL = getWebhookURL()
+                    if webhookURL and webhookURL ~= "" then
+                        sendUnifiedWebhook("rare_fish_caught", {
+                            fishId = fishName,
+                            rarity = rarityRatio,
+                            weight = weight,
+                            variant = variant,
+                            isNew = isNewItem,
+                            fishIcon = fishIcon,
+                            tier = tierInfo.Tier,
+                            tierName = tierInfo.Name
+                        })
+                    else
+                        warn("[Rare Fish Detection] ⚠️ Webhook URL not configured")
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+-- Webhook State
+_G.WEBHOOK_ENABLED = false
+local webhookInitialized = false
+
+-- Start Webhook System
+function startWebhookNotifier()
+    if webhookInitialized then
+        print("[Webhook] ⚠️ Already initialized")
+        return
+    end
+
+    if not _G.WEBHOOK_SECRET or _G.WEBHOOK_SECRET == "" then
+        warn("[Webhook] ❌ Webhook URL not configured!")
+        return
+    end
+
+    print("[Webhook] 🔄 Initializing tier-based webhook system...")
+
+    task.spawn(function()
+        task.wait(2)
+
+        -- Initialize event connection first
+        initializeWebhookEvent()
+        task.wait(1)
+
+        -- Initialize tier-based rare fish notifier
+        setupRareFishDetection()
+
+        webhookInitialized = true
+        _G.WEBHOOK_ENABLED = true
+        print("[Webhook] ✅ Tier-based fish notifier started!")
+        print("[Webhook] 📡 Monitoring for SECRET (Tier 7) fish ONLY...")
+    end)
+end
+
+-- Stop Webhook System
+function stopWebhookNotifier()
+    _G.WEBHOOK_ENABLED = false
+    webhookInitialized = false
+    print("[Webhook] ⚠️ Webhook notifier disabled")
+end
+
+print("✅ Discord Webhook Notifier module loaded (Tier-Based Detection)\n")
+-- ANIMATION CONTROLLER HOOK (DISABLE ALL FISHING ANIMATIONS)
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    This hook intercepts the AnimationController and disables ALL fishing animations
+    when auto farm is activated (animationBlocksActive = true).
+
+    OPTIMIZED: Animation blocks are set ONCE at start, not checked every cycle.
+
+    Animations disabled:
+    - StartRodCharge, LoopedRodCharge
+    - RodThrow (critical 0.6s delay)
+    - ReelIntermission, ReelStart, FishCaught
+    - FishingFailure
+    - EquipIdle, EquipIdleFake
+    - HoldFish (dynamic)
+
+    Based on analysis of fishingcontroller.lua
+]]
+
+local AnimationControllerHooked = false
+
+-- Animation state tracking (declared before hooks)
+-- V6.6: animationBlocksActive replaced with _G.DISABLE_ANIMATIONS_ENABLED
+local blockedAnimationTracks = {}
+
+-- List of all fishing animations to disable
+local FISHING_ANIMATIONS = {
+    "StartRodCharge",
+    "LoopedRodCharge",
+    "RodThrow",
+    "ReelIntermission",  -- This is the problematic one!
+    "ReelStart",
+    "FishCaught",
+    "FishingFailure",
+    "EquipIdle",
+    "EquipIdleFake",
+    "HoldFish",
+    "IdleLoop",
+    "WalkLoop",
+    "Reel"  -- Add base "Reel" to catch all Reel* animations
+}
+
+local function setupAnimationHook()
+    if AnimationControllerHooked then
+        print("⚠️ Animation hook already installed")
+        return
+    end
+
+    local success, err = pcall(function()
+        -- Get AnimationController from Controllers
+        local AnimController = require(ReplicatedStorage.Controllers.AnimationController)
+
+        if not AnimController then
+            warn("⚠️ AnimationController not found")
+            return
+        end
+
+        print("🔧 Hooking AnimationController methods...")
+
+        -- Hook IsDisabled FIRST (most important for FishCaught)
+        if AnimController.IsDisabled then
+            local originalIsDisabled = AnimController.IsDisabled
+
+            AnimController.IsDisabled = function(self, animationName, ...)
+                -- Only check if animation blocks are active (set once at start)
+                if _G.DISABLE_ANIMATIONS_ENABLED then
+                    for _, fishingAnim in ipairs(FISHING_ANIMATIONS) do
+                        if animationName == fishingAnim or animationName:find(fishingAnim) then
+                            return true -- Report as disabled
+                        end
+                    end
+                end
+
+                return originalIsDisabled(self, animationName, ...)
+            end
+
+            print("✅ IsDisabled hooked")
+        end
+
+        -- Hook PlayAnimation
+        if AnimController.PlayAnimation then
+            local originalPlayAnimation = AnimController.PlayAnimation
+
+            AnimController.PlayAnimation = function(self, animationName, ...)
+                if _G.DISABLE_ANIMATIONS_ENABLED then
+                    for _, fishingAnim in ipairs(FISHING_ANIMATIONS) do
+                        if animationName == fishingAnim or animationName:find(fishingAnim) then
+                            return nil -- Skip animation completely
+                        end
+                    end
+                end
+
+                -- Allow non-fishing animations or when blocks inactive
+                return originalPlayAnimation(self, animationName, ...)
+            end
+
+            print("✅ PlayAnimation hooked")
+        end
+
+        -- Hook StopAnimation
+        if AnimController.StopAnimation then
+            local originalStopAnimation = AnimController.StopAnimation
+
+            AnimController.StopAnimation = function(self, animationName, ...)
+                if _G.AUTO_FARM_ENABLED then
+                    for _, fishingAnim in ipairs(FISHING_ANIMATIONS) do
+                        if animationName == fishingAnim or animationName:find(fishingAnim) then
+                            return -- Skip stop call
+                        end
+                    end
+                end
+
+                return originalStopAnimation(self, animationName, ...)
+            end
+
+            print("✅ StopAnimation hooked")
+        end
+
+        -- Hook DestroyActiveAnimationTracks
+        if AnimController.DestroyActiveAnimationTracks then
+            local originalDestroy = AnimController.DestroyActiveAnimationTracks
+
+            AnimController.DestroyActiveAnimationTracks = function(self, ...)
+                -- Silent destroy - no print spam
+                return originalDestroy(self, ...)
+            end
+
+            print("✅ DestroyActiveAnimationTracks hooked")
+        end
+
+        -- Hook AddAnimation to intercept at creation level
+        if AnimController.AddAnimation then
+            local originalAddAnimation = AnimController.AddAnimation
+
+            AnimController.AddAnimation = function(self, animationName, ...)
+                if _G.DISABLE_ANIMATIONS_ENABLED then
+                    -- Check if this is a fishing animation
+                    for _, fishingAnim in ipairs(FISHING_ANIMATIONS) do
+                        if animationName == fishingAnim or animationName:find(fishingAnim) then
+                            -- Return a fake animation track that does nothing
+                            local fakeTrack = {
+                                Play = function() end,
+                                Stop = function() end,
+                                Destroy = function() end,
+                                IsPlaying = false,
+                                TimePosition = 0,
+                                Length = 0
+                            }
+                            return fakeTrack, nil
+                        end
+                    end
+                end
+
+                return originalAddAnimation(self, animationName, ...)
+            end
+
+            print("✅ AddAnimation hooked")
+        end
+
+        AnimationControllerHooked = true
+        print("✅ AnimationController fully hooked - animations will be disabled during auto farm")
+
+    end)
+
+    if not success then
+        warn("⚠️ Failed to hook AnimationController:", err)
+    end
+end
+
+-- V6.6.1: Hooks are NO LONGER auto-installed at startup
+-- They will be installed when "Disable All Animations" toggle is enabled
+-- This prevents permanent CPU/RAM overhead when the feature is not in use
+
+print("⏸️ Animation hooks ready (will install when toggle is enabled)")
+
+-- Function to stop all fishing animations once
+local function stopAllFishingAnimations()
+    if _G.DISABLE_ANIMATIONS_ENABLED then return end -- Already stopped
+
+    pcall(function()
+        local char = player.Character
+        if not char then return end
+
+        local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+        if not humanoid then return end
+
+        local animator = humanoid:FindFirstChildWhichIsA("Animator")
+        if not animator then return end
+
+        -- Stop all currently playing fishing animations
+        local playingTracks = animator:GetPlayingAnimationTracks()
+        local stoppedCount = 0
+
+        for _, track in ipairs(playingTracks) do
+            if track.IsPlaying and track.Animation then
+                local animName = track.Animation.Name or ""
+
+                for _, fishingAnim in ipairs(FISHING_ANIMATIONS) do
+                    if animName:find(fishingAnim) then
+                        track:Stop(0)
+                        track:Destroy()
+                        stoppedCount = stoppedCount + 1
+                        break
+                    end
+                end
+            end
+        end
+
+        if stoppedCount > 0 then
+            print(string.format("✅ Stopped %d fishing animations", stoppedCount))
+        end
+
+        _G.DISABLE_ANIMATIONS_ENABLED = true
+    end)
+end
+
+-- Function to cleanup when auto farm is disabled
+local function cleanupAnimationBlocks()
+    _G.DISABLE_ANIMATIONS_ENABLED = false
+    blockedAnimationTracks = {}
+end
+
+print("✅ Animation hook system initialized (optimized - blocks only when enabled)")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- FREEZE CHARACTER POSITION SYSTEM (V5: Anti-Drown & Position Lock)
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    Character position freeze system - locks character position in place
+
+    Features:
+    - BodyVelocity for position lock (anti-gravity & anti-drown)
+    - BodyGyro for rotation lock
+    - Heartbeat connection for drift correction
+    - Y-axis drift detection (prevent drowning)
+    - Overall position drift detection
+
+    Based on element farm lock system from auto_farm_v4_elemen.lua
+]]
+
+local function freezeCharPosition()
+    local char = player.Character
+    if not char then
+        print("❌ [Freeze Char] Character not found")
+        return false
+    end
+
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then
+        print("❌ [Freeze Char] HumanoidRootPart not found")
+        return false
+    end
+
+    -- Store locked position
+    FreezeCharState.lockedCFrame = root.CFrame
+    FreezeCharState.lockActive = true
+
+    -- Create BodyVelocity to lock position (STRONG anti-gravity & anti-drown)
+    FreezeCharState.bodyVelocity = Instance.new("BodyVelocity")
+    FreezeCharState.bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    FreezeCharState.bodyVelocity.MaxForce = Vector3.new(999999, 999999, 999999)  -- Strong force
+    FreezeCharState.bodyVelocity.P = 50000  -- High P value for stronger lock
+    FreezeCharState.bodyVelocity.Parent = root
+
+    -- Create BodyGyro to prevent rotation
+    FreezeCharState.bodyGyro = Instance.new("BodyGyro")
+    FreezeCharState.bodyGyro.CFrame = FreezeCharState.lockedCFrame
+    FreezeCharState.bodyGyro.MaxTorque = Vector3.new(999999, 999999, 999999)  -- Strong torque
+    FreezeCharState.bodyGyro.P = 50000  -- High P value
+    FreezeCharState.bodyGyro.Parent = root
+
+    -- AGGRESSIVE position correction (prevent ANY drift, especially Y-axis)
+    FreezeCharState.lockConnection = RunService.Heartbeat:Connect(function()
+        if not root or not root.Parent or not FreezeCharState.lockActive then
+            if FreezeCharState.lockConnection then
+                FreezeCharState.lockConnection:Disconnect()
+                FreezeCharState.lockConnection = nil
+            end
+            return
+        end
+
+        -- Check Y-axis drift (prevent sinking/drowning)
+        local yDiff = math.abs(root.Position.Y - FreezeCharState.lockedCFrame.Position.Y)
+        if yDiff > 0.5 then  -- If Y-axis drifts more than 0.5 studs
+            root.CFrame = FreezeCharState.lockedCFrame
+            if FreezeCharState.bodyVelocity then
+                FreezeCharState.bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+
+        -- Check overall position drift
+        if (root.Position - FreezeCharState.lockedCFrame.Position).Magnitude > 2 then  -- Threshold 2 studs
+            root.CFrame = FreezeCharState.lockedCFrame
+            if FreezeCharState.bodyVelocity then
+                FreezeCharState.bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            end
+        end
+    end)
+
+    print("[Freeze Char] 🔒 Position FROZEN (Anti-Drown Active)")
+    return true
+end
+
+local function unfreezeCharPosition()
+    FreezeCharState.lockActive = false
+    FreezeCharState.lockedCFrame = nil
+
+    if FreezeCharState.lockConnection then
+        FreezeCharState.lockConnection:Disconnect()
+        FreezeCharState.lockConnection = nil
+    end
+
+    -- Remove BodyVelocity and BodyGyro
+    if FreezeCharState.bodyVelocity then
+        FreezeCharState.bodyVelocity:Destroy()
+        FreezeCharState.bodyVelocity = nil
+    end
+    if FreezeCharState.bodyGyro then
+        FreezeCharState.bodyGyro:Destroy()
+        FreezeCharState.bodyGyro = nil
+    end
+
+    print("[Freeze Char] 🔓 Position UNFROZEN")
+end
+
+-- Character respawn handler (cleanup freeze on death/respawn)
+player.CharacterAdded:Connect(function(newChar)
+    if FreezeCharState.lockActive then
+        print("[Freeze Char] ⚠️ Character respawned, cleaning up freeze system")
+        unfreezeCharPosition()
+        _G.FREEZE_CHAR_ENABLED = false
+    end
+end)
+
+print("✅ Freeze character system initialized")
+-- AUTO UPGRADE SYSTEM (ROD & BAIT)
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    Auto Upgrade System - Automatic Rod & Bait purchasing and upgrading
+
+    Features:
+    - Currency parsing (2.99M -> 2990000)
+    - Inventory detection (detect owned rods/baits)
+    - Auto purchase next affordable rod/bait
+    - Auto equip after purchase
+    - Integration with Auto Farm (pause/resume)
+]]
+
+print("🔧 Loading Auto Upgrade System...")
+
+-- Network Events for Upgrade System
+local UnequipToolEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/UnequipToolFromHotbar"]
+local EquipItemEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/EquipItem"]
+local EquipBaitEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/EquipBait"]
+
+-- Purchase events
+local PurchaseRodEvent = nil
+local PurchaseBaitEvent = nil
+
+pcall(function()
+    PurchaseRodEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/PurchaseFishingRod"]
+end)
+
+pcall(function()
+    PurchaseBaitEvent = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/PurchaseBait"]
+end)
+
+-- Rod Prices (ordered from cheapest to most expensive)
+local rodPrices = {
+    {id = 79, price = 300, name = "Luck Rod"},
+    {id = 76, price = 900, name = "Carbon Rod"},
+    {id = 85, price = 1500, name = "Grass Rod"},
+    {id = 77, price = 3000, name = "Demascus Rod"},
+    {id = 78, price = 5000, name = "Ice Rod"},
+    {id = 4, price = 15000, name = "Lucky Rod"},
+    {id = 80, price = 50000, name = "Midnight Rod"},
+    {id = 6, price = 215000, name = "Steampunk Rod"},
+    {id = 7, price = 437000, name = "Chrome Rod"},
+    {id = 5, price = 1000000, name = "Astral Rod"},
+    {id = 126, price = 3000000, name = "Ares Rod"},
+    {id = 168, price = 8000000, name = "Angler Rod"}
+}
+
+-- Bait Prices (ordered from cheapest to most expensive)
+local baitPrices = {
+    {id = 10, price = 100, name = "Topwater Bait"},
+    {id = 2, price = 1000, name = "Luck Bait"},
+    {id = 3, price = 3000, name = "Midnight Bait"},
+    {id = 17, price = 83500, name = "Deep Bait"},
+    {id = 6, price = 290000, name = "Chroma Bait"},
+    {id = 8, price = 630000, name = "Dark Matter Bait"},
+    {id = 15, price = 1150000, name = "Corrupt Bait"},
+    {id = 16, price = 3700000, name = "Aether Bait"}
+}
+
+-- Auto Upgrade State
+local upgradeState = {
+    isPurchasing = false, -- Global lock to prevent both running simultaneously
+    rod = {
+        running = false,
+        currentTarget = nil,
+        ownedRods = {},
+        nextRodIndex = 1
+    },
+    bait = {
+        running = false,
+        currentTarget = nil,
+        ownedBaits = {},
+        nextBaitIndex = 1
+    }
+}
+
+-- Helper: Parse currency text to number (2.99M -> 2990000, 1.5K -> 1500)
+local function parseCurrency(text)
+    if not text or text == "" then return 0 end
+
+    text = text:gsub(",", "") -- Remove commas
+    text = text:upper() -- Convert to uppercase
+
+    local multiplier = 1
+    if text:find("K") then
+        multiplier = 1000
+        text = text:gsub("K", "")
+    elseif text:find("M") then
+        multiplier = 1000000
+        text = text:gsub("M", "")
+    elseif text:find("B") then
+        multiplier = 1000000000
+        text = text:gsub("B", "")
+    end
+
+    local number = tonumber(text)
+    if not number then return 0 end
+
+    return math.floor(number * multiplier)
+end
+
+-- Helper: Get current coins
+local function getCurrentCoinsUpgrade()
+    local success, result = pcall(function()
+        -- Path: game:GetService("Players").LocalPlayer.PlayerGui.Events.Frame.CurrencyCounter.Counter.Text
+        local Players = game:GetService("Players")
+        local LocalPlayer = Players.LocalPlayer
+
+        if not LocalPlayer then return 0 end
+
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not playerGui then return 0 end
+
+        local events = playerGui:FindFirstChild("Events")
+        if not events then return 0 end
+
+        local frame = events:FindFirstChild("Frame")
+        if not frame then return 0 end
+
+        local currencyCounter = frame:FindFirstChild("CurrencyCounter")
+        if not currencyCounter then return 0 end
+
+        local counter = currencyCounter:FindFirstChild("Counter")
+        if not counter then return 0 end
+
+        local coinsText = counter.Text
+        if not coinsText or coinsText == "" then return 0 end
+
+        local parsedCoins = parseCurrency(coinsText)
+        return parsedCoins
+    end)
+
+    if not success then
+        warn("[getCurrentCoins] ⚠️ Failed to get coins: " .. tostring(result))
+        return 0
+    end
+
+    return result or 0
+end
+
+-- Helper: Detect owned rods from inventory
+local function detectOwnedRods()
+    local ownedRods = {}
+
+    local success = pcall(function()
+        if not PlayerData then return end
+
+        local inventory = PlayerData:GetExpect("Inventory")
+        if not inventory then return end
+
+        local rods = inventory["Fishing Rods"] or {}
+
+        for _, rod in ipairs(rods) do
+            if rod and rod.Id then
+                table.insert(ownedRods, rod.Id)
+            end
+        end
+    end)
+
+    if not success then
+        warn("[Auto Upgrade] ⚠️ Failed to detect owned rods")
+    end
+
+    return ownedRods
+end
+
+-- Helper: Detect owned baits from inventory
+local function detectOwnedBaits()
+    local ownedBaits = {}
+
+    local success = pcall(function()
+        if not PlayerData then return end
+
+        local inventory = PlayerData:GetExpect("Inventory")
+        if not inventory then return end
+
+        local baits = inventory.Baits or {}
+
+        for _, bait in ipairs(baits) do
+            if bait and bait.Id then
+                table.insert(ownedBaits, bait.Id)
+            end
+        end
+    end)
+
+    if not success then
+        warn("[Auto Upgrade] ⚠️ Failed to detect owned baits")
+    end
+
+    return ownedBaits
+end
+
+-- Helper: Check if rod is owned
+local function isRodOwned(rodId, ownedList)
+    for _, id in ipairs(ownedList) do
+        if id == rodId then return true end
+    end
+    return false
+end
+
+-- Helper: Find next rod to buy
+local function findNextRodTarget(ownedRods)
+    for i, rod in ipairs(rodPrices) do
+        if not isRodOwned(rod.id, ownedRods) then
+            return rod, i
+        end
+    end
+    return nil, nil
+end
+
+-- Helper: Find next bait to buy
+local function findNextBaitTarget(ownedBaits)
+    for i, bait in ipairs(baitPrices) do
+        if not isRodOwned(bait.id, ownedBaits) then
+            return bait, i
+        end
+    end
+    return nil, nil
+end
+
+-- Helper: Unequip tool
+local function unequipTool()
+    local success = pcall(function()
+        UnequipToolEvent:FireServer()
+    end)
+
+    if success then
+        print("[Auto Upgrade] 🔓 Tool unequipped")
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to unequip tool")
+    end
+
+    return success
+end
+
+-- Helper: Equip rod (from hotbar)
+local function equipRodHotbar()
+    local success = pcall(function()
+        EquipToolEvent:FireServer(1)
+    end)
+
+    if success then
+        print("[Auto Upgrade] 🎣 Rod equipped (hotbar)")
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to equip rod from hotbar")
+    end
+
+    return success
+end
+
+-- Helper: Buy rod
+local function buyRod(rodId, rodName)
+    if not PurchaseRodEvent then
+        warn("[Auto Upgrade] ❌ PurchaseRodEvent not available")
+        return false
+    end
+
+    local success, result = pcall(function()
+        return PurchaseRodEvent:InvokeServer(rodId)
+    end)
+
+    if success and result then
+        print(string.format("[Auto Upgrade] ✅ Purchased: %s (ID: %d)", rodName, rodId))
+        return true
+    else
+        warn(string.format("[Auto Upgrade] ❌ Failed to purchase: %s (ID: %d) - %s", rodName, rodId, tostring(result)))
+        return false
+    end
+end
+
+-- Helper: Buy bait
+local function buyBait(baitId, baitName)
+    if not PurchaseBaitEvent then
+        warn("[Auto Upgrade] ❌ PurchaseBaitEvent not available")
+        return false
+    end
+
+    local success, result = pcall(function()
+        return PurchaseBaitEvent:InvokeServer(baitId)
+    end)
+
+    if success and result then
+        print(string.format("[Auto Upgrade] ✅ Purchased: %s (ID: %d)", baitName, baitId))
+        return true
+    else
+        warn(string.format("[Auto Upgrade] ❌ Failed to purchase: %s (ID: %d) - %s", baitName, baitId, tostring(result)))
+        return false
+    end
+end
+
+-- Helper: Equip specific rod by UUID (after purchase)
+local function equipSpecificRod(rodUUID)
+    local success = pcall(function()
+        EquipItemEvent:FireServer(rodUUID, "Fishing Rods")
+    end)
+
+    if success then
+        print(string.format("[Auto Upgrade] 🎣 Rod equipped (UUID: %s)", rodUUID))
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to equip specific rod")
+    end
+
+    return success
+end
+
+-- Helper: Equip specific bait by ID
+local function equipSpecificBait(baitId)
+    local success = pcall(function()
+        EquipBaitEvent:FireServer(baitId)
+    end)
+
+    if success then
+        print(string.format("[Auto Upgrade] 🪱 Bait equipped (ID: %d)", baitId))
+    else
+        warn("[Auto Upgrade] ⚠️ Failed to equip bait")
+    end
+
+    return success
+end
+
+-- Helper: Get latest rod UUID by ID
+local function getLatestRodUUID(rodId)
+    local uuid = nil
+
+    pcall(function()
+        if not PlayerData then return end
+
+        local inventory = PlayerData:GetExpect("Inventory")
+        if not inventory then return end
+
+        local rods = inventory["Fishing Rods"] or {}
+
+        -- Find the latest rod with matching ID
+        for i = #rods, 1, -1 do
+            if rods[i] and rods[i].Id == rodId and rods[i].UUID then
+                uuid = rods[i].UUID
+                break
+            end
+        end
+    end)
+
+    return uuid
+end
+
+-- Helper: Get best (most expensive) owned rod
+local function getBestOwnedRod()
+    local ownedRods = detectOwnedRods()
+    local bestRod = nil
+    local bestPrice = 0
+
+    for _, rod in ipairs(rodPrices) do
+        for _, ownedId in ipairs(ownedRods) do
+            if rod.id == ownedId and rod.price > bestPrice then
+                bestRod = rod
+                bestPrice = rod.price
+            end
+        end
+    end
+
+    return bestRod
+end
+
+-- Helper: Get best (most expensive) owned bait
+local function getBestOwnedBait()
+    local ownedBaits = detectOwnedBaits()
+    local bestBait = nil
+    local bestPrice = 0
+
+    for _, bait in ipairs(baitPrices) do
+        for _, ownedId in ipairs(ownedBaits) do
+            if bait.id == ownedId and bait.price > bestPrice then
+                bestBait = bait
+                bestPrice = bait.price
+            end
+        end
+    end
+
+    return bestBait
+end
+
+-- Helper: Find all affordable items (batch purchase)
+local function findAffordableRods(currentCoins, ownedRods)
+    local affordableRods = {}
+    local totalCost = 0
+
+    for _, rod in ipairs(rodPrices) do
+        local isOwned = false
+        for _, ownedId in ipairs(ownedRods) do
+            if rod.id == ownedId then
+                isOwned = true
+                break
+            end
+        end
+
+        if not isOwned and (totalCost + rod.price) <= currentCoins then
+            table.insert(affordableRods, rod)
+            totalCost = totalCost + rod.price
+        end
+    end
+
+    return affordableRods, totalCost
+end
+
+local function findAffordableBaits(currentCoins, ownedBaits)
+    local affordableBaits = {}
+    local totalCost = 0
+
+    for _, bait in ipairs(baitPrices) do
+        local isOwned = false
+        for _, ownedId in ipairs(ownedBaits) do
+            if bait.id == ownedId then
+                isOwned = true
+                break
+            end
+        end
+
+        if not isOwned and (totalCost + bait.price) <= currentCoins then
+            table.insert(affordableBaits, bait)
+            totalCost = totalCost + bait.price
+        end
+    end
+
+    return affordableBaits, totalCost
+end
+
+-- Helper: Initial setup - Check auto farm, equip best items, set targets
+local function initialSetupUpgrade()
+    print(string.rep("=", 70))
+    print("🔍 INITIAL SETUP - Preparing Auto Upgrade")
+    print(string.rep("=", 70))
+
+    -- Debug: Check coins detection
+    local testCoins = getCurrentCoinsUpgrade()
+    print(string.format("[Initial Setup] 💰 Current Coins Detected: %s", FormatNumber(testCoins)))
+
+    -- Step 1: Check if Auto Farm is ON
+    local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
+    local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
+
+    if autoFarmWasEnabled or autoFarmV2WasEnabled then
+        print("[Initial Setup] ⚠️ Auto Farm is ON, disabling temporarily...")
+
+        if autoFarmWasEnabled then
+            _G.AUTO_FARM_ENABLED = false
+            task.wait(3)
+        end
+
+        if autoFarmV2WasEnabled then
+            _G.AUTO_FARM_V2_ENABLED = false
+            task.wait(3)
+        end
+
+        task.wait(2)
+        print("[Initial Setup] ✅ Auto Farm disabled")
+    else
+        print("[Initial Setup] ℹ️ Auto Farm is OFF, proceeding...")
+    end
+
+    -- Step 2: Unequip current rod
+    print("[Initial Setup] 🔓 Unequipping current rod...")
+    unequipTool()
+    task.wait(1.5)
+
+    -- Step 3: Check all owned rods and baits
+    print("[Initial Setup] 📦 Checking inventory...")
+    local ownedRods = detectOwnedRods()
+    local ownedBaits = detectOwnedBaits()
+
+    -- Step 4: Equip best rod
+    local bestRod = getBestOwnedRod()
+    if bestRod then
+        print(string.format("[Initial Setup] 🎣 Equipping Best Rod: %s (Price: %s)", bestRod.name, FormatNumber(bestRod.price)))
+
+        local rodUUID = getLatestRodUUID(bestRod.id)
+        if rodUUID then
+            equipSpecificRod(rodUUID)
+        else
+            equipRodHotbar()
+        end
+        task.wait(1.5)
+    else
+        print("[Initial Setup] ⚠️ No rod owned, equipping default")
+        equipRodHotbar()
+        task.wait(1.5)
+    end
+
+    -- Step 5: Equip best bait
+    local bestBait = getBestOwnedBait()
+    if bestBait then
+        print(string.format("[Initial Setup] 🪱 Equipping Best Bait: %s (Price: %s)", bestBait.name, FormatNumber(bestBait.price)))
+        equipSpecificBait(bestBait.id)
+        task.wait(1.5)
+    else
+        print("[Initial Setup] ℹ️ No bait owned yet")
+    end
+
+    -- Step 6: Set next targets
+    local nextRod, _ = findNextRodTarget(ownedRods)
+    local nextBait, _ = findNextBaitTarget(ownedBaits)
+
+    if nextRod then
+        upgradeState.rod.currentTarget = nextRod
+        print(string.format("[Initial Setup] 🎯 Next Rod Target: %s - %s coins", nextRod.name, FormatNumber(nextRod.price)))
+    else
+        print("[Initial Setup] ✅ All rods owned!")
+    end
+
+    if nextBait then
+        upgradeState.bait.currentTarget = nextBait
+        print(string.format("[Initial Setup] 🎯 Next Bait Target: %s - %s coins", nextBait.name, FormatNumber(nextBait.price)))
+    else
+        print("[Initial Setup] ✅ All baits owned!")
+    end
+
+    -- Step 7: Enable Auto Farm (ALWAYS enable for farming)
+    print("[Initial Setup] ▶️ Starting Auto Farm...")
+
+    if autoFarmV2WasEnabled then
+        _G.AUTO_FARM_V2_ENABLED = true
+    elseif autoFarmWasEnabled then
+        _G.AUTO_FARM_ENABLED = true
+    else
+        -- If no auto farm was running, default to V2
+        _G.AUTO_FARM_V2_ENABLED = true
+    end
+
+    print(string.rep("=", 70))
+    print("✅ INITIAL SETUP COMPLETE - Auto Farm ON!")
+    print(string.rep("=", 70) .. "\n")
+end
+
+-- Main: Auto Upgrade Rod Loop
+local function autoUpgradeRodLoop()
+    if upgradeState.rod.running then
+        warn("[Auto Upgrade Rod] ⚠️ Already running!")
+        return
+    end
+
+    upgradeState.rod.running = true
+    print(string.rep("=", 70))
+    print("🚀 AUTO UPGRADE ROD - STARTED")
+    print(string.rep("=", 70))
+
+    -- Run initial setup once (for both Rod and Bait if both enabled)
+    task.wait(2)
+    initialSetupUpgrade()
+
+    task.spawn(function()
+        while _G.AUTO_UPGRADE_ROD_ENABLED do
+            -- Wait if bait is currently purchasing
+            while upgradeState.isPurchasing and _G.AUTO_UPGRADE_ROD_ENABLED do
+                task.wait(1)
+            end
+
+            if not _G.AUTO_UPGRADE_ROD_ENABLED then break end
+
+            -- Step 1: Get current coins first
+            local currentCoins = getCurrentCoinsUpgrade()
+
+            -- Step 2: Detect owned rods
+            upgradeState.rod.ownedRods = detectOwnedRods()
+
+            -- Step 3: Find ALL affordable rods (batch purchase)
+            local affordableRods, totalCost = findAffordableRods(currentCoins, upgradeState.rod.ownedRods)
+
+            -- Check if all rods purchased
+            if #affordableRods == 0 then
+                -- Check if truly all purchased or just no coins
+                local allRodsPurchased = true
+                for _, rod in ipairs(rodPrices) do
+                    local isOwned = false
+                    for _, ownedId in ipairs(upgradeState.rod.ownedRods) do
+                        if rod.id == ownedId then
+                            isOwned = true
+                            break
+                        end
+                    end
+                    if not isOwned then
+                        allRodsPurchased = false
+                        upgradeState.rod.currentTarget = rod
+                        break
+                    end
+                end
+
+                if allRodsPurchased then
+                    print("[Auto Upgrade Rod] ✅ All rods purchased! Auto upgrade complete.")
+                    _G.AUTO_UPGRADE_ROD_ENABLED = false
+                    break
+                else
+                    -- Still have rods to buy but not enough coins, wait silently
+                    task.wait(10)
+                    continue
+                end
+            end
+
+            -- Step 4: Check if we have enough coins for batch purchase
+            if currentCoins >= totalCost then
+                print(string.format("[Auto Upgrade Rod] 🎯 Found %d affordable rods | Total Cost: %s | Current Coins: %s",
+                    #affordableRods,
+                    FormatNumber(totalCost),
+                    FormatNumber(currentCoins)))
+
+                -- Show list of rods to purchase
+                for i, rod in ipairs(affordableRods) do
+                    print(string.format("  %d. %s - %s coins", i, rod.name, FormatNumber(rod.price)))
+                end
+
+                -- Lock purchasing
+                upgradeState.isPurchasing = true
+
+                -- Step 5: Pause auto farm
+                print(string.format("[Auto Upgrade Rod] ⏸️ Pausing auto farm..."))
+
+                local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
+                local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
+
+                if autoFarmWasEnabled then
+                    _G.AUTO_FARM_ENABLED = false
+                    print("[Auto Upgrade Rod] 🛑 Auto Farm V1 disabled")
+                    task.wait(3)
+                end
+
+                if autoFarmV2WasEnabled then
+                    _G.AUTO_FARM_V2_ENABLED = false
+                    print("[Auto Upgrade Rod] 🛑 Auto Farm V2 disabled")
+                    task.wait(3)
+                end
+
+                task.wait(2)
+
+                -- Step 6: Unequip tool
+                print("[Auto Upgrade Rod] 🔓 Unequipping rod...")
+                unequipTool()
+                task.wait(1.5)
+
+                -- Step 7: BATCH PURCHASE - Buy all affordable rods
+                print(string.format("[Auto Upgrade Rod] 🛒 Starting batch purchase of %d rods...", #affordableRods))
+                local purchasedCount = 0
+                local lastPurchasedRod = nil
+
+                for _, rod in ipairs(affordableRods) do
+                    print(string.format("[Auto Upgrade Rod] 💸 Purchasing %d/%d: %s...",
+                        purchasedCount + 1, #affordableRods, rod.name))
+
+                    local success = buyRod(rod.id, rod.name)
+                    if success then
+                        purchasedCount = purchasedCount + 1
+                        lastPurchasedRod = rod
+                        task.wait(2) -- Wait between purchases
+                    else
+                        warn(string.format("[Auto Upgrade Rod] ⚠️ Failed to purchase %s, skipping...", rod.name))
+                    end
+                end
+
+                print(string.format("[Auto Upgrade Rod] ✅ Batch Purchase Complete: %d/%d rods purchased",
+                    purchasedCount, #affordableRods))
+
+                task.wait(2)
+
+                -- Step 8: Equip BEST rod (most expensive owned)
+                local bestRod = getBestOwnedRod()
+                if bestRod then
+                    print(string.format("[Auto Upgrade Rod] 🎣 Equipping Best Rod: %s", bestRod.name))
+
+                    local rodUUID = getLatestRodUUID(bestRod.id)
+                    if rodUUID then
+                        equipSpecificRod(rodUUID)
+                    else
+                        equipRodHotbar()
+                    end
+                    task.wait(1.5)
+                else
+                    print("[Auto Upgrade Rod] ⚠️ No best rod found, using hotbar")
+                    equipRodHotbar()
+                    task.wait(1.5)
+                end
+
+                -- Step 9: Update next target
+                upgradeState.rod.ownedRods = detectOwnedRods()
+                local nextRod, _ = findNextRodTarget(upgradeState.rod.ownedRods)
+                if nextRod then
+                    upgradeState.rod.currentTarget = nextRod
+                    print(string.format("[Auto Upgrade Rod] 🎯 Next Target Set: %s - %s coins", nextRod.name, FormatNumber(nextRod.price)))
+                else
+                    print("[Auto Upgrade Rod] ✅ All rods owned!")
+                end
+
+                -- Step 10: Resume auto farm
+                print("[Auto Upgrade Rod] ♻️ Resuming auto farm...")
+
+                if autoFarmWasEnabled then
+                    _G.AUTO_FARM_ENABLED = true
+                    print("[Auto Upgrade Rod] ▶️ Auto Farm V1 re-enabled")
+                end
+
+                if autoFarmV2WasEnabled then
+                    _G.AUTO_FARM_V2_ENABLED = true
+                    print("[Auto Upgrade Rod] ▶️ Auto Farm V2 re-enabled")
+                end
+
+                -- Unlock purchasing
+                upgradeState.isPurchasing = false
+
+                task.wait(10)
+            else
+                -- Not enough coins yet, wait and check again silently
+                task.wait(10)
+            end
+        end
+
+        upgradeState.rod.running = false
+        print(string.rep("=", 70))
+        print("🛑 AUTO UPGRADE ROD - STOPPED")
+        print(string.rep("=", 70))
+    end)
+end
+
+-- Main: Auto Upgrade Bait Loop
+local function autoUpgradeBaitLoop()
+    if upgradeState.bait.running then
+        warn("[Auto Upgrade Bait] ⚠️ Already running!")
+        return
+    end
+
+    upgradeState.bait.running = true
+    print(string.rep("=", 70))
+    print("🚀 AUTO UPGRADE BAIT - STARTED")
+    print(string.rep("=", 70))
+
+    task.spawn(function()
+        while _G.AUTO_UPGRADE_BAIT_ENABLED do
+            -- Wait if rod is currently purchasing
+            while upgradeState.isPurchasing and _G.AUTO_UPGRADE_BAIT_ENABLED do
+                task.wait(1)
+            end
+
+            if not _G.AUTO_UPGRADE_BAIT_ENABLED then break end
+
+            -- Step 1: Get current coins first
+            local currentCoins = getCurrentCoinsUpgrade()
+
+            -- Step 2: Detect owned baits
+            upgradeState.bait.ownedBaits = detectOwnedBaits()
+
+            -- Step 3: Find ALL affordable baits (batch purchase)
+            local affordableBaits, totalCost = findAffordableBaits(currentCoins, upgradeState.bait.ownedBaits)
+
+            -- Check if all baits purchased
+            if #affordableBaits == 0 then
+                -- Check if truly all purchased or just no coins
+                local allBaitsPurchased = true
+                for _, bait in ipairs(baitPrices) do
+                    local isOwned = false
+                    for _, ownedId in ipairs(upgradeState.bait.ownedBaits) do
+                        if bait.id == ownedId then
+                            isOwned = true
+                            break
+                        end
+                    end
+                    if not isOwned then
+                        allBaitsPurchased = false
+                        upgradeState.bait.currentTarget = bait
+                        break
+                    end
+                end
+
+                if allBaitsPurchased then
+                    print("[Auto Upgrade Bait] ✅ All baits purchased! Auto upgrade complete.")
+                    _G.AUTO_UPGRADE_BAIT_ENABLED = false
+                    break
+                else
+                    -- Still have baits to buy but not enough coins, wait silently
+                    task.wait(10)
+                    continue
+                end
+            end
+
+            -- Step 4: Check if we have enough coins for batch purchase
+            if currentCoins >= totalCost then
+                print(string.format("[Auto Upgrade Bait] 🎯 Found %d affordable baits | Total Cost: %s | Current Coins: %s",
+                    #affordableBaits,
+                    FormatNumber(totalCost),
+                    FormatNumber(currentCoins)))
+
+                -- Show list of baits to purchase
+                for i, bait in ipairs(affordableBaits) do
+                    print(string.format("  %d. %s - %s coins", i, bait.name, FormatNumber(bait.price)))
+                end
+
+                -- Lock purchasing
+                upgradeState.isPurchasing = true
+
+                -- Step 5: Pause auto farm
+                print(string.format("[Auto Upgrade Bait] ⏸️ Pausing auto farm..."))
+
+                local autoFarmWasEnabled = _G.AUTO_FARM_ENABLED
+                local autoFarmV2WasEnabled = _G.AUTO_FARM_V2_ENABLED
+
+                if autoFarmWasEnabled then
+                    _G.AUTO_FARM_ENABLED = false
+                    print("[Auto Upgrade Bait] 🛑 Auto Farm V1 disabled")
+                    task.wait(3)
+                end
+
+                if autoFarmV2WasEnabled then
+                    _G.AUTO_FARM_V2_ENABLED = false
+                    print("[Auto Upgrade Bait] 🛑 Auto Farm V2 disabled")
+                    task.wait(3)
+                end
+
+                task.wait(2)
+
+                -- Step 6: Unequip tool
+                print("[Auto Upgrade Bait] 🔓 Unequipping rod...")
+                unequipTool()
+                task.wait(1.5)
+
+                -- Step 7: BATCH PURCHASE - Buy all affordable baits
+                print(string.format("[Auto Upgrade Bait] 🛒 Starting batch purchase of %d baits...", #affordableBaits))
+                local purchasedCount = 0
+
+                for _, bait in ipairs(affordableBaits) do
+                    print(string.format("[Auto Upgrade Bait] 💸 Purchasing %d/%d: %s...",
+                        purchasedCount + 1, #affordableBaits, bait.name))
+
+                    local success = buyBait(bait.id, bait.name)
+                    if success then
+                        purchasedCount = purchasedCount + 1
+                        task.wait(2) -- Wait between purchases
+                    else
+                        warn(string.format("[Auto Upgrade Bait] ⚠️ Failed to purchase %s, skipping...", bait.name))
+                    end
+                end
+
+                print(string.format("[Auto Upgrade Bait] ✅ Batch Purchase Complete: %d/%d baits purchased",
+                    purchasedCount, #affordableBaits))
+
+                task.wait(2)
+
+                -- Step 8: Equip BEST bait (most expensive owned)
+                local bestBait = getBestOwnedBait()
+                if bestBait then
+                    print(string.format("[Auto Upgrade Bait] 🪱 Equipping Best Bait: %s", bestBait.name))
+                    equipSpecificBait(bestBait.id)
+                    task.wait(1.5)
+                else
+                    print("[Auto Upgrade Bait] ⚠️ No best bait found")
+                    task.wait(1.5)
+                end
+
+                -- Step 9: Equip best rod
+                local bestRod = getBestOwnedRod()
+                if bestRod then
+                    print(string.format("[Auto Upgrade Bait] 🎣 Re-equipping Best Rod: %s", bestRod.name))
+                    local rodUUID = getLatestRodUUID(bestRod.id)
+                    if rodUUID then
+                        equipSpecificRod(rodUUID)
+                    else
+                        equipRodHotbar()
+                    end
+                    task.wait(1.5)
+                else
+                    print("[Auto Upgrade Bait] ⚠️ No best rod found, using hotbar")
+                    equipRodHotbar()
+                    task.wait(1.5)
+                end
+
+                -- Step 10: Update next target
+                upgradeState.bait.ownedBaits = detectOwnedBaits()
+                local nextBait, _ = findNextBaitTarget(upgradeState.bait.ownedBaits)
+                if nextBait then
+                    upgradeState.bait.currentTarget = nextBait
+                    print(string.format("[Auto Upgrade Bait] 🎯 Next Target Set: %s - %s coins", nextBait.name, FormatNumber(nextBait.price)))
+                else
+                    print("[Auto Upgrade Bait] ✅ All baits owned!")
+                end
+
+                -- Step 11: Resume auto farm
+                print("[Auto Upgrade Bait] ♻️ Resuming auto farm...")
+
+                if autoFarmWasEnabled then
+                    _G.AUTO_FARM_ENABLED = true
+                    print("[Auto Upgrade Bait] ▶️ Auto Farm V1 re-enabled")
+                end
+
+                if autoFarmV2WasEnabled then
+                    _G.AUTO_FARM_V2_ENABLED = true
+                    print("[Auto Upgrade Bait] ▶️ Auto Farm V2 re-enabled")
+                end
+
+                -- Unlock purchasing
+                upgradeState.isPurchasing = false
+
+                task.wait(10)
+            else
+                -- Not enough coins yet, wait and check again silently
+                task.wait(10)
+            end
+        end
+
+        upgradeState.bait.running = false
+        print(string.rep("=", 70))
+        print("🛑 AUTO UPGRADE BAIT - STOPPED")
+        print(string.rep("=", 70))
+    end)
+end
+
+-- V6.6: Forward declarations for stats updater functions
+local upgradeStatsTask = nil
+local startUpgradeStatsUpdater
+local stopUpgradeStatsUpdater
+
+-- Start/Stop Functions (called from UI - V6.6 OPTIMIZED)
+function startAutoUpgradeRod()
+    if not _G.AUTO_UPGRADE_ROD_ENABLED then return end
+    autoUpgradeRodLoop()
+    startUpgradeStatsUpdater() -- V6.6: Start stats updater
+end
+
+function stopAutoUpgradeRod()
+    _G.AUTO_UPGRADE_ROD_ENABLED = false
+    upgradeState.rod.running = false
+    if not _G.AUTO_UPGRADE_BAIT_ENABLED then
+        stopUpgradeStatsUpdater() -- V6.6: Stop stats updater if both disabled
+    end
+end
+
+function startAutoUpgradeBait()
+    if not _G.AUTO_UPGRADE_BAIT_ENABLED then return end
+    autoUpgradeBaitLoop()
+    startUpgradeStatsUpdater() -- V6.6: Start stats updater
+end
+
+function stopAutoUpgradeBait()
+    _G.AUTO_UPGRADE_BAIT_ENABLED = false
+    upgradeState.bait.running = false
+    if not _G.AUTO_UPGRADE_ROD_ENABLED then
+        stopUpgradeStatsUpdater() -- V6.6: Stop stats updater if both disabled
+    end
+end
+
+print("✅ Auto Upgrade System loaded\n")
+function equip_tool()
+    EquipToolEvent:FireServer(1)
+end
+
+function charge_rod()
+    -- Simple charge - just sync server time
+    local serverTime = workspace:GetServerTimeNow()
+    local success, adjustedTime = ChargeEvent:InvokeServer(nil, nil, nil, serverTime)
+
+    return success, adjustedTime
+end
+
+function request_fishing()
+    local serverTime = workspace:GetServerTimeNow()
+    local posY = math.random() * 2 - 1  -- Random -1 to 1
+    local power = math.random()  -- Random 0 to 1
+
+    return RequestEvent:InvokeServer(posY, power, serverTime)
+end
+
+function fishing_completed()
+    CompletedEvent:FireServer()
+end
+
+function cancel_inputs_bypass()
+    task.spawn(function()
+        CancelEvent:InvokeServer()
+    end)
+end
+
+print("✅ Fishing functions loaded")
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO FARM: Main Loop
+-- ─────────────────────────────────────────────────────────────────────────
+
+_G.MAIN_LOOP_RUNNING = false
+
+function runMainLoop()
+    if _G.MAIN_LOOP_RUNNING then
+        return
+    end
+
+    _G.MAIN_LOOP_RUNNING = true
+
+    local cycleCount = 0
+    local successCount = 0
+
+    while _G.MAIN_LOOP_RUNNING do
+        -- Wait for farm to be enabled
+        while not _G.AUTO_FARM_ENABLED and _G.MAIN_LOOP_RUNNING do
+            task.wait(0.5)
+        end
+
+        if not _G.MAIN_LOOP_RUNNING then break end
+        if not _G.AUTO_FARM_ENABLED then continue end
+
+        cycleCount = cycleCount + 1
+
+        -- Fishing cycle
+        equip_tool()
+        charge_rod()
+        task.wait(0.01)  -- Small delay for server sync
+
+        local success, result = request_fishing()
+
+        if success then
+            successCount = successCount + 1
+            task.wait(_G.FARM_SUCCESS_DELAY)
+            fishing_completed()
+        end
+
+        task.wait(0.2)
+        cancel_inputs_bypass()
+        task.wait(0.01)
+    end
+
+    -- Cleanup
+    stopReelIntermissionLoop()
+    _G.MAIN_LOOP_RUNNING = false
+end
+
+print("✅ Auto farm V1 module ready\n")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 2.4: AUTO FARM V2 MODULE (JUNG V2 - FAST)
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    Auto Farm V2 Module - Jung V2 fast auto farm logic
+
+    Features:
+    - Independent main loop (doesn't wait for completion)
+    - Server-based completion handler (parallel)
+    - Ping compensation system (auto-adjust delays)
+    - Fixed parameters: RequestFishingMinigame(-1, 0) for OK rating
+    - Custom delays: Delay Reel + Delay Complete
+
+    Key Functions:
+    - startAutoFarmV2() - Start Jung V2 auto farm
+    - stopAutoFarmV2() - Stop Jung V2 auto farm
+    - mainFishingLoopV2() - Main independent loop
+]]
+
+print("📦 Loading Auto Farm V2 (Jung V2 - Fast)...")
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO FARM V2: Ping Compensation (REMOVED IN v6.6.2)
+-- ─────────────────────────────────────────────────────────────────────────
+-- Ping compensation system has been removed to eliminate the infinite loop
+-- that was causing minor CPU overhead (~0.2-0.3%)
+
+print("✅ Ping compensation system removed (v6.6.2 optimization)")
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO FARM V2: Fish Caught Listener
+-- ─────────────────────────────────────────────────────────────────────────
+
+local fishNotificationEvent = Net["RE/ObtainedNewFishNotification"]
+fishNotificationEvent.OnClientEvent:Connect(function(fishId, fishData, itemData, isNew)
+    -- Fish caught tracking removed in v6.6 for memory optimization
+    -- Update session stats for GPU Saver white screen
+    sessionStats.totalFish = sessionStats.totalFish + 1
+end)
+
+print("✅ Fish caught listener ready")
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO FARM V2: Main Loop Logic
+-- ─────────────────────────────────────────────────────────────────────────
+
+local function mainFishingLoopV2()
+    local State = _G.JUNG_V2_STATE
+
+    while State.isRunning do
+        task.wait(State.baseDelayReel)
+
+        if not State.isRunning then break end
+
+        State.cycleCount = State.cycleCount + 1
+
+        -- Step 1: Cancel
+        pcall(function()
+            CancelEvent:InvokeServer()
+        end)
+        task.wait(0.01)
+
+        -- Step 2: Charge
+        pcall(function()
+            local timestamp = workspace:GetServerTimeNow()
+            ChargeEvent:InvokeServer(timestamp)
+        end)
+        task.wait(0.01)
+
+        -- Step 3: Request (with server return handler)
+        task.spawn(function()
+            local success, result = pcall(function()
+                return RequestEvent:InvokeServer(-1, 0)
+            end)
+
+            if success and result then
+                State.totalRequests = State.totalRequests + 1
+
+                task.spawn(function()
+                    State.pendingCompletes = State.pendingCompletes + 1
+                    task.wait(State.baseDelayComplete)
+
+                    pcall(function()
+                        CompletedEvent:FireServer()
+                    end)
+
+                    State.pendingCompletes = State.pendingCompletes - 1
+                end)
+            end
+        end)
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO FARM V2: Start/Stop Functions
+-- ─────────────────────────────────────────────────────────────────────────
+
+function startAutoFarmV2()
+    local State = _G.JUNG_V2_STATE
+
+    if State.isRunning then
+        return
+    end
+
+    -- Stop V1 if running
+    if _G.AUTO_FARM_ENABLED then
+        _G.AUTO_FARM_ENABLED = false
+    end
+
+    State.isRunning = true
+    State.fishCaught = 0
+    State.cycleCount = 0
+    State.totalRequests = 0
+    State.pendingCompletes = 0
+    State.startTime = tick()
+
+    -- Stop animations
+    startReelIntermissionLoop()
+
+    -- Ping compensation removed in v6.6.2
+
+    -- Equip rod
+    pcall(function()
+        EquipToolEvent:FireServer(1)
+    end)
+    task.wait(0.5)
+
+    task.spawn(mainFishingLoopV2)
+end
+
+function stopAutoFarmV2()
+    local State = _G.JUNG_V2_STATE
+
+    if not State.isRunning then
+        return
+    end
+
+    State.isRunning = false
+    stopReelIntermissionLoop()
+end
+
+print("✅ Auto Farm V2 module ready\n")
+-- SECTION 2.5: AUTO ARTIFACT MODULE
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    Auto Artifact Module - Automatic artifact collection from 4 temples
+
+    Features:
+    - Sequential temple farming (Temple 1 → 2 → 3 → 4)
+    - Auto-favorite artifacts to prevent auto-sell
+    - Webhook notifications for each artifact found
+    - Automatic teleportation between temples
+    - Inventory-based detection system
+
+    Key Functions:
+    - AutoArtifact.initialize() - Start the system
+    - AutoArtifact.startArtifactChecker() - Main checker loop
+    - AutoArtifact.hasArtifactInInventory() - Check for artifacts
+    - AutoArtifact.favoriteArtifact() - Auto-favorite found artifacts
+]]
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO ARTIFACT: State Variables
+-- ─────────────────────────────────────────────────────────────────────────
+
+local isAutoArtifactOn = false
+local artifactCurrentTemple = 1
+local artifactCollected = {false, false, false, false}
+
+-- Skip toggles for each artifact (user can manually mark as "already obtained")
+local artifactSkipToggles = {
+    [1] = false, -- Hourglass Diamond Artifact
+    [2] = false, -- Arrow Artifact
+    [3] = false, -- Diamond Artifact
+    [4] = false  -- Crescent Artifact
+}
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO ARTIFACT: Temple Configuration
+-- ─────────────────────────────────────────────────────────────────────────
+
+local ARTIFACT_CONFIG = {
+    -- Temple 1: Hourglass Diamond Artifact
+    {
+        templeName = "Temple 1",
+        targetArtifact = "Hourglass Diamond Artifact",
+        cframe = CFrame.new(1490.12305, 6.62499952, -850.539307, -0.982308805, -4.67861128e-09, -0.187268242, -7.57854224e-09, 1, 1.47694985e-08, 0.187268242, 1.59274283e-08, -0.982308805)
+    },
+    -- Temple 2: Arrow Artifact
+    {
+        templeName = "Temple 2",
+        targetArtifact = "Arrow Artifact",
+        cframe = CFrame.new(883.964233, 6.62499952, -360.91275, -0.128746182, 9.21072107e-09, 0.991677582, -4.92979968e-09, 1, -9.92803972e-09, -0.991677582, -6.16696871e-09, -0.128746182)
+    },
+    -- Temple 3: Diamond Artifact
+    {
+        templeName = "Temple 3",
+        targetArtifact = "Diamond Artifact",
+        cframe = CFrame.new(1836.77136, 6.62499952, -288.573303, 0.25269559, 7.76984699e-09, -0.967545807, 3.12285877e-08, 1, 1.61864921e-08, 0.967545807, -3.43053443e-08, 0.25269559)
+    },
+    -- Temple 4: Crescent Artifact
+    {
+        templeName = "Temple 4",
+        targetArtifact = "Crescent Artifact",
+        cframe = CFrame.new(1405.67358, 6.17587185, 119.126236, -0.951030135, -6.02376886e-08, 0.309098154, -8.03642095e-08, 1, -5.23817469e-08, -0.309098154, -7.4657045e-08, -0.951030135)
+    }
+}
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO ARTIFACT: Inventory Background System
+-- ─────────────────────────────────────────────────────────────────────────
+
+local InventoryBackgroundSystem = {}
+do
+    -- Keep inventory tiles loaded in background for artifact detection
+    local inventoryController = nil
+    local originalDestroyTiles = nil
+    local isInventoryHooked = false
+    local isLoadingInventory = false
+
+    -- Get InventoryController module
+    local function getInventoryController()
+        if inventoryController then return inventoryController end
+
+        local success, result = pcall(function()
+            local controllers = ReplicatedStorage:WaitForChild("Controllers", 5)
+            local invModule = controllers:WaitForChild("InventoryController", 5)
+            return require(invModule)
+        end)
+
+        if success then
+            inventoryController = result
+            return inventoryController
+        end
+
+        return nil
+    end
+
+    -- Hook DestroyTiles to prevent inventory from being destroyed
+    local function hookInventoryController()
+        if isInventoryHooked then return true end
+
+        local ctrl = getInventoryController()
+        if not ctrl then
+            warn("[Inventory Background] Failed to get InventoryController")
+            return false
+        end
+
+        -- Backup original DestroyTiles function
+        originalDestroyTiles = ctrl.DestroyTiles
+
+        -- Override with empty function to prevent destruction
+        ctrl.DestroyTiles = function()
+            -- Do nothing - keep tiles alive
+            return
+        end
+
+        isInventoryHooked = true
+        print("[Inventory Background] ✅ Hooked DestroyTiles successfully")
+        return true
+    end
+
+    -- Refresh inventory tiles without opening GUI
+    local function refreshInventoryTiles(onCompleteCallback)
+        if isLoadingInventory then return end
+        isLoadingInventory = true
+
+        local ctrl = getInventoryController()
+        if ctrl and ctrl.InventoryStateChanged then
+            pcall(function()
+                -- Fire state change to refresh tiles
+                ctrl.InventoryStateChanged:Fire("Items")
+            end)
+        end
+
+        task.wait(0.1)
+        if onCompleteCallback then
+            pcall(onCompleteCallback)
+        end
+        isLoadingInventory = false
+    end
+
+    -- Initial load of inventory tiles (opens GUI briefly then hides)
+    local function initialLoadInventoryTiles(onCompleteCallback)
+        if isLoadingInventory then return end
+        isLoadingInventory = true
+
+        local ctrl = getInventoryController()
+        if not ctrl then
+            warn("[Inventory Background] InventoryController not available")
+            isLoadingInventory = false
+            return
+        end
+
+        local playerGui = player:WaitForChild("PlayerGui")
+        local inventoryGUI = playerGui:FindFirstChild("Inventory")
+        local mainFrame = inventoryGUI and inventoryGUI:FindFirstChild("Main")
+
+        if not mainFrame then
+            warn("[Inventory Background] Inventory GUI not found")
+            isLoadingInventory = false
+            return
+        end
+
+        -- Save previous state
+        local previousEnabled = inventoryGUI.Enabled
+        local previousVisible = mainFrame.Visible
+
+        -- Temporarily show inventory to load tiles
+        inventoryGUI.Enabled = true
+        mainFrame.Visible = true
+        task.wait(0.2)
+
+        -- Set to Items category to load artifact tiles
+        pcall(function()
+            if ctrl.SetPage then ctrl.SetPage(ctrl, "Items") end
+            if ctrl.SetCategory then ctrl.SetCategory(ctrl, "Items") end
+            if ctrl.InventoryStateChanged then
+                ctrl.InventoryStateChanged:Fire("Items")
+            end
+        end)
+
+        task.wait(0.5)
+
+        -- Restore previous state (hide GUI again)
+        inventoryGUI.Enabled = previousEnabled
+        mainFrame.Visible = previousVisible
+
+        print("[Inventory Background] ✅ Initial inventory tiles loaded")
+
+        if onCompleteCallback then
+            pcall(onCompleteCallback)
+        end
+        isLoadingInventory = false
+    end
+
+    -- V6.6: Public function to stop/cleanup the background inventory system
+    function InventoryBackgroundSystem.stop()
+        if not isInventoryHooked then return end
+
+        print("[Inventory Background] 🛑 Stopping background inventory system...")
+
+        -- Restore original DestroyTiles function
+        if inventoryController and originalDestroyTiles then
+            inventoryController.DestroyTiles = originalDestroyTiles
+            originalDestroyTiles = nil
+        end
+
+        isInventoryHooked = false
+        inventoryController = nil
+        print("[Inventory Background] ✅ Background inventory system stopped")
+    end
+
+    -- Public function to start the background inventory system (V6.6: Only if artifact enabled)
+    function InventoryBackgroundSystem.start(onRefreshCallback)
+        if not _G.AUTO_ARTIFACT_ENABLED then
+            print("[Inventory Background] ⚠️ Skipped - Auto Artifact not enabled")
+            return
+        end
+
+        if isInventoryHooked then
+            print("[Inventory Background] ⚠️ Already initialized")
+            return
+        end
+
+        print("[Inventory Background] 🚀 Starting background inventory system...")
+
+        task.spawn(function()
+            -- Hook the controller first
+            if hookInventoryController() then
+                task.wait(1)
+
+                -- Initial load of tiles
+                initialLoadInventoryTiles(onRefreshCallback)
+
+                -- Setup auto-refresh on inventory close
+                pcall(function()
+                    local GuiControl = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("GuiControl"))
+                    local invGUI = player.PlayerGui:FindFirstChild("Inventory")
+
+                    GuiControl.GuiUnfocusedSignal:Connect(function(closedGui)
+                        if closedGui == invGUI then
+                            -- Refresh tiles when inventory closes
+                            task.delay(0.5, function()
+                                refreshInventoryTiles(onRefreshCallback)
+                            end)
+                        end
+                    end)
+
+                    print("[Inventory Background] ✅ Auto-refresh on close enabled")
+                end)
+
+                -- Setup refresh on fish caught
+                pcall(function()
+                    local fishCaughtEvent = Net["RE/FishCaught"]
+                    if fishCaughtEvent then
+                        fishCaughtEvent.OnClientEvent:Connect(function()
+                            task.delay(1, function()
+                                refreshInventoryTiles(onRefreshCallback)
+                            end)
+                        end)
+                        print("[Inventory Background] ✅ Auto-refresh on fish caught enabled")
+                    end
+                end)
+
+                print("[Inventory Background] ✅ Background inventory system active")
+            else
+                warn("[Inventory Background] ❌ Failed to hook InventoryController")
+            end
+        end)
+    end
+
+    -- Public function to manually refresh tiles
+    function InventoryBackgroundSystem.refresh(callback)
+        refreshInventoryTiles(callback)
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO ARTIFACT: Main Module
+-- ─────────────────────────────────────────────────────────────────────────
+
+local AutoArtifact = {}
+do
+    local HttpService = game:GetService("HttpService")
+
+    -- Webhook URL (optional - set to nil if you don't want webhooks)
+    local WEBHOOK_URL = nil -- Change to your webhook URL if needed
+
+    -- Use already loaded modules from SECTION 1
+    local FavoriteItemEvent = Net["RE/FavoriteItem"]
+
+    -- Function to get artifact UUID from PlayerData inventory
+    function AutoArtifact.getArtifactUUID(artifactName)
+        if not PlayerData then return nil end
+
+        local success, result = pcall(function()
+            local inventoryItems = PlayerData:GetExpect("Inventory").Items
+            for _, item in ipairs(inventoryItems) do
+                local itemData = ItemUtility:GetItemData(item.Id)
+                if itemData and itemData.Data.Name then
+                    local itemName = itemData.Data.Name
+                    -- Exact match - case-insensitive
+                    if itemName:lower() == artifactName:lower() then
+                        return item.UUID, itemName
+                    end
+                end
+            end
+            return nil
+        end)
+
+        if success and result then
+            return result
+        else
+            return nil
+        end
+    end
+
+    -- Function to favorite an artifact using UUID
+    function AutoArtifact.favoriteArtifact(artifactUUID, artifactName)
+        if not artifactUUID then
+            warn("[Auto Artifact] Cannot favorite - UUID is nil")
+            return false
+        end
+
+        local success = pcall(function()
+            FavoriteItemEvent:FireServer(artifactUUID)
+        end)
+
+        if success then
+            print(string.format("[Auto Artifact] ⭐ Favorited: %s", artifactName))
+            return true
+        else
+            warn(string.format("[Auto Artifact] ❌ Failed to favorite: %s", artifactName))
+            return false
+        end
+    end
+
+    -- Check if an item is already favorited
+    function AutoArtifact.isItemFavorited(itemUUID)
+        if not PlayerData then return false end
+
+        local success, result = pcall(function()
+            local inventoryItems = PlayerData:GetExpect("Inventory").Items
+            for _, item in ipairs(inventoryItems) do
+                if item.UUID == itemUUID then
+                    return item.Favorited == true
+                end
+            end
+            return false
+        end)
+
+        return success and result or false
+    end
+
+    -- Function to auto-favorite all artifacts in inventory
+    function AutoArtifact.autoFavoriteAllArtifacts()
+        local artifactNames = {
+            "Arrow Artifact",
+            "Crescent Artifact",
+            "Diamond Artifact",
+            "Hourglass Diamond Artifact"
+        }
+
+        local favorited = 0
+        local skipped = 0
+
+        for _, artifactName in ipairs(artifactNames) do
+            local uuid, fullName = AutoArtifact.getArtifactUUID(artifactName)
+            if uuid then
+                -- Check if already favorited
+                if AutoArtifact.isItemFavorited(uuid) then
+                    skipped = skipped + 1
+                else
+                    task.wait(0.5)
+                    local success = AutoArtifact.favoriteArtifact(uuid, fullName or artifactName)
+                    if success then
+                        favorited = favorited + 1
+                    end
+                end
+            end
+        end
+
+        if favorited > 0 then
+            print(string.format("[Auto Artifact] ⭐ Favorited %d new artifacts", favorited))
+        end
+        if skipped > 0 then
+            print(string.format("[Auto Artifact] ⏭️ Skipped %d already favorited", skipped))
+        end
+
+        return favorited
+    end
+
+    -- Check if artifact exists in inventory (GUI-based check)
+    function AutoArtifact.hasArtifactInInventory(artifactName)
+        local playerGui = player:FindFirstChild("PlayerGui")
+        local invContainer = playerGui and playerGui:FindFirstChild("Inventory")
+        invContainer = invContainer and invContainer:FindFirstChild("Main")
+        invContainer = invContainer and invContainer:FindFirstChild("Content")
+        invContainer = invContainer and invContainer:FindFirstChild("Pages")
+        invContainer = invContainer and invContainer:FindFirstChild("Inventory")
+
+        if not invContainer then return false end
+
+        for _, tile in ipairs(invContainer:GetChildren()) do
+            if tile.Name == "Tile" and tile:FindFirstChild("ItemName") then
+                local itemName = tile.ItemName.Text
+                -- Exact match - case-insensitive
+                if itemName:lower() == artifactName:lower() then
+                    return true, itemName
+                end
+            end
+        end
+
+        return false
+    end
+
+    -- Send webhook notification for artifact found
+    function AutoArtifact.sendArtifactFoundWebhook(templeName, artifactName, templeNumber)
+        if not WEBHOOK_URL or WEBHOOK_URL == "" then return end
+
+        local embed = {
+            title = "🏺 Artifact Found!",
+            description = string.format("**%s** collected from **%s**", artifactName, templeName),
+            color = 16776960, -- Yellow/Gold color
+            fields = {
+                { name = "👤 Player", value = player.Name, inline = true },
+                { name = "🏛️ Temple", value = templeName, inline = true },
+                { name = "🏺 Artifact", value = artifactName, inline = true },
+                { name = "📍 Progress", value = string.format("%d/4 Temples Completed", templeNumber), inline = false },
+                { name = "🕒 Time", value = os.date("%H:%M:%S"), inline = false }
+            },
+            footer = { text = "Auto Artifact System" }
+        }
+
+        local payload = { embeds = {embed} }
+
+        pcall(function()
+            local req = (syn and syn.request) or http_request
+            if req then
+                req({
+                    Url = WEBHOOK_URL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode(payload)
+                })
+            end
+        end)
+    end
+
+    -- Send webhook notification when all artifacts collected
+    function AutoArtifact.sendAllArtifactsCompleteWebhook()
+        if not WEBHOOK_URL or WEBHOOK_URL == "" then return end
+
+        local embed = {
+            title = "✅ ALL ARTIFACTS COLLECTED!",
+            description = "**All 4 artifacts have been successfully collected!**",
+            color = 65280, -- Green color
+            fields = {
+                { name = "👤 Player", value = player.Name, inline = true },
+                { name = "🏆 Status", value = "COMPLETE", inline = true },
+                { name = "🏺 Artifacts", value = "4/4 Collected", inline = true },
+                { name = "🕒 Completed At", value = os.date("%H:%M:%S"), inline = false }
+            },
+            footer = { text = "Auto Artifact System - Farm Complete!" }
+        }
+
+        local payload = { embeds = {embed} }
+
+        pcall(function()
+            local req = (syn and syn.request) or http_request
+            if req then
+                req({
+                    Url = WEBHOOK_URL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode(payload)
+                })
+            end
+        end)
+    end
+
+    -- Teleport player to temple location
+    function AutoArtifact.teleportToTemple(cframeData)
+        local char = player.Character or player.CharacterAdded:Wait()
+        local humanoidRootPart = char:FindFirstChild("HumanoidRootPart")
+        if not humanoidRootPart then return false end
+
+        pcall(function()
+            humanoidRootPart.CFrame = cframeData
+        end)
+
+        return true
+    end
+
+    -- Main artifact checker loop
+    function AutoArtifact.startArtifactChecker()
+        task.spawn(function()
+            print("[Auto Artifact] " .. string.rep("=", 60))
+            print("[Auto Artifact] 🔍 Artifact Checker Loop Started!")
+            print("[Auto Artifact] " .. string.rep("=", 60))
+
+            local lastCheckLog = 0
+            local LOG_INTERVAL = 60 -- Log every 60 seconds
+
+            while isAutoArtifactOn and artifactCurrentTemple <= 4 do
+                -- Get current temple config
+                local currentConfig = ARTIFACT_CONFIG[artifactCurrentTemple]
+
+                -- Check if this temple is marked as "skip"
+                if artifactSkipToggles[artifactCurrentTemple] then
+                    print("[Auto Artifact] " .. string.rep("=", 60))
+                    print(string.format("[Auto Artifact] ⏭️ SKIPPED: %s (manually marked)", currentConfig.targetArtifact))
+                    print(string.format("[Auto Artifact] 🏛️ Temple: %s", currentConfig.templeName))
+                    print("[Auto Artifact] " .. string.rep("=", 60))
+
+                    -- Mark as collected and move to next
+                    artifactCollected[artifactCurrentTemple] = true
+                    artifactCurrentTemple = artifactCurrentTemple + 1
+
+                    if artifactCurrentTemple <= 4 then
+                        local nextConfig = ARTIFACT_CONFIG[artifactCurrentTemple]
+                        print("[Auto Artifact] " .. string.rep("=", 60))
+                        print(string.format("[Auto Artifact] 📍 NEXT: %s", nextConfig.templeName))
+                        print(string.format("[Auto Artifact] 🎯 TARGET: %s", nextConfig.targetArtifact))
+                        print("[Auto Artifact] " .. string.rep("=", 60))
+
+                        -- Teleport to next temple
+                        task.wait(1)
+                        AutoArtifact.teleportToTemple(nextConfig.cframe)
+                        print("[Auto Artifact] ✅ Teleported to next temple!")
+                        task.wait(3)
+                    end
+
+                    -- Continue to next iteration
+                    task.wait(0.5)
+                    continue
+                end
+
+                -- Log status every 60 seconds
+                if tick() - lastCheckLog >= LOG_INTERVAL then
+                    print(string.format("[Auto Artifact] 🔍 Checking for %s at %s (Temple %d/4)",
+                        currentConfig.targetArtifact,
+                        currentConfig.templeName,
+                        artifactCurrentTemple))
+                    lastCheckLog = tick()
+                end
+
+                if not artifactCollected[artifactCurrentTemple] then
+                    -- Check if target artifact is in inventory
+                    local hasArtifact, fullName = AutoArtifact.hasArtifactInInventory(currentConfig.targetArtifact)
+
+                    if hasArtifact then
+                        print("[Auto Artifact] " .. string.rep("=", 60))
+                        print(string.format("[Auto Artifact] ✅ ARTIFACT FOUND: %s", fullName))
+                        print(string.format("[Auto Artifact] 🏛️ Location: %s", currentConfig.templeName))
+                        print("[Auto Artifact] " .. string.rep("=", 60))
+
+                        -- Mark as collected
+                        artifactCollected[artifactCurrentTemple] = true
+
+                        -- Auto-favorite the artifact
+                        print("[Auto Artifact] 🌟 Checking if artifact needs favoriting...")
+                        task.wait(1)
+
+                        local artifactUUID, artifactFullName = AutoArtifact.getArtifactUUID(currentConfig.targetArtifact)
+                        if artifactUUID then
+                            if AutoArtifact.isItemFavorited(artifactUUID) then
+                                print(string.format("[Auto Artifact] ⏭️ '%s' already favorited", artifactFullName or fullName))
+                            else
+                                print(string.format("[Auto Artifact] 🌟 Favoriting: %s", artifactFullName or fullName))
+                                AutoArtifact.favoriteArtifact(artifactUUID, artifactFullName or fullName)
+                            end
+                        else
+                            warn("[Auto Artifact] ⚠️ Could not find artifact UUID")
+                        end
+
+                        task.wait(1)
+
+                        -- Send webhook notification
+                        AutoArtifact.sendArtifactFoundWebhook(
+                            currentConfig.templeName,
+                            fullName or currentConfig.targetArtifact,
+                            artifactCurrentTemple
+                        )
+
+                        print("[Auto Artifact] 📤 Webhook sent (if configured)")
+                        task.wait(2)
+
+                        -- Move to next temple
+                        artifactCurrentTemple = artifactCurrentTemple + 1
+
+                        if artifactCurrentTemple <= 4 then
+                            local nextConfig = ARTIFACT_CONFIG[artifactCurrentTemple]
+                            print("[Auto Artifact] " .. string.rep("=", 60))
+                            print(string.format("[Auto Artifact] 📍 NEXT: %s", nextConfig.templeName))
+                            print(string.format("[Auto Artifact] 🎯 TARGET: %s", nextConfig.targetArtifact))
+                            print("[Auto Artifact] " .. string.rep("=", 60))
+
+                            -- Teleport to next temple
+                            task.wait(1)
+                            AutoArtifact.teleportToTemple(nextConfig.cframe)
+                            print("[Auto Artifact] ✅ Teleported to next temple!")
+                            task.wait(3)
+                        else
+                            -- All artifacts collected!
+                            print("[Auto Artifact] " .. string.rep("=", 60))
+                            print("[Auto Artifact] 🎉🎉🎉 ALL ARTIFACTS COLLECTED! 🎉🎉🎉")
+                            print("[Auto Artifact] " .. string.rep("=", 60))
+
+                            -- Send completion webhook
+                            AutoArtifact.sendAllArtifactsCompleteWebhook()
+                            print("[Auto Artifact] 📤 Completion webhook sent!")
+
+                            -- Stop the system
+                            isAutoArtifactOn = false
+                            _G.AUTO_ARTIFACT_ENABLED = false
+                            print("[Auto Artifact] ✅ System completed successfully!")
+                            break
+                        end
+                    end
+                end
+
+                task.wait(5) -- Check every 5 seconds
+            end
+
+            if artifactCurrentTemple > 4 then
+                print("[Auto Artifact] " .. string.rep("=", 60))
+                print("[Auto Artifact] System stopped - All artifacts collected")
+                print("[Auto Artifact] " .. string.rep("=", 60))
+            end
+        end)
+    end
+
+    -- Initialize and start system
+    function AutoArtifact.initialize()
+        if not isAutoArtifactOn then
+            print("[Auto Artifact] ⚠️ System not enabled")
+            return
+        end
+
+        print("[Auto Artifact] 🚀 Initializing Auto Artifact System...")
+
+        -- Reset state if restarting
+        if artifactCurrentTemple > 4 then
+            artifactCurrentTemple = 1
+            artifactCollected = {false, false, false, false}
+            print("[Auto Artifact] 🔄 Reset progress (restarting)")
+        end
+
+        -- Auto-favorite any existing artifacts
+        task.wait(2)
+        AutoArtifact.autoFavoriteAllArtifacts()
+        task.wait(1)
+
+        -- Find first temple that is not skipped
+        local startTemple = artifactCurrentTemple
+        while startTemple <= 4 and artifactSkipToggles[startTemple] do
+            print(string.format("[Auto Artifact] ⏭️ Skipping %s (marked as obtained)", ARTIFACT_CONFIG[startTemple].targetArtifact))
+            artifactCollected[startTemple] = true
+            startTemple = startTemple + 1
+        end
+
+        -- Update current temple
+        artifactCurrentTemple = startTemple
+
+        -- Check if all temples are skipped
+        if artifactCurrentTemple > 4 then
+            print("[Auto Artifact] ⚠️ All artifacts are marked as skip!")
+            print("[Auto Artifact] ⚠️ Nothing to farm. System will not start.")
+            isAutoArtifactOn = false
+            _G.AUTO_ARTIFACT_ENABLED = false
+            return
+        end
+
+        -- Teleport to first non-skipped temple
+        local currentConfig = ARTIFACT_CONFIG[artifactCurrentTemple]
+        print(string.format("[Auto Artifact] 📍 Starting at %s", currentConfig.templeName))
+        print(string.format("[Auto Artifact] 🎯 Target: %s", currentConfig.targetArtifact))
+
+        task.wait(1)
+        AutoArtifact.teleportToTemple(currentConfig.cframe)
+        print("[Auto Artifact] ✅ Teleported to temple!")
+        task.wait(2)
+
+        -- Start the checker loop
+        AutoArtifact.startArtifactChecker()
+    end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO ARTIFACT: Control Functions
+-- ─────────────────────────────────────────────────────────────────────────
+
+local function startAutoArtifact()
+    if isAutoArtifactOn then
+        print("⚠️ Auto Artifact already enabled!")
+        return
+    end
+
+    print("\n🎯 Starting Auto Artifact System...")
+    isAutoArtifactOn = true
+    _G.AUTO_ARTIFACT_ENABLED = true
+
+    -- Start background inventory system first
+    task.spawn(function()
+        print("[Auto Artifact] 🔄 Initializing background inventory...")
+        InventoryBackgroundSystem.start(function()
+            -- Callback after inventory refresh
+            print("[Auto Artifact] 📦 Inventory refreshed")
+        end)
+
+        -- Wait for inventory to be ready
+        task.wait(3)
+
+        -- Start the artifact system
+        AutoArtifact.initialize()
+    end)
+
+    print("✅ Auto Artifact ENABLED\n")
+end
+
+local function stopAutoArtifact()
+    if not isAutoArtifactOn then
+        print("⚠️ Auto Artifact already stopped!")
+        return
+    end
+
+    print("\n🛑 Stopping Auto Artifact System...")
+    isAutoArtifactOn = false
+    _G.AUTO_ARTIFACT_ENABLED = false
+
+    -- V6.6: Stop inventory background system
+    InventoryBackgroundSystem.stop()
+
+    print("✅ Auto Artifact stopped\n")
+end
+
+print("✅ Auto artifact module ready\n")
+-- SECTION 2.6: AUTO SELL MODULE
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    Auto Sell Module - Automatic item selling with custom delay
+
+    Key Functions:
+    - startAutoSell() - Start auto sell loop
+    - stopAutoSell() - Stop auto sell loop
+    - runAutoSellLoop() - Main selling loop
+]]
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO SELL: State Variables
+-- ─────────────────────────────────────────────────────────────────────────
+
+local isAutoSellRunning = false
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO SELL: Main Functions
+-- ─────────────────────────────────────────────────────────────────────────
+
+local function runAutoSellLoop()
+    if isAutoSellRunning then
+        print("⚠️ Auto Sell loop already running!")
+        return
+    end
+
+    isAutoSellRunning = true
+    print(string.rep("=", 70))
+    print("💰 AUTO SELL LOOP - STARTING")
+    print(string.rep("=", 70) .. "\n")
+
+    local cycleCount = 0
+    local sellSuccessCount = 0
+    local sellFailCount = 0
+
+    -- Get SellAllItems event
+    local SellAllItemsEvent = Net["RF/SellAllItems"]
+
+    while isAutoSellRunning and _G.AUTO_SELL_ENABLED do
+        cycleCount = cycleCount + 1
+
+        print(string.format("[Auto Sell #%d] 💰 Attempting to sell all items...", cycleCount))
+
+        -- Invoke sell event
+        local success, result = pcall(function()
+            return SellAllItemsEvent:InvokeServer()
+        end)
+
+        if success then
+            if result then
+                sellSuccessCount = sellSuccessCount + 1
+                print(string.format("[Auto Sell #%d] ✅ Items sold successfully", cycleCount))
+            else
+                sellFailCount = sellFailCount + 1
+                print(string.format("[Auto Sell #%d] ⚠️ No items to sell or sell failed", cycleCount))
+            end
+        else
+            sellFailCount = sellFailCount + 1
+            warn(string.format("[Auto Sell #%d] ❌ Error selling items: %s", cycleCount, tostring(result)))
+        end
+
+        -- Stats every 5 cycles
+        if cycleCount % 5 == 0 then
+            print(string.format("\n📊 [AUTO SELL STATS] Cycles: %d | Success: %d | Failed: %d | Delay: %ds | Status: %s\n",
+                cycleCount,
+                sellSuccessCount,
+                sellFailCount,
+                _G.AUTO_SELL_DELAY,
+                _G.AUTO_SELL_ENABLED and "🟢 ON" or "🔴 OFF"
+            ))
+        end
+
+        -- Wait for the specified delay
+        local delayRemaining = _G.AUTO_SELL_DELAY
+        while delayRemaining > 0 and isAutoSellRunning and _G.AUTO_SELL_ENABLED do
+            task.wait(1)
+            delayRemaining = delayRemaining - 1
+        end
+    end
+
+    -- Cleanup
+    print("\n" .. string.rep("=", 70))
+    print("🛑 AUTO SELL LOOP STOPPED")
+    print(string.rep("=", 70))
+    if cycleCount > 0 then
+        print(string.format("\n📊 FINAL STATS: %d cycles | %d success | %d failed\n",
+            cycleCount, sellSuccessCount, sellFailCount))
+    end
+
+    isAutoSellRunning = false
+end
+
+local function startAutoSell()
+    if _G.AUTO_SELL_ENABLED then
+        print("⚠️ Auto Sell already enabled!")
+        return
+    end
+
+    print("\n💰 Starting Auto Sell...")
+    _G.AUTO_SELL_ENABLED = true
+
+    -- Start the auto sell loop
+    if not isAutoSellRunning then
+        task.spawn(runAutoSellLoop)
+    end
+
+    print(string.format("✅ Auto Sell ENABLED (Delay: %ds)\n", _G.AUTO_SELL_DELAY))
+end
+
+local function stopAutoSell()
+    if not _G.AUTO_SELL_ENABLED then
+        print("⚠️ Auto Sell already stopped!")
+        return
+    end
+
+    print("\n🛑 Stopping Auto Sell...")
+    _G.AUTO_SELL_ENABLED = false
+
+    print("✅ Auto Sell stopped successfully\n")
+end
+
+print("✅ Auto sell module ready\n")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 4: UI MODULE
+-- ═══════════════════════════════════════════════════════════════════════════
+--[[
+    UI Module - WindUI interface
+
+    EDIT START: Line below this marker
+    EDIT END: Before next section marker
+
+    Tabs:
+    - Auto Farm: Toggle ON/OFF, Custom Delay
+    - (Inventory tab removed to fix "Out of local registers" error)
+]]
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- UI: Load WindUI
+-- ─────────────────────────────────────────────────────────────────────────
+
+print("📦 Loading WindUI...")
+local WindUI
+local uiSuccess, uiError = pcall(function()
+    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+end)
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- AUTO WEATHER: Weather Purchase Functions
+-- ─────────────────────────────────────────────────────────────────────────
+
+_G.WEATHER_LOOP_RUNNING = false
+
+-- Weather types to purchase
+local WEATHER_TYPES = {"Wind", "Cloudy", "Storm"}
+
+-- Purchase single weather
+local function purchaseWeather(weatherType)
+    local success, result = pcall(function()
+        local Event = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_net@0.2.0"].net["RF/PurchaseWeatherEvent"]
+        return Event:InvokeServer(weatherType)
+    end)
+
+    if success then
+        print(string.format("[Auto Weather] ✅ Purchased: %s", weatherType))
+        return true
+    else
+        warn(string.format("[Auto Weather] ❌ Failed to purchase: %s", weatherType))
+        return false
+    end
+end
+
+-- Purchase all weather types (Wind, Cloudy, Storm)
+local function purchaseAllWeathers()
+    print(string.rep("-", 70))
+    print("[Auto Weather] 🌤️ Purchasing all weather types...")
+
+    local successCount = 0
+    local failCount = 0
+
+    for i, weatherType in ipairs(WEATHER_TYPES) do
+        local success = purchaseWeather(weatherType)
+
+        if success then
+            successCount = successCount + 1
+        else
+            failCount = failCount + 1
+        end
+
+        -- 10ms delay between each purchase
+        if i < #WEATHER_TYPES then
+            task.wait(0.01)
+        end
+    end
+
+    print(string.format("[Auto Weather] 📊 Batch complete: %d success, %d failed", successCount, failCount))
+    print(string.rep("-", 70))
+
+    return successCount, failCount
+end
+
+-- Auto weather loop
+local function runAutoWeatherLoop()
+    if _G.WEATHER_LOOP_RUNNING then
+        print("⚠️ Auto Weather loop already running!")
+        return
+    end
+
+    _G.WEATHER_LOOP_RUNNING = true
+
+    print(string.rep("=", 70))
+    print("🌤️ AUTO WEATHER - STARTING")
+    print(string.rep("=", 70) .. "\n")
+
+    local cycleCount = 0
+    local totalSuccess = 0
+    local totalFailed = 0
+
+    while _G.WEATHER_LOOP_RUNNING do
+        -- Wait for auto weather to be enabled
+        while not _G.AUTO_WEATHER_ENABLED and _G.WEATHER_LOOP_RUNNING do
+            task.wait(0.5)
+        end
+
+        if not _G.WEATHER_LOOP_RUNNING then break end
+        if not _G.AUTO_WEATHER_ENABLED then continue end
+
+        cycleCount = cycleCount + 1
+
+        print(string.format("\n[Auto Weather #%d] 🌤️ Starting weather purchase cycle...", cycleCount))
+
+        -- Purchase all weathers
+        local success, failed = purchaseAllWeathers()
+        totalSuccess = totalSuccess + success
+        totalFailed = totalFailed + failed
+
+        -- Stats every 5 cycles
+        if cycleCount % 5 == 0 then
+            print(string.rep("=", 70))
+            print(string.format("📊 [AUTO WEATHER STATS]"))
+            print(string.format("   Cycles: %d", cycleCount))
+            print(string.format("   Total Purchases: %d", totalSuccess))
+            print(string.format("   Total Failed: %d", totalFailed))
+            print(string.format("   Delay: %ds", _G.WEATHER_PURCHASE_DELAY))
+            print(string.format("   Status: %s", _G.AUTO_WEATHER_ENABLED and "🟢 ON" or "🔴 OFF"))
+            print(string.rep("=", 70) .. "\n")
+        end
+
+        -- Wait before next cycle
+        print(string.format("[Auto Weather #%d] ⏳ Waiting %ds before next purchase...\n", cycleCount, _G.WEATHER_PURCHASE_DELAY))
+        task.wait(_G.WEATHER_PURCHASE_DELAY)
+    end
+
+    -- Cleanup
+    print("\n" .. string.rep("=", 70))
+    print("🛑 AUTO WEATHER STOPPED")
+    print(string.rep("=", 70))
+    if cycleCount > 0 then
+        print(string.format("\n📊 FINAL: %d cycles | %d purchases | %d failed\n", cycleCount, totalSuccess, totalFailed))
+    end
+
+    _G.WEATHER_LOOP_RUNNING = false
+end
+
+-- Start auto weather
+local function startAutoWeather()
+    if _G.AUTO_WEATHER_ENABLED then
+        print("⚠️ Auto Weather already enabled!")
+        return
+    end
+
+    print("\n🌤️ Starting Auto Weather...")
+    _G.AUTO_WEATHER_ENABLED = true
+
+    if not _G.WEATHER_LOOP_RUNNING then
+        task.spawn(runAutoWeatherLoop)
+    end
+
+    print("✅ Auto Weather ENABLED\n")
+end
+
+-- Stop auto weather
+local function stopAutoWeather()
+    if not _G.AUTO_WEATHER_ENABLED then
+        print("⚠️ Auto Weather already stopped!")
+        return
+    end
+
+    print("\n🛑 Stopping Auto Weather...")
+    _G.AUTO_WEATHER_ENABLED = false
+
+    print("✅ Auto Weather stopped successfully\n")
+end
+
+print("✅ Auto weather module ready\n")
+-- ═══════════════════════════════════════════════════════════════════════════
+-- AUTO-START FUNCTIONS - Start enabled modules based on config
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local function startEnabledModules()
+    print("\n" .. string.rep("=", 80))
+    print("🚀 AUTO-STARTING ENABLED MODULES...")
+    print(string.rep("=", 80) .. "\n")
+
+    -- Misc Features (Run first)
+    local misc = _G.AutoFishConfig["Misc"]
+
+    if misc["Remove Islands"] then
+        pcall(function()
+            local count = 0
+            local Islands = workspace:FindFirstChild("Islands")
+            if Islands then
+                for _, island in pairs(Islands:GetChildren()) do
+                    island:Destroy()
+                    count = count + 1
+                end
+            end
+            print(string.format("✅ Removed %d islands from workspace", count))
+        end)
+    end
+
+    if misc["Unlock FPS"] then
+        pcall(function()
+            setfpscap(240)
+            print("✅ FPS unlocked to 240")
+        end)
+    end
+
+    if misc["Disable Animations"] then
+        pcall(function()
+            setupAnimationHook()
+            stopAllFishingAnimations()
+            print("✅ Animations disabled")
+        end)
+    end
+
+    if misc["Freeze Character"] then
+        pcall(function()
+            freezeCharPosition()
+            print("✅ Character position frozen")
+        end)
+    end
+
+    if misc["GPU Saver"] then
+        pcall(function()
+            enableGPUSaver()
+            print("✅ GPU Saver enabled")
+        end)
+    end
+
+    -- Webhook
+    if _G.WEBHOOK_ENABLED and _G.WEBHOOK_SECRET ~= "" then
+        pcall(function()
+            startWebhookNotifier()
+            print("✅ Webhook notifier started")
+        end)
+    end
+
+    -- Auto Upgrade
+    if _G.AUTO_UPGRADE_ROD_ENABLED then
+        pcall(function()
+            task.wait(2)
+            startAutoUpgradeRod()
+            print("✅ Auto Upgrade Rod started")
+        end)
+    end
+
+    if _G.AUTO_UPGRADE_BAIT_ENABLED then
+        pcall(function()
+            task.wait(2)
+            startAutoUpgradeBait()
+            print("✅ Auto Upgrade Bait started")
+        end)
+    end
+
+    -- Auto Weather
+    if _G.AUTO_WEATHER_ENABLED then
+        pcall(function()
+            startAutoWeather()
+            print("✅ Auto Weather started")
+        end)
+    end
+
+    -- Auto Sell
+    if _G.AUTO_SELL_ENABLED then
+        pcall(function()
+            startAutoSell()
+            print("✅ Auto Sell started")
+        end)
+    end
+
+    -- Auto Artifact
+    if _G.AUTO_ARTIFACT_ENABLED then
+        pcall(function()
+            startAutoArtifact()
+            print("✅ Auto Artifact started")
+        end)
+    end
+
+    -- Auto Farm (V1 or V2, not both)
+    if _G.AUTO_FARM_V2_ENABLED then
+        pcall(function()
+            startAutoFarmV2()
+            print("✅ Auto Farm V2 (Jung Fast) started")
+        end)
+    elseif _G.AUTO_FARM_ENABLED then
+        pcall(function()
+            startAutoFarm()
+            print("✅ Auto Farm V1 started")
+        end)
+    end
+
+    print("\n" .. string.rep("=", 80))
+    print("✅ ALL ENABLED MODULES STARTED!")
+    print(string.rep("=", 80))
+end
+
+-- Helper functions for Auto Farm V1
+local function stopAutoFarm()
+    _G.AUTO_FARM_ENABLED = false
+    task.spawn(function()
+        pcall(function()
+            CancelEvent:InvokeServer()
+        end)
+    end)
+end
+
+local function startAutoFarm()
+    _G.AUTO_FARM_ENABLED = true
+    startReelIntermissionLoop()
+    if not _G.MAIN_LOOP_RUNNING then
+        task.spawn(runMainLoop)
+    end
+end
+
+-- ReelIntermission loop (for animation blocking)
+_G.REEL_INTERMISSION_RUNNING = false
+
+function startReelIntermissionLoop()
+    if _G.REEL_INTERMISSION_RUNNING then return end
+    _G.REEL_INTERMISSION_RUNNING = true
+
+    task.spawn(function()
+        while _G.REEL_INTERMISSION_RUNNING do
+            pcall(function()
+                local char = player.Character
+                if char then
+                    local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+                    if humanoid then
+                        local animator = humanoid:FindFirstChildWhichIsA("Animator")
+                        if animator then
+                            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                                if track.Animation and track.Animation.Name == "ReelIntermission" then
+                                    track:Stop(0)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            task.wait(0.1)
+        end
+    end)
+end
+
+function stopReelIntermissionLoop()
+    _G.REEL_INTERMISSION_RUNNING = false
+end
+
+-- Execute auto-start
+task.spawn(function()
+    task.wait(3)
+    startEnabledModules()
+end)
+
+print("✅ Auto-start system initialized\n")
