@@ -573,6 +573,29 @@ local function createWhiteScreen()
     statusLabel.TextYAlignment = Enum.TextYAlignment.Center
     statusLabel.Parent = frame
 
+    -- Quest Progress Section (Ghostfinn & Element Rod)
+    local questTitleLabel = Instance.new("TextLabel")
+    questTitleLabel.Name = "QuestTitleLabel"
+    questTitleLabel.Size = UDim2.new(0, 600, 0, 30)
+    questTitleLabel.Position = UDim2.new(0.5, -300, 0, 480)
+    questTitleLabel.BackgroundTransparency = 1
+    questTitleLabel.Text = "📜 QUEST PROGRESS"
+    questTitleLabel.TextColor3 = Color3.new(1, 0.84, 0)
+    questTitleLabel.TextSize = 20
+    questTitleLabel.Font = Enum.Font.SourceSansBold
+    questTitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    questTitleLabel.Parent = frame
+
+    -- Container for quest labels (will hold Ghostfinn and Element Rod quest labels)
+    local questContainer = Instance.new("Frame")
+    questContainer.Name = "QuestContainer"
+    questContainer.Size = UDim2.new(0, 700, 0, 200)
+    questContainer.Position = UDim2.new(0.5, -350, 0, 520)
+    questContainer.BackgroundTransparency = 1
+    questContainer.Parent = frame
+
+    -- We'll create quest labels dynamically in the update loop
+
     -- Close button
     local closeButton = Instance.new("TextButton")
     closeButton.Size = UDim2.new(0, 200, 0, 50)
@@ -649,6 +672,112 @@ local function createWhiteScreen()
                     end
                 end)
 
+                -- Update Quest Progress (Ghostfinn & Element Rod)
+                pcall(function()
+                    if questContainer and questContainer.Parent then
+                        -- Clear old quest labels
+                        for _, child in pairs(questContainer:GetChildren()) do
+                            if child:IsA("TextLabel") then
+                                child:Destroy()
+                            end
+                        end
+
+                        -- Get all incomplete quests
+                        local incompleteQuests = {}
+
+                        -- Check Ghostfinn quests
+                        local ghostfinnQuests = {
+                            {tracker = "Deep Sea Tracker", label = "Label1"},
+                            {tracker = "Deep Sea Tracker", label = "Label2"},
+                            {tracker = "Deep Sea Tracker", label = "Label3"}
+                        }
+
+                        for _, quest in ipairs(ghostfinnQuests) do
+                            local success, questText = pcall(function()
+                                local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
+                                if not menuRings then return "N/A" end
+                                local tracker = menuRings:FindFirstChild(quest.tracker)
+                                if not tracker then return "N/A" end
+                                local board = tracker:FindFirstChild("Board")
+                                if not board then return "N/A" end
+                                local gui = board:FindFirstChild("Gui")
+                                if not gui then return "N/A" end
+                                local content = gui:FindFirstChild("Content")
+                                if not content then return "N/A" end
+                                local label = content:FindFirstChild(quest.label)
+                                if not label then return "N/A" end
+                                return label.Text or "N/A"
+                            end)
+
+                            if success and questText and questText ~= "N/A" and not questText:match("100%%") then
+                                table.insert(incompleteQuests, {
+                                    name = "🦈 Ghostfinn " .. quest.label,
+                                    text = questText
+                                })
+                            end
+                        end
+
+                        -- Check Element Rod quests
+                        local elementQuests = {
+                            {tracker = "Element Tracker", label = "Label1"},
+                            {tracker = "Element Tracker", label = "Label2"},
+                            {tracker = "Element Tracker", label = "Label3"}
+                        }
+
+                        for _, quest in ipairs(elementQuests) do
+                            local success, questText = pcall(function()
+                                local menuRings = workspace:FindFirstChild("!!! MENU RINGS")
+                                if not menuRings then return "N/A" end
+                                local tracker = menuRings:FindFirstChild(quest.tracker)
+                                if not tracker then return "N/A" end
+                                local board = tracker:FindFirstChild("Board")
+                                if not board then return "N/A" end
+                                local gui = board:FindFirstChild("Gui")
+                                if not gui then return "N/A" end
+                                local content = gui:FindFirstChild("Content")
+                                if not content then return "N/A" end
+                                local label = content:FindFirstChild(quest.label)
+                                if not label then return "N/A" end
+                                return label.Text or "N/A"
+                            end)
+
+                            if success and questText and questText ~= "N/A" and not questText:match("100%%") then
+                                table.insert(incompleteQuests, {
+                                    name = "⚡ Element " .. quest.label,
+                                    text = questText
+                                })
+                            end
+                        end
+
+                        -- Create labels for each incomplete quest
+                        if #incompleteQuests == 0 then
+                            local noQuestLabel = Instance.new("TextLabel")
+                            noQuestLabel.Size = UDim2.new(1, 0, 0, 30)
+                            noQuestLabel.Position = UDim2.new(0, 0, 0, 0)
+                            noQuestLabel.BackgroundTransparency = 1
+                            noQuestLabel.Text = "✅ All quests complete!"
+                            noQuestLabel.TextColor3 = Color3.new(0, 1, 0)
+                            noQuestLabel.TextSize = 18
+                            noQuestLabel.Font = Enum.Font.SourceSansBold
+                            noQuestLabel.TextXAlignment = Enum.TextXAlignment.Center
+                            noQuestLabel.Parent = questContainer
+                        else
+                            for i, quest in ipairs(incompleteQuests) do
+                                local questLabel = Instance.new("TextLabel")
+                                questLabel.Size = UDim2.new(1, 0, 0, 28)
+                                questLabel.Position = UDim2.new(0, 0, 0, (i - 1) * 30)
+                                questLabel.BackgroundTransparency = 1
+                                questLabel.Text = quest.name .. ": " .. quest.text
+                                questLabel.TextColor3 = Color3.new(1, 1, 0.5)
+                                questLabel.TextSize = 16
+                                questLabel.Font = Enum.Font.SourceSans
+                                questLabel.TextXAlignment = Enum.TextXAlignment.Left
+                                questLabel.Parent = questContainer
+                            end
+                        end
+                    end
+                end)
+
                 frameCount = 0
                 lastUpdate = currentTime
             end
@@ -672,7 +801,8 @@ end
 
 -- Main GPU Saver Functions
 function enableGPUSaver()
-    if gpuSaverEnabled then return end
+    -- Sync local variable with global variable
+    if _G.GPU_SAVER_ENABLED and gpuSaverEnabled then return end
     gpuSaverEnabled = true
     _G.GPU_SAVER_ENABLED = true
 
@@ -5750,6 +5880,9 @@ _G.GPU_SAVER_ENABLED = config["Misc"]["GPU Saver"]
 _G.DISABLE_ANIMATIONS_ENABLED = config["Misc"]["Disable Animations"]
 local removeIslands = config["Misc"]["Remove Islands"]
 local unlockFPS = config["Misc"]["Unlock FPS"]
+
+-- Sync local GPU Saver variable with global variable
+gpuSaverEnabled = _G.GPU_SAVER_ENABLED
 print(string.format("  🔒 Freeze Character: %s",
     _G.FREEZE_CHAR_ENABLED and "✅ ENABLED" or "❌ DISABLED"))
 print(string.format("  💾 GPU Saver: %s",
