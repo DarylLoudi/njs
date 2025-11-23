@@ -1089,6 +1089,10 @@ function saveConfig()
         -- Animation Control
         DISABLE_ANIMATIONS_ENABLED = _G.DISABLE_ANIMATIONS_ENABLED,
 
+        -- Teleport Settings
+        TELEPORT_ENABLED = _G.TELEPORT_ENABLED or false,
+        TELEPORT_LOCATION = _G.TELEPORT_LOCATION or "Ocean",
+
         -- Webhook Settings
         WEBHOOK_ENABLED = _G.WEBHOOK_ENABLED,
         WEBHOOK_SECRET = _G.WEBHOOK_SECRET,
@@ -1097,7 +1101,7 @@ function saveConfig()
         playerName = player.Name,
         userId = player.UserId,
         lastSave = os.time(),
-        version = "v7.0"
+        version = "v7.1"
     }
 
     local success, err = pcall(function()
@@ -4824,6 +4828,24 @@ local function teleportToLocation(locationName)
     return true
 end
 
+-- Rapid teleport 3x to ensure arrival at location
+local function rapidTeleport3x(locationName)
+    print(string.format("\n[Teleport] 🌐 Rapid teleporting to: %s (3x attempts)", locationName))
+
+    local successCount = 0
+    for i = 1, 3 do
+        print(string.format("[Teleport] Attempt %d/3...", i))
+        local success = teleportToLocation(locationName)
+        if success then
+            successCount = successCount + 1
+        end
+        task.wait(0.15) -- Small delay between attempts
+    end
+
+    print(string.format("[Teleport] ✅ Rapid teleport complete (%d/3 successful)", successCount))
+    return successCount > 0
+end
+
 print("✅ Teleport module ready\n")
 
 -- ═════════════════════════════════════════════════════════════════════════
@@ -5629,6 +5651,12 @@ if loadConfigEnabled then
         if loadedConfig.DISABLE_ANIMATIONS_ENABLED ~= nil then
             config["Misc"]["Disable Animations"] = loadedConfig.DISABLE_ANIMATIONS_ENABLED
         end
+        if loadedConfig.TELEPORT_ENABLED ~= nil then
+            config["Teleport"]["Enabled"] = loadedConfig.TELEPORT_ENABLED
+        end
+        if loadedConfig.TELEPORT_LOCATION then
+            config["Teleport"]["Location"] = loadedConfig.TELEPORT_LOCATION
+        end
         if loadedConfig.WEBHOOK_ENABLED ~= nil then
             config["Webhook"]["Enabled"] = loadedConfig.WEBHOOK_ENABLED
         end
@@ -5739,6 +5767,14 @@ _G.WEBHOOK_SECRET = config["Webhook"]["URL"]
 print(string.format("  🔔 Webhook: %s",
     _G.WEBHOOK_ENABLED and "✅ ENABLED" or "❌ DISABLED"))
 
+-- Teleport Settings
+_G.TELEPORT_ENABLED = config["Teleport"] and config["Teleport"]["Enabled"] or false
+_G.TELEPORT_LOCATION = config["Teleport"] and config["Teleport"]["Location"] or "Ocean"
+local teleportEnabled = _G.TELEPORT_ENABLED
+local teleportLocation = _G.TELEPORT_LOCATION
+print(string.format("  🌐 Teleport: %s (Location: %s)",
+    teleportEnabled and "✅ ENABLED" or "❌ DISABLED", teleportLocation))
+
 print("\n✅ Configuration applied successfully!\n")
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -5752,6 +5788,28 @@ print("")
 
 -- Wait for game to fully load
 task.wait(2)
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- STEP 0: TELEPORT TO LOCATION (EXECUTES FIRST BEFORE ALL OTHER FEATURES)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+if teleportEnabled then
+    print(string.format("\n  🌐 Teleport ENABLED - Teleporting to: %s", teleportLocation))
+    print("      This will execute 3x rapidly to ensure arrival at location...")
+    task.wait(1)
+
+    local teleportSuccess = rapidTeleport3x(teleportLocation)
+
+    if teleportSuccess then
+        print(string.format("  🌐 ✅ Teleport complete! You are now at: %s", teleportLocation))
+        task.wait(2) -- Wait for teleport to stabilize before starting other features
+        print("      Starting other features...\n")
+    else
+        warn("  🌐 ⚠️ Teleport failed! Continuing with other features anyway...\n")
+    end
+else
+    print("\n  🌐 Teleport DISABLED - Staying at current location\n")
+end
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- STEP 1: START AUTO FARM (V1 or V2)
