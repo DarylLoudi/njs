@@ -1041,7 +1041,7 @@ function saveConfig()
 
     ensureConfigFolder()
 
-    local config = {
+    local configToSave = {
         -- Auto Farm Settings
         AUTO_FARM_ENABLED = _G.AUTO_FARM_ENABLED,
         FARM_SUCCESS_DELAY = _G.FARM_SUCCESS_DELAY,
@@ -1051,7 +1051,6 @@ function saveConfig()
         JUNG_V2_STATE = {
             baseDelayReel = _G.JUNG_V2_STATE.baseDelayReel,
             baseDelayComplete = _G.JUNG_V2_STATE.baseDelayComplete,
-            -- autoPingCompensation removed in v6.6.2
         },
 
         -- Auto Sell Settings
@@ -1066,6 +1065,17 @@ function saveConfig()
         AUTO_WEATHER_ENABLED = _G.AUTO_WEATHER_ENABLED,
         WEATHER_PURCHASE_DELAY = _G.WEATHER_PURCHASE_DELAY,
 
+        -- Auto Totem Settings
+        AUTO_TOTEM_ENABLED = _G.AUTO_TOTEM_ENABLED,
+        TOTEM_CYCLE_DELAY = _G.TOTEM_CYCLE_DELAY,
+        TOTEM_ITEM_ID = _G.TOTEM_ITEM_ID,
+
+        -- Auto Megalodon Settings
+        AUTO_MEGALODON_ENABLED = _G.AUTO_MEGALODON_ENABLED,
+
+        -- Auto Quest Settings
+        AUTO_QUEST_ENABLED = _G.AUTO_QUEST_ENABLED,
+
         -- Auto Upgrade Settings
         AUTO_UPGRADE_ROD_ENABLED = _G.AUTO_UPGRADE_ROD_ENABLED,
         AUTO_UPGRADE_BAIT_ENABLED = _G.AUTO_UPGRADE_BAIT_ENABLED,
@@ -1076,7 +1086,7 @@ function saveConfig()
         -- GPU Saver
         GPU_SAVER_ENABLED = _G.GPU_SAVER_ENABLED,
 
-        -- V6.6: Animation Control
+        -- Animation Control
         DISABLE_ANIMATIONS_ENABLED = _G.DISABLE_ANIMATIONS_ENABLED,
 
         -- Webhook Settings
@@ -1087,11 +1097,11 @@ function saveConfig()
         playerName = player.Name,
         userId = player.UserId,
         lastSave = os.time(),
-        version = "v6.6"
+        version = "v7.0"
     }
 
     local success, err = pcall(function()
-        writefile(getConfigFilePath(), HttpService:JSONEncode(config))
+        writefile(getConfigFilePath(), HttpService:JSONEncode(configToSave))
     end)
 
     if success then
@@ -5535,6 +5545,106 @@ end
 local config = _G.AutoFishConfig
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- LOAD CONFIG: Check if Load Config is enabled
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local loadConfigEnabled = config["Load Config"] and config["Load Config"]["Enabled"] or false
+
+if loadConfigEnabled then
+    print("\n🔄 Load Config ENABLED - Attempting to load from saved file...")
+
+    local loadedConfig = loadConfig()
+
+    if loadedConfig then
+        print("✅ Successfully loaded config from file!")
+        print("📋 Applying settings from saved config file...")
+        print("⚠️  Settings from config_loader.lua will be IGNORED\n")
+
+        -- Override config with loaded settings
+        if loadedConfig.AUTO_FARM_ENABLED ~= nil then
+            config["Auto Farm"]["Auto Farm V1"]["Enabled"] = loadedConfig.AUTO_FARM_ENABLED
+        end
+        if loadedConfig.FARM_SUCCESS_DELAY then
+            config["Auto Farm"]["Auto Farm V1"]["Success Delay"] = loadedConfig.FARM_SUCCESS_DELAY
+        end
+        if loadedConfig.AUTO_FARM_V2_ENABLED ~= nil then
+            config["Auto Farm"]["Auto Farm V2"]["Enabled"] = loadedConfig.AUTO_FARM_V2_ENABLED
+        end
+        if loadedConfig.JUNG_V2_STATE then
+            if loadedConfig.JUNG_V2_STATE.baseDelayReel then
+                config["Auto Farm"]["Auto Farm V2"]["Base Delay Reel"] = loadedConfig.JUNG_V2_STATE.baseDelayReel
+            end
+            if loadedConfig.JUNG_V2_STATE.baseDelayComplete then
+                config["Auto Farm"]["Auto Farm V2"]["Base Delay Complete"] = loadedConfig.JUNG_V2_STATE.baseDelayComplete
+            end
+        end
+        if loadedConfig.AUTO_SELL_ENABLED ~= nil then
+            config["Auto Sell"]["Enabled"] = loadedConfig.AUTO_SELL_ENABLED
+        end
+        if loadedConfig.AUTO_SELL_DELAY then
+            config["Auto Sell"]["Delay"] = loadedConfig.AUTO_SELL_DELAY
+        end
+        if loadedConfig.AUTO_ARTIFACT_ENABLED ~= nil then
+            config["Auto Artifact"]["Enabled"] = loadedConfig.AUTO_ARTIFACT_ENABLED
+        end
+        if loadedConfig.artifactSkipToggles then
+            config["Auto Artifact"]["Skip Hourglass Diamond"] = loadedConfig.artifactSkipToggles[1] or false
+            config["Auto Artifact"]["Skip Arrow Artifact"] = loadedConfig.artifactSkipToggles[2] or false
+            config["Auto Artifact"]["Skip Diamond Artifact"] = loadedConfig.artifactSkipToggles[3] or false
+            config["Auto Artifact"]["Skip Crescent Artifact"] = loadedConfig.artifactSkipToggles[4] or false
+        end
+        if loadedConfig.AUTO_WEATHER_ENABLED ~= nil then
+            config["Auto Weather"]["Enabled"] = loadedConfig.AUTO_WEATHER_ENABLED
+        end
+        if loadedConfig.WEATHER_PURCHASE_DELAY then
+            config["Auto Weather"]["Purchase Delay"] = loadedConfig.WEATHER_PURCHASE_DELAY
+        end
+        if loadedConfig.AUTO_TOTEM_ENABLED ~= nil then
+            config["Auto Totem"]["Enabled"] = loadedConfig.AUTO_TOTEM_ENABLED
+        end
+        if loadedConfig.TOTEM_CYCLE_DELAY then
+            config["Auto Totem"]["Cycle Delay"] = loadedConfig.TOTEM_CYCLE_DELAY
+        end
+        if loadedConfig.TOTEM_ITEM_ID then
+            config["Auto Totem"]["Item ID"] = loadedConfig.TOTEM_ITEM_ID
+        end
+        if loadedConfig.AUTO_MEGALODON_ENABLED ~= nil then
+            config["Auto Farm"]["Auto Megalodon"]["Enabled"] = loadedConfig.AUTO_MEGALODON_ENABLED
+        end
+        if loadedConfig.AUTO_QUEST_ENABLED ~= nil then
+            config["Auto Farm"]["Auto Quest"]["Enabled"] = loadedConfig.AUTO_QUEST_ENABLED
+        end
+        if loadedConfig.AUTO_UPGRADE_ROD_ENABLED ~= nil then
+            config["Auto Upgrade"]["Auto Upgrade Rod"] = loadedConfig.AUTO_UPGRADE_ROD_ENABLED
+        end
+        if loadedConfig.AUTO_UPGRADE_BAIT_ENABLED ~= nil then
+            config["Auto Upgrade"]["Auto Upgrade Bait"] = loadedConfig.AUTO_UPGRADE_BAIT_ENABLED
+        end
+        if loadedConfig.FREEZE_CHAR_ENABLED ~= nil then
+            config["Misc"]["Freeze Character"] = loadedConfig.FREEZE_CHAR_ENABLED
+        end
+        if loadedConfig.GPU_SAVER_ENABLED ~= nil then
+            config["Misc"]["GPU Saver"] = loadedConfig.GPU_SAVER_ENABLED
+        end
+        if loadedConfig.DISABLE_ANIMATIONS_ENABLED ~= nil then
+            config["Misc"]["Disable Animations"] = loadedConfig.DISABLE_ANIMATIONS_ENABLED
+        end
+        if loadedConfig.WEBHOOK_ENABLED ~= nil then
+            config["Webhook"]["Enabled"] = loadedConfig.WEBHOOK_ENABLED
+        end
+        if loadedConfig.WEBHOOK_SECRET then
+            config["Webhook"]["URL"] = loadedConfig.WEBHOOK_SECRET
+        end
+
+        print("✅ All settings from saved file have been applied!\n")
+    else
+        print("⚠️  No saved config file found, using settings from config_loader.lua\n")
+    end
+else
+    print("\n📋 Load Config DISABLED - Using settings from config_loader.lua\n")
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- APPLY CONFIGURATION TO GLOBAL VARIABLES
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -5870,3 +5980,35 @@ print("")
 print(string.rep("=", 80))
 print("🎮 Ready to fish! Configuration is controlled via config_loader.lua")
 print(string.rep("=", 80))
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- AUTO SAVE CONFIG (jika enabled di config_loader.lua)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local saveConfigEnabled = config["Save Config"] and config["Save Config"]["Enabled"] or false
+
+if saveConfigEnabled then
+    print("\n💾 Save Config ENABLED - Current settings will be saved to file")
+
+    task.spawn(function()
+        task.wait(5)  -- Wait 5 seconds after everything is loaded
+
+        print("\n" .. string.rep("=", 80))
+        print("💾 AUTO-SAVING CURRENT CONFIGURATION...")
+        print(string.rep("=", 80))
+
+        local saveSuccess = saveConfig()
+
+        if saveSuccess then
+            print("✅ Configuration saved successfully!")
+            print("📁 File location: " .. getConfigFilePath())
+            print("🔄 Settings will be auto-loaded next time if 'Load Config' is enabled")
+        else
+            warn("❌ Failed to save configuration")
+        end
+
+        print(string.rep("=", 80) .. "\n")
+    end)
+else
+    print("\n💾 Save Config DISABLED - Settings will NOT be saved to file\n")
+end
