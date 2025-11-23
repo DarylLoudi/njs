@@ -1,13 +1,17 @@
 --[[
 ═══════════════════════════════════════════════════════════════════════════════
-    AUTO FISHING SYSTEM v6.6.2 FINAL - Zero Memory Leak
+    AUTO FISHING SYSTEM v7.0 HEADLESS - Config-Based (NO GUI)
 
     Features:
-    - Auto Fishing with Toggle ON/OFF
+    - Auto Fishing V1 & V2 (Jung Fast)
     - Auto Weather (Wind, Cloudy, Storm)
+    - Auto Sell, Auto Artifact, Auto Totem
+    - Auto Upgrade (Rod & Bait)
+    - Auto Quest, Auto Megalodon
     - Teleport System
-    - Inventory Detection (Fish & Items)
-    - WindUI Integration
+    - GPU Saver, Freeze Character, Disable Animations
+    - Discord Webhook Notifications
+    - Config loaded from _G.AutoFishConfig (set by config_loader.lua)
 
     REMOVED IN THIS VERSION:
     ✘ Jung V2 stat tracking (removed for optimization)
@@ -86,26 +90,32 @@
 
     Structure:
     1. DEPENDENCIES & SETUP
-    2. AUTO FARM MODULE
-    3. INVENTORY MODULE
-    4. AUTO WEATHER MODULE
-    5. TELEPORT MODULE
-    6. UI MODULE
-    7. MAIN EXECUTION
+    2. CORE FUNCTIONS (GPU Saver, Webhook, Config, Animation, Freeze, Upgrade, etc.)
+    3. AUTO FARM MODULES (V1, V2, Totem, Artifact, Sell, Weather, Quest, Megalodon)
+    4. CONFIG LOADER & AUTO-START (loads from _G.AutoFishConfig)
 
     Usage:
-    loadstring(readfile("auto_farm_v6.6.lua"))()
+    -- First load config_loader.lua to set _G.AutoFishConfig
+    -- Then this script reads the config and auto-starts enabled features
+
+    V7.0 UPDATES (HEADLESS MODE):
+    ✅ Removed ALL GUI code (WindUI eliminated)
+    ✅ Config-based system (no UI needed)
+    ✅ Auto-start enabled features from config
+    ✅ Simplified deployment (GitHub loadstring compatible)
+    ✅ Maintains all features from v6.6.2
 ═══════════════════════════════════════════════════════════════════════════════
 ]]
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- AUTO FISHING SYSTEM v6.6.2 FINAL - Zero Memory Leak
+-- AUTO FISHING SYSTEM v7.0 HEADLESS - Config-Based (NO GUI)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 print(string.rep("=", 80))
-print("🚀 AUTO FISHING SYSTEM v6.6.2 FINAL - Zero Memory Leak")
+print("🚀 AUTO FISHING SYSTEM v7.0 HEADLESS - Config-Based (NO GUI)")
 print("✅ 60-70% RAM Reduction | 40-50% CPU Reduction | Perfect Optimization")
 print("✅ Zero infinite loops | Zero startup overhead | Zero memory leaks")
+print("✅ Config loaded from _G.AutoFishConfig (set by config_loader.lua)")
 print(string.rep("=", 80))
 print("\n⏳ Loading fully optimized modules...\n")
 
