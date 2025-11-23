@@ -4518,33 +4518,24 @@ end
 print("✅ Auto sell module ready\n")
 
 -- ═══════════════════════════════════════════════════════════════════════════
-
--- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 4: UI MODULE
+-- SECTION 2.7: AUTO WEATHER MODULE
 -- ═══════════════════════════════════════════════════════════════════════════
 --[[
-    UI Module - WindUI interface
+    Auto Weather Module - Automatic weather purchase (Wind, Cloudy, Storm)
 
-    EDIT START: Line below this marker
-    EDIT END: Before next section marker
+    Key Features:
+    - Purchases Wind, Cloudy, Storm in sequence
+    - Configurable delay between purchase cycles
+    - Stats tracking (cycles, purchases, failures)
 
-    Tabs:
-    - Auto Farm: Toggle ON/OFF, Custom Delay
-    - (Inventory tab removed to fix "Out of local registers" error)
+    Key Functions:
+    - startAutoWeather() - Start auto weather loop
+    - stopAutoWeather() - Stop auto weather loop
+    - runAutoWeatherLoop() - Main weather purchase loop
 ]]
 
 -- ─────────────────────────────────────────────────────────────────────────
--- UI: Load WindUI
--- ─────────────────────────────────────────────────────────────────────────
-
-print("📦 Loading WindUI...")
-local WindUI
-local uiSuccess, uiError = pcall(function()
-    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-end)
-
--- ─────────────────────────────────────────────────────────────────────────
--- AUTO WEATHER: Weather Purchase Functions
+-- AUTO WEATHER: State Variables
 -- ─────────────────────────────────────────────────────────────────────────
 
 _G.WEATHER_LOOP_RUNNING = false
