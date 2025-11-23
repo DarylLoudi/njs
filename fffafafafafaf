@@ -644,7 +644,7 @@ local function createWhiteScreen()
     fishStatsLabel.Size = UDim2.new(0, 400, 0, 40)
     fishStatsLabel.Position = UDim2.new(0.5, -200, 0, 220)
     fishStatsLabel.BackgroundTransparency = 1
-    fishStatsLabel.Text = "🎣 Fish Caught: " .. FormatNumber(sessionStats.totalFish)
+    fishStatsLabel.Text = "🎣 Fish Caught: " .. FormatNumber(sessionStats.fishCaught)
     fishStatsLabel.TextColor3 = Color3.new(0.9, 0.9, 0.9)
     fishStatsLabel.TextSize = 22
     fishStatsLabel.Font = Enum.Font.SourceSans
@@ -939,7 +939,7 @@ local function createWhiteScreen()
                 -- Safe fishing stats update
                 pcall(function()
                     if fishStatsLabel and fishStatsLabel.Parent then
-                        local fishCount = math.max(0, sessionStats.totalFish)
+                        local fishCount = math.max(0, sessionStats.fishCaught)
                         fishStatsLabel.Text = "🎣 Fish Caught: " .. FormatNumber(fishCount)
                     end
                 end)
@@ -1509,8 +1509,9 @@ function saveConfig()
         -- Freeze Character
         FREEZE_CHAR_ENABLED = _G.FREEZE_CHAR_ENABLED,
 
-        -- GPU Saver
-        GPU_SAVER_ENABLED = _G.GPU_SAVER_ENABLED,
+        -- GPU Saver is now INDEPENDENT - NOT saved to config.json
+        -- It only reads from config_loader.lua
+        -- GPU_SAVER_ENABLED = _G.GPU_SAVER_ENABLED,  -- REMOVED - No longer saved to JSON
 
         -- Animation Control
         DISABLE_ANIMATIONS_ENABLED = _G.DISABLE_ANIMATIONS_ENABLED,
@@ -3462,7 +3463,7 @@ local fishNotificationEvent = Net["RE/ObtainedNewFishNotification"]
 fishNotificationEvent.OnClientEvent:Connect(function(fishId, fishData, itemData, isNew)
     -- Fish caught tracking removed in v6.6 for memory optimization
     -- Update session stats for GPU Saver white screen
-    sessionStats.totalFish = sessionStats.totalFish + 1
+    sessionStats.fishCaught = sessionStats.fishCaught + 1
 end)
 
 print("✅ Fish caught listener ready")
@@ -6072,9 +6073,8 @@ else
         if loadedConfig.FREEZE_CHAR_ENABLED ~= nil then
             config["Misc"]["Freeze Character"] = loadedConfig.FREEZE_CHAR_ENABLED
         end
-        if loadedConfig.GPU_SAVER_ENABLED ~= nil then
-            config["Misc"]["GPU Saver"] = loadedConfig.GPU_SAVER_ENABLED
-        end
+        -- GPU Saver is now INDEPENDENT from config.json
+        -- It only reads from config_loader.lua directly
         if loadedConfig.DISABLE_ANIMATIONS_ENABLED ~= nil then
             config["Misc"]["Disable Animations"] = loadedConfig.DISABLE_ANIMATIONS_ENABLED
         end
@@ -6174,7 +6174,8 @@ print(string.format("  ⬆️ Auto Upgrade Bait: %s",
 
 -- Misc Settings
 _G.FREEZE_CHAR_ENABLED = config["Misc"]["Freeze Character"]
-_G.GPU_SAVER_ENABLED = config["Misc"]["GPU Saver"]
+-- GPU Saver is now INDEPENDENT - only reads from config_loader.lua, NOT from config.json
+_G.GPU_SAVER_ENABLED = config["Misc"]["GPU Saver"]  -- Direct from _G.AutoFishConfig, ignores JSON
 _G.DISABLE_ANIMATIONS_ENABLED = config["Misc"]["Disable Animations"]
 local removeIslands = config["Misc"]["Remove Islands"]
 local unlockFPS = config["Misc"]["Unlock FPS"]
