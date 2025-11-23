@@ -5412,17 +5412,10 @@ local function teleportToQuestLocation(locationName)
         return
     end
 
-    -- Quest location mappings (from main script v2.lua)
-    local questLocations = {
-        ["Treasure Room"] = CFrame.new(3134.67529, 127.984032, -3257.58325),
-        ["Sisyphus Statue"] = CFrame.new(-1318.41, 129.2, 1593.39),
-        ["Ancient Jungle"] = CFrame.new(3116.5, 132.1, 2516.5),
-        ["Sacred Temple"] = CFrame.new(6061, 130.8, 2024)
-    }
-
-    local targetCFrame = questLocations[locationName]
+    -- Use TELEPORT_LOCATIONS from main teleport system (line 4838)
+    local targetCFrame = TELEPORT_LOCATIONS[locationName]
     if not targetCFrame then
-        warn(string.format("[Auto Quest] ⚠️ Unknown location: %s", locationName))
+        warn(string.format("[Auto Quest] ⚠️ Unknown location: %s (not found in TELEPORT_LOCATIONS)", locationName))
         return
     end
 
@@ -5431,6 +5424,7 @@ local function teleportToQuestLocation(locationName)
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if hrp then
             hrp.CFrame = targetCFrame
+            print(string.format("[Auto Quest] 🎯 Teleported to %s using TELEPORT_LOCATIONS", locationName))
         end
     end)
 end
