@@ -5729,13 +5729,13 @@ if _G.AUTO_FARM_V2_ENABLED and _G.AUTO_FARM_ENABLED then
 end
 
 if _G.AUTO_FARM_V2_ENABLED then
-    print(string.format("\n  ⚡ ✅ Starting Auto Farm V2 (Jung Fast)..."))
+    print("\n  ⚡ ✅ Starting Auto Farm V2 (Jung Fast)...")
     print(string.format("      Base Delay Reel: %.1fs, Base Delay Complete: %.1fs",
         _G.JUNG_V2_STATE.baseDelayReel, _G.JUNG_V2_STATE.baseDelayComplete))
     task.wait(1)
     startAutoFarmV2()
 elseif _G.AUTO_FARM_ENABLED then
-    print(string.format("\n  🎣 ✅ Starting Auto Farm V1..."))
+    print("\n  🎣 ✅ Starting Auto Farm V1...")
     print(string.format("      Success Delay: %.1fs", _G.FARM_SUCCESS_DELAY))
     task.wait(1)
     startAutoFarm()
