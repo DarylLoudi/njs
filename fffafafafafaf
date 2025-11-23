@@ -5738,7 +5738,7 @@ elseif _G.AUTO_FARM_ENABLED then
     print("\n  🎣 ✅ Starting Auto Farm V1...")
     print(string.format("      Success Delay: %.1fs", _G.FARM_SUCCESS_DELAY))
     task.wait(1)
-    startAutoFarm()
+    task.spawn(runMainLoop)
 else
     print("\n  ⚠️ No Auto Farm enabled (both V1 and V2 are OFF)")
 end
