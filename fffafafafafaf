@@ -84,7 +84,6 @@
     ✅ Auto-delete ALL animations on script execution (walk, jump, fall, climb, swim, fishing)
     ✅ Auto-delete animations on character respawn
     ✅ Removed manual "Delete Animations" button - fully automatic now
-    ✅ FPS Unlock button (setfpscap to 240)
     ✅ Freeze Character toggle remains separate from Auto Farm
     ✅ GPU Saver fully functional with white screen overlay
 
@@ -1153,7 +1152,7 @@ function disableGPUSaver()
         -- The lighting children were deleted, so re-enabling them is not possible.
         -- This part of the restoration is omitted.
 
-        pcall(function() setfpscap(10) end) -- Remove FPS limit
+        pcall(function() setfpscap(15) end) -- Remove FPS limit
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
 
         if workspace.CurrentCamera then
@@ -6449,7 +6448,7 @@ end
 -- 5. UNLOCK FPS (jika enabled)
 if unlockFPS then
     pcall(function()
-        setfpscap(10)
+        setfpscap(15)
         print("      📊 ✅ FPS unlocked to 240")
     end)
 end
