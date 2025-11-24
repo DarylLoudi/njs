@@ -1458,6 +1458,53 @@ local function getConfigFilePath()
     return CONFIG_FILE
 end
 
+-- Pretty print JSON with indentation (horizontal format)
+local function prettyPrintJSON(tbl, indent)
+    indent = indent or 0
+    local indentStr = string.rep("  ", indent)
+    local result = "{\n"
+    local keys = {}
+
+    -- Collect all keys
+    for k in pairs(tbl) do
+        table.insert(keys, k)
+    end
+
+    -- Sort keys alphabetically for consistent output
+    table.sort(keys, function(a, b)
+        return tostring(a) < tostring(b)
+    end)
+
+    -- Build JSON string
+    for i, k in ipairs(keys) do
+        local v = tbl[k]
+        local keyStr = '"' .. tostring(k) .. '"'
+        result = result .. indentStr .. "  " .. keyStr .. ": "
+
+        if type(v) == "table" then
+            -- Nested table - recurse
+            result = result .. prettyPrintJSON(v, indent + 1)
+        elseif type(v) == "string" then
+            result = result .. '"' .. v .. '"'
+        elseif type(v) == "boolean" then
+            result = result .. tostring(v)
+        elseif type(v) == "number" then
+            result = result .. tostring(v)
+        else
+            result = result .. "null"
+        end
+
+        -- Add comma if not last item
+        if i < #keys then
+            result = result .. ","
+        end
+        result = result .. "\n"
+    end
+
+    result = result .. indentStr .. "}"
+    return result
+end
+
 -- Save config
 function saveConfig()
     if not writefile then
@@ -1532,7 +1579,8 @@ function saveConfig()
     }
 
     local success, err = pcall(function()
-        writefile(getConfigFilePath(), HttpService:JSONEncode(configToSave))
+        -- Use pretty print JSON for readable horizontal format
+        writefile(getConfigFilePath(), prettyPrintJSON(configToSave))
     end)
 
     if success then
