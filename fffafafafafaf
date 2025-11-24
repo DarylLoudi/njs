@@ -270,7 +270,7 @@ local sessionStats = {
 }
 
 -- GPU FPS Limit constant
-local GPU_FPS_LIMIT = 10
+local GPU_FPS_LIMIT = 15
 
 -- Alias for LocalPlayer (reference module uses LocalPlayer, this script uses player)
 local LocalPlayer = player
