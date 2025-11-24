@@ -84,6 +84,7 @@
     ✅ Auto-delete ALL animations on script execution (walk, jump, fall, climb, swim, fishing)
     ✅ Auto-delete animations on character respawn
     ✅ Removed manual "Delete Animations" button - fully automatic now
+    ✅ FPS is user-configurable (no hardcoded values)
     ✅ Freeze Character toggle remains separate from Auto Farm
     ✅ GPU Saver fully functional with white screen overlay
 
@@ -268,8 +269,8 @@ local sessionStats = {
     coinsEarned = 0
 }
 
--- GPU FPS Limit constant
-local GPU_FPS_LIMIT = 15
+-- FPS Limit: User configurable (no hardcoded values)
+-- User can set their own FPS via setfpscap() if needed
 
 -- Alias for LocalPlayer (reference module uses LocalPlayer, this script uses player)
 local LocalPlayer = player
@@ -1093,25 +1094,15 @@ function enableGPUSaver()
             end
         end
 
-        pcall(function() setfpscap(GPU_FPS_LIMIT) end) -- Limit FPS based on GPU_FPS_LIMIT
+        -- FPS cap is now user-configurable (no hardcoded values)
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
     end)
 
-    -- Create FPS cap monitor to ensure it stays at GPU_FPS_LIMIT
+    -- FPS cap monitoring removed - user can set their own FPS
     if fpsCapConnection then
         fpsCapConnection:Disconnect()
         fpsCapConnection = nil
     end
-
-    fpsCapConnection = RunService.Heartbeat:Connect(function()
-        if gpuSaverEnabled then
-            pcall(function()
-                if setfpscap then
-                    setfpscap(GPU_FPS_LIMIT)
-                end
-            end)
-        end
-    end)
 
     createWhiteScreen()
 
@@ -1152,7 +1143,7 @@ function disableGPUSaver()
         -- The lighting children were deleted, so re-enabling them is not possible.
         -- This part of the restoration is omitted.
 
-        pcall(function() setfpscap(15) end) -- Remove FPS limit
+        -- FPS cap is now user-configurable (no hardcoded values)
         StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
 
         if workspace.CurrentCamera then
@@ -6446,12 +6437,8 @@ if _G.GPU_SAVER_ENABLED then
 end
 
 -- 5. UNLOCK FPS (jika enabled)
-if unlockFPS then
-    pcall(function()
-        setfpscap(15)
-        print("      📊 ✅ FPS unlocked to 240")
-    end)
-end
+-- FPS is now user-configurable
+-- Users can set their own FPS limit via setfpscap() or leave it at default
 
 -- 6. AUTO MEGALODON (jika enabled)
 if _G.AUTO_MEGALODON_ENABLED then
