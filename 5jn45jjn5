@@ -1,0 +1,77 @@
+_G.AutoFishConfig = {
+    ["Teleport"] = {
+        ["Enabled"] = true,                 -- Enable auto teleport on script start
+        ["Location"] = "Esoteric Depths",              -- Location name (see list below)
+        -- Available locations:
+        -- "Kohana Volcano", "Sisyphus Statue", "Coral Reefs", "Esoteric Depths",
+        -- "Crater Island", "Ocean", "Lost Isle", "Weather Machine", "Tropical Grove",
+        -- "Mount Hallow", "Treasure Room", "Kohana", "Underground Cellar",
+        -- "Ancient Jungle", "Sacred Temple"
+    },
+    ["Auto Farm"] = {
+        ["Auto Farm V1"] = {
+            ["Enabled"] = false,              -- Enable Auto Farm V1 (standard fishing)
+            ["Success Delay"] = 1.5,         -- Delay after successful fishing (seconds)
+        },
+        ["Auto Farm V2"] = {
+            ["Enabled"] = true,             -- Enable Auto Farm V2 (Jung Fast - independent loop)
+            ["Base Delay Reel"] = 1.5,       -- Delay before each reel cycle (seconds)
+            ["Base Delay Complete"] = 0.71,   -- Delay after server return (seconds)
+        },
+        ["Auto Megalodon"] = {
+            ["Enabled"] = false,             -- Enable Auto Megalodon event detection
+        },
+        ["Auto Quest"] = {
+            ["Enabled"] = false,             -- Enable Auto Quest tracking/completion
+        },
+    },
+    ["Auto Sell"] = {
+        ["Enabled"] = true,                  -- Enable Auto Sell
+        ["Delay"] = 1444,                      -- Delay between sells (seconds)
+    },
+    ["Auto Artifact"] = {
+        ["Enabled"] = false,                 -- Enable Auto Artifact farming
+        ["Skip Hourglass Diamond"] = false,  -- Skip Temple 1 (Hourglass Diamond)
+        ["Skip Arrow Artifact"] = false,     -- Skip Temple 2 (Arrow Artifact)
+        ["Skip Diamond Artifact"] = false,   -- Skip Temple 3 (Diamond Artifact)
+        ["Skip Crescent Artifact"] = false,  -- Skip Temple 4 (Crescent Artifact)
+    },
+    ["Auto Weather"] = {
+        ["Enabled"] = true,                 -- Enable Auto Weather purchase
+        ["Purchase Delay"] = 322,             -- Delay between weather purchase cycles (seconds)
+    },
+    ["Auto Totem"] = {
+        ["Enabled"] = false,                 -- Enable Auto Totem cycle (buy & spawn totems)
+        ["Cycle Delay"] = 60,                -- Delay between totem cycles (minutes)
+        ["Item ID"] = 5,                     -- Totem Item ID to purchase (5 = Luck Totems)
+    },
+    ["Auto Upgrade"] = {
+        ["Auto Upgrade Rod"] = false,        -- Auto purchase & upgrade rods
+        ["Auto Upgrade Bait"] = false,       -- Auto purchase & upgrade baits
+    },
+    ["Misc"] = {
+        ["Freeze Character"] = true,        -- Lock character position (anti-drown)
+        ["GPU Saver"] = true,               -- Enable GPU Saver (white screen overlay)
+        ["Disable Animations"] = false,      -- Disable all fishing animations
+        ["Remove Islands"] = false,          -- Remove island models on load
+        ["Unlock FPS"] = false,              -- Set FPS cap to 240 on load
+    },
+    ["Webhook"] = {
+        ["Enabled"] = false,                 -- Enable Discord webhook notifications
+        ["URL"] = "https://discord.com/api/webhooks/1378767185643831326/b0mB-z4r5YTQGeQnX7EwyvXoo1yiO7UcZzeOKeS9JKcKn-6AWVnicplzs6duT6Jt80kK",                        -- Discord webhook URL (paste here)
+    },
+    ["Save Config"] = {
+        ["Enabled"] = true,                 -- IF true: Save config_loader.lua to JSON (replace existing)
+                                             -- IF false: Load from JSON (if exists), otherwise auto-create JSON
+        ["Config File Name"] = "X_MuiHub_(Username)_(Userid).json", -- Config file name (auto-generated)
+    },
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- LOAD MAIN SCRIPT FROM GITHUB
+-- ═══════════════════════════════════════════════════════════════════════════
+
+print("\n" .. string.rep("=", 80))
+print("📡 Loading main script from GitHub...")
+print(string.rep("=", 80))
+loadstring(game:HttpGet("https://raw.githubusercontent.com/DarylLoudi/njs/refs/heads/main/fffafafafafaf"))()
