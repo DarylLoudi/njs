@@ -167,6 +167,93 @@ local MegalodonState = {
     currentEventPos = nil
 }
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ANTI-AFK SYSTEM
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Prevents Roblox from disconnecting due to 20 minute idle timeout
+local function setupAntiAFK()
+    local VirtualUser = game:GetService("VirtualUser")
+    local VirtualInputManager = game:GetService("VirtualInputManager")
+    local LocalPlayer = Players.LocalPlayer
+    local UserInputService = game:GetService("UserInputService")
+
+    -- Screen size for random click positions
+    local Camera = workspace.CurrentCamera
+    local screenSize = Camera.ViewportSize
+
+    -- Random click position generator (avoid edges)
+    local function getRandomClickPosition()
+        local marginX = screenSize.X * 0.2  -- 20% margin from edges
+        local marginY = screenSize.Y * 0.2
+        local randomX = math.random(marginX, screenSize.X - marginX)
+        local randomY = math.random(marginY, screenSize.Y - marginY)
+        return Vector2.new(randomX, randomY)
+    end
+
+    -- Virtual click simulator (single or double click)
+    local function performVirtualClick(position, isDoubleClick)
+        pcall(function()
+            VirtualUser:CaptureController()
+
+            if isDoubleClick then
+                -- Double click simulation
+                VirtualInputManager:SendMouseButtonEvent(position.X, position.Y, 0, true, game, 0)
+                task.wait(0.05)
+                VirtualInputManager:SendMouseButtonEvent(position.X, position.Y, 0, false, game, 0)
+                task.wait(0.1)
+                VirtualInputManager:SendMouseButtonEvent(position.X, position.Y, 0, true, game, 0)
+                task.wait(0.05)
+                VirtualInputManager:SendMouseButtonEvent(position.X, position.Y, 0, false, game, 0)
+            else
+                -- Single click simulation
+                VirtualInputManager:SendMouseButtonEvent(position.X, position.Y, 0, true, game, 0)
+                task.wait(0.05)
+                VirtualInputManager:SendMouseButtonEvent(position.X, position.Y, 0, false, game, 0)
+            end
+        end)
+    end
+
+    -- Method 1: Hook into Roblox's idle detection (primary defense)
+    LocalPlayer.Idled:Connect(function()
+        local clickPos = getRandomClickPosition()
+        local useDoubleClick = math.random(1, 10) > 7  -- 30% chance double click
+        performVirtualClick(clickPos, useDoubleClick)
+    end)
+
+    -- Method 2: Periodic random clicks (every 3-7 minutes with randomized intervals)
+    task.spawn(function()
+        while true do
+            local randomWait = math.random(180, 420)  -- Random 3-7 minutes
+            task.wait(randomWait)
+
+            pcall(function()
+                local clickPos = getRandomClickPosition()
+                local useDoubleClick = math.random(1, 10) > 6  -- 40% chance double click
+                performVirtualClick(clickPos, useDoubleClick)
+            end)
+        end
+    end)
+
+    -- Method 3: Extra safety - Button2 click fallback (every 10 minutes)
+    task.spawn(function()
+        while true do
+            task.wait(600)  -- Every 10 minutes
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new())
+            end)
+        end
+    end)
+end
+
+-- Initialize Anti-AFK
+local antiAfkSuccess = pcall(setupAntiAFK)
+if not antiAfkSuccess then
+    warn("⚠️ [Anti-AFK] Setup failed, continuing...")
+else
+    print("✅ [Anti-AFK] Advanced virtual click system initialized")
+end
+
 -- Auto Quest System State Variables
 local autoQuestRunning = false
 local currentQuestLocation = nil
