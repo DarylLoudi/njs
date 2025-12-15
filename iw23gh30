@@ -1,3 +1,21 @@
+--[[
+    THEFORGE MAIN v1.2 - COMBINED EDITION (CONFIG LOADER SUPPORTED)
+
+    Menggabungkan:
+    - Pebble Mining + Auto Sell
+    - Checkpoint System + Mob Combat
+
+    Fitur:
+    1. FOCUS_ZOMBIE: Kill X mobs sebelum mining
+    2. FOCUS_ROCK: Mine X rocks sebelum attacking mobs
+    3. MINE_ROCK: Filter - hanya mine rock tertentu
+    4. ATTACK_MOB: Filter - hanya attack mob tertentu
+    5. SELL_WHITELIST: Filter - Item yang tidak dijual (Configurable)
+    6. Checkpoint System (0 -> 1 -> 2)
+    7. Auto Sell saat stash penuh
+    8. Ghost Hit Detection (12s timeout)
+    9. Death/Respawn handling
+]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -14,24 +32,30 @@ local Config = getgenv().theForgeConfig or {
     FOCUS_ROCK = 100,
     MINE_ROCK = { "Volcanic Rock", "Basalt Vein", "Pebble" },
     ATTACK_MOB = { "Blazing Slime", "Slime", "Zombie" },
+    SELL_WHITELIST = { "Sand Stone", "Iron Ore", "Poopite", "Wood" }, -- Default fallback
 }
 
 -- Convert arrays to lookup tables for O(1) check
 local function arrayToLookup(arr)
     local lookup = {}
-    for _, v in ipairs(arr) do
-        lookup[v] = true
+    if arr then
+        for _, v in ipairs(arr) do
+            lookup[v] = true
+        end
     end
     return lookup
 end
 
 local MINE_ROCK_LOOKUP = arrayToLookup(Config.MINE_ROCK)
 local ATTACK_MOB_LOOKUP = arrayToLookup(Config.ATTACK_MOB)
+-- Convert Whitelist array from config to Lookup table
+local SellWhitelist = arrayToLookup(Config.SELL_WHITELIST)
 
 print("[CONFIG] FOCUS_ZOMBIE: " .. Config.FOCUS_ZOMBIE)
 print("[CONFIG] FOCUS_ROCK: " .. Config.FOCUS_ROCK)
 print("[CONFIG] MINE_ROCK: " .. table.concat(Config.MINE_ROCK, ", "))
 print("[CONFIG] ATTACK_MOB: " .. table.concat(Config.ATTACK_MOB, ", "))
+print("[CONFIG] SELL_WHITELIST Loaded: " .. (Config.SELL_WHITELIST and #Config.SELL_WHITELIST or 0) .. " items")
 
 -- ==============================================================================
 -- COUNTERS FOR FOCUS SYSTEM
@@ -74,21 +98,13 @@ local SPAWN_LOCATION = Vector3.new(-220.615479, 28.601984, 173.56749)
 
 -- Settings
 local CHECKPOINT_DISTANCE_THRESHOLD = 4
-local CHECKPOINT_COOLDOWN = 2
+local CHECKPOINT_COOLDOWN = 7
 local GHOST_HIT_TIMEOUT = 7
 
 -- Auto Sell NPC
 local NPC_CFRAME = CFrame.new(-111.642509, 36.9010429, -38.3249016, 0.940055966, -6.50691945e-08, -0.341020256, 2.59367319e-08, 1, -1.19310272e-07, 0.341020256, 1.03313376e-07, 0.940055966)
 local NPC_POSITION = NPC_CFRAME.Position
 local NPC_NAME = "Greedy Cey"
-
--- Whitelist items (tidak dijual)
-local SellWhitelist = {
-    ["Sand Stone"] = true,
-    ["Iron Ore"] = true,
-    ["Poopite"] = true,
-    ["Wood"] = true,
-}
 
 -- Speed Settings
 local WALK_SPEED = 80
@@ -382,7 +398,7 @@ local function getClosestMob()
     return closest
 end
 
-local GHOST_MOB_TIMEOUT = 41  -- Timeout 21 detik jika tidak hit mob
+local GHOST_MOB_TIMEOUT = 21  -- Timeout 21 detik jika tidak hit mob
 
 local function hitMob(mob)
     print("[COMBAT] Attacking: " .. mob.Name)
@@ -603,6 +619,7 @@ local function ProcessAutoSellItems()
     local hasItemsToSell = false
 
     for itemName, quantity in pairs(currentItems) do
+        -- Use SellWhitelist (Loaded from Config)
         if not SellWhitelist[itemName] then
             basketToSell[itemName] = quantity
             hasItemsToSell = true
@@ -795,6 +812,7 @@ local function StartFarm()
     print("[CONFIG] FOCUS_ROCK: " .. Config.FOCUS_ROCK)
     print("[CONFIG] MINE_ROCK: " .. table.concat(Config.MINE_ROCK, ", "))
     print("[CONFIG] ATTACK_MOB: " .. table.concat(Config.ATTACK_MOB, ", "))
+    print("[CONFIG] SELL_WHITELIST Enabled")
     print("==============================================")
     print("[MODE] Starting in ZOMBIE mode")
     print("==============================================")
