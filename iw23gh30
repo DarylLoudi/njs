@@ -1,3 +1,21 @@
+--[[
+    THEFORGE MAIN v1.2 - COMBINED EDITION (CONFIG LOADER)
+
+    Menggabungkan:
+    - Pebble Mining + Auto Sell
+    - Checkpoint System + Mob Combat
+
+    Fitur:
+    1. FOCUS_ZOMBIE: Kill X mobs sebelum mining
+    2. FOCUS_ROCK: Mine X rocks sebelum attacking mobs
+    3. MINE_ROCK: Filter - hanya mine rock tertentu
+    4. ATTACK_MOB: Filter - hanya attack mob tertentu
+    5. Checkpoint System (0 -> 1 -> 2)
+    6. Auto Sell saat stash penuh
+    7. Ghost Hit Detection (12s timeout)
+    8. Death/Respawn handling
+]]
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -381,6 +399,8 @@ local function getClosestMob()
     return closest
 end
 
+local GHOST_MOB_TIMEOUT = 21  -- Timeout 21 detik jika tidak hit mob
+
 local function hitMob(mob)
     print("[COMBAT] Attacking: " .. mob.Name)
     enableNoClip()
@@ -389,11 +409,35 @@ local function hitMob(mob)
     local mRoot = mob:FindFirstChild("HumanoidRootPart")
     local initialHealth = hum and hum.Health or 0
 
+    -- Ghost hit detection variables
+    local lastHealthChangeTime = tick()
+    local lastKnownHealth = initialHealth
+
     while mob.Parent and hum and hum.Health > 0 do
         if isRespawning then break end
 
         local char, root, myHum = waitForCharacter()
         if not char then break end
+
+        -- ========================================
+        -- GHOST HIT DETECTION FOR MOB
+        -- ========================================
+        local currentHealth = hum.Health
+        local currentTime = tick()
+
+        if currentHealth ~= lastKnownHealth then
+            -- Health changed = hit successful
+            lastHealthChangeTime = currentTime
+            lastKnownHealth = currentHealth
+        end
+
+        -- Check timeout: if no damage for 21 seconds
+        local timeSinceLastHit = currentTime - lastHealthChangeTime
+        if timeSinceLastHit >= GHOST_MOB_TIMEOUT then
+            print("[GHOST MOB] No damage dealt for " .. GHOST_MOB_TIMEOUT .. " seconds!")
+            print("[GHOST MOB] Skipping to next mob...")
+            break
+        end
 
         if mRoot and root then
             local dist = (root.Position - mRoot.Position).Magnitude
