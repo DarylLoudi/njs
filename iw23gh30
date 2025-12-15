@@ -91,7 +91,7 @@ local SPAWN_LOCATION = Vector3.new(-220.615479, 28.601984, 173.56749)
 
 -- Settings
 local CHECKPOINT_DISTANCE_THRESHOLD = 4
-local CHECKPOINT_COOLDOWN = 7
+local CHECKPOINT_COOLDOWN = 2
 local GHOST_HIT_TIMEOUT = 7
 
 -- Auto Sell NPC
@@ -399,7 +399,7 @@ local function getClosestMob()
     return closest
 end
 
-local GHOST_MOB_TIMEOUT = 21  -- Timeout 21 detik jika tidak hit mob
+local GHOST_MOB_TIMEOUT = 41  -- Timeout 21 detik jika tidak hit mob
 
 local function hitMob(mob)
     print("[COMBAT] Attacking: " .. mob.Name)
