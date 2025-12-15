@@ -1,20 +1,3 @@
---[[
-    THEFORGE MAIN v1.2 - COMBINED EDITION (CONFIG LOADER)
-
-    Menggabungkan:
-    - Pebble Mining + Auto Sell
-    - Checkpoint System + Mob Combat
-
-    Fitur:
-    1. FOCUS_ZOMBIE: Kill X mobs sebelum mining
-    2. FOCUS_ROCK: Mine X rocks sebelum attacking mobs
-    3. MINE_ROCK: Filter - hanya mine rock tertentu
-    4. ATTACK_MOB: Filter - hanya attack mob tertentu
-    5. Checkpoint System (0 -> 1 -> 2)
-    6. Auto Sell saat stash penuh
-    7. Ghost Hit Detection (12s timeout)
-    8. Death/Respawn handling
-]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
