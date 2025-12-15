@@ -1,0 +1,837 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+
+-- ==============================================================================
+-- LOAD CONFIG FROM LOADER
+-- ==============================================================================
+
+local Config = getgenv().theForgeConfig or {
+    FOCUS_ZOMBIE = 100,
+    FOCUS_ROCK = 100,
+    MINE_ROCK = { "Volcanic Rock", "Basalt Vein", "Pebble" },
+    ATTACK_MOB = { "Blazing Slime", "Slime", "Zombie" },
+}
+
+-- Convert arrays to lookup tables for O(1) check
+local function arrayToLookup(arr)
+    local lookup = {}
+    for _, v in ipairs(arr) do
+        lookup[v] = true
+    end
+    return lookup
+end
+
+local MINE_ROCK_LOOKUP = arrayToLookup(Config.MINE_ROCK)
+local ATTACK_MOB_LOOKUP = arrayToLookup(Config.ATTACK_MOB)
+
+print("[CONFIG] FOCUS_ZOMBIE: " .. Config.FOCUS_ZOMBIE)
+print("[CONFIG] FOCUS_ROCK: " .. Config.FOCUS_ROCK)
+print("[CONFIG] MINE_ROCK: " .. table.concat(Config.MINE_ROCK, ", "))
+print("[CONFIG] ATTACK_MOB: " .. table.concat(Config.ATTACK_MOB, ", "))
+
+-- ==============================================================================
+-- COUNTERS FOR FOCUS SYSTEM
+-- ==============================================================================
+
+local zombieKillCount = 0
+local rockMineCount = 0
+local currentMode = "ZOMBIE"  -- Start with ZOMBIE mode
+
+-- Function to determine current mode based on counters
+local function updateFarmMode()
+    if currentMode == "ZOMBIE" then
+        if zombieKillCount >= Config.FOCUS_ZOMBIE then
+            currentMode = "ROCK"
+            rockMineCount = 0  -- Reset rock counter
+            print("[MODE] Switched to ROCK mode (killed " .. zombieKillCount .. " mobs)")
+        end
+    elseif currentMode == "ROCK" then
+        if rockMineCount >= Config.FOCUS_ROCK then
+            currentMode = "ZOMBIE"
+            zombieKillCount = 0  -- Reset zombie counter
+            print("[MODE] Switched to ZOMBIE mode (mined " .. rockMineCount .. " rocks)")
+        end
+    end
+end
+
+-- ==============================================================================
+-- STATIC CONFIGURATION
+-- ==============================================================================
+
+-- Checkpoints
+local Checkpoints = {
+    [0] = Vector3.new(-224.165939, 29.1325169, 143.279312),
+    [1] = Vector3.new(-60.030529, 36.3008003, -27.1767712),
+    [2] = Vector3.new(20.9823685, -6.1451025, -92.0830841)
+}
+
+-- Spawn Location
+local SPAWN_LOCATION = Vector3.new(-220.615479, 28.601984, 173.56749)
+
+-- Settings
+local CHECKPOINT_DISTANCE_THRESHOLD = 4
+local CHECKPOINT_COOLDOWN = 7
+local GHOST_HIT_TIMEOUT = 7
+
+-- Auto Sell NPC
+local NPC_CFRAME = CFrame.new(-111.642509, 36.9010429, -38.3249016, 0.940055966, -6.50691945e-08, -0.341020256, 2.59367319e-08, 1, -1.19310272e-07, 0.341020256, 1.03313376e-07, 0.940055966)
+local NPC_POSITION = NPC_CFRAME.Position
+local NPC_NAME = "Greedy Cey"
+
+-- Whitelist items (tidak dijual)
+local SellWhitelist = {
+    ["Sand Stone"] = true,
+    ["Iron Ore"] = true,
+    ["Poopite"] = true,
+    ["Wood"] = true,
+}
+
+-- Speed Settings
+local WALK_SPEED = 80
+local WALK_SPEED_SELL = 60
+
+-- ==============================================================================
+-- STATE VARIABLES
+-- ==============================================================================
+
+local noClipEnabled = false
+local noClipConnection = nil
+local hitErrorDetected = false
+local stashFullDetected = false
+local notifyConnection = nil
+local isAutoSelling = false
+local checkpointSequenceCompleted = false
+local isRespawning = false
+
+-- ==============================================================================
+-- REMOTES
+-- ==============================================================================
+
+local DialogueRemote = ReplicatedStorage.Shared.Packages.Knit.Services.DialogueService.RF.RunCommand
+local ToolEvent = ReplicatedStorage.Shared.Packages.Knit.Services.ToolService.RF.ToolActivated
+local LivingFolder = workspace:WaitForChild("Living")
+
+-- ==============================================================================
+-- DEATH & RESPAWN MANAGER
+-- ==============================================================================
+
+local function onDeath()
+    if isRespawning then return end
+    isRespawning = true
+    checkpointSequenceCompleted = false
+    print("[DEATH] Player died! Entering respawn mode...")
+end
+
+local function onRespawn(newChar)
+    print("[RESPAWN] New character detected...")
+    isRespawning = true
+    checkpointSequenceCompleted = false
+
+    local root = newChar:WaitForChild("HumanoidRootPart", 10)
+    local hum = newChar:WaitForChild("Humanoid", 10)
+
+    if root and hum then
+        hum.Died:Connect(onDeath)
+        print("[RESPAWN] Waiting for sync (3s)...")
+        task.wait(3)
+        isRespawning = false
+        print("[RESPAWN] Complete. Script resumed.")
+    else
+        warn("[RESPAWN] Failed to load character!")
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(onRespawn)
+
+if LocalPlayer.Character then
+    local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+    if hum then
+        hum.Died:Connect(onDeath)
+    end
+end
+
+-- ==============================================================================
+-- NO-CLIP SYSTEM
+-- ==============================================================================
+
+local function enableNoClip()
+    if noClipEnabled then return end
+    noClipEnabled = true
+    noClipConnection = RunService.Stepped:Connect(function()
+        if noClipEnabled then
+            local character = LocalPlayer.Character
+            if character then
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function disableNoClip()
+    noClipEnabled = false
+    if noClipConnection then
+        noClipConnection:Disconnect()
+        noClipConnection = nil
+    end
+end
+
+local function setNoClip(state)
+    if state then
+        enableNoClip()
+    else
+        disableNoClip()
+    end
+end
+
+-- ==============================================================================
+-- NOTIFY LISTENER (Stash Full Detection)
+-- ==============================================================================
+
+local function setupNotifyListener()
+    local NotifyEvent = ReplicatedStorage.Shared.Packages.Knit.Services.NotificationService.RE.Notify
+
+    notifyConnection = NotifyEvent.OnClientEvent:Connect(function(data)
+        if data and data.Text then
+            if string.find(data.Text, "filled all the available slots") or
+               string.find(data.Text, "Stash") then
+                print("[NOTIFY] STASH FULL detected!")
+                hitErrorDetected = true
+                stashFullDetected = true
+            elseif data.Sound == "Error Notification" then
+                print("[NOTIFY] Error: " .. data.Text)
+                hitErrorDetected = true
+            end
+        end
+    end)
+
+    print("[NOTIFY] Listener active")
+end
+
+-- ==============================================================================
+-- HELPER: Wait For Character
+-- ==============================================================================
+
+local function waitForCharacter()
+    if isRespawning then return nil, nil, nil end
+
+    local char = LocalPlayer.Character
+    if not char then return nil, nil, nil end
+
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChild("Humanoid")
+
+    if root and hum and hum.Health > 0 then
+        return char, root, hum
+    end
+    return nil, nil, nil
+end
+
+-- ==============================================================================
+-- MOVEMENT FUNCTIONS
+-- ==============================================================================
+
+local function walkToPositionLerp(targetCFrame, speed)
+    local char, root, hum = waitForCharacter()
+    if not char then return false end
+
+    speed = speed or WALK_SPEED
+    enableNoClip()
+
+    local targetPosition = targetCFrame.Position
+    local startPos = root.Position
+    local distance = (targetPosition - startPos).Magnitude
+    local duration = distance / speed
+    local startTime = tick()
+
+    while tick() - startTime < duration do
+        if isRespawning or not LocalPlayer.Character then
+            return false
+        end
+
+        local elapsed = tick() - startTime
+        local alpha = elapsed / duration
+        local newPos = startPos:Lerp(targetPosition, alpha)
+        root.CFrame = CFrame.new(newPos)
+        task.wait()
+    end
+
+    root.CFrame = CFrame.new(targetPosition)
+    disableNoClip()
+    return true
+end
+
+local function walkToCheckpoint(targetPosition, locationName)
+    local char, root, hum = waitForCharacter()
+    if not char then return false end
+
+    disableNoClip()
+    print("[CHECKPOINT] Walking to: " .. locationName .. " (No-Clip OFF)")
+
+    local startTime = tick()
+
+    while (root.Position - targetPosition).Magnitude > CHECKPOINT_DISTANCE_THRESHOLD do
+        if hum.Health <= 0 or isRespawning then
+            print("[CHECKPOINT] Cancelled (Death/Respawn)")
+            return false
+        end
+
+        hum:MoveTo(targetPosition)
+
+        if tick() - startTime > 45 then
+            print("[CHECKPOINT] Timeout: " .. locationName)
+            return false
+        end
+
+        task.wait(0.1)
+    end
+
+    print("[CHECKPOINT] Arrived: " .. locationName)
+    return true
+end
+
+local function walkToTarget(targetPosition)
+    local char, root, hum = waitForCharacter()
+    if not char then return end
+
+    enableNoClip()
+
+    local startPos = root.Position
+    local distance = (targetPosition - startPos).Magnitude
+    local speed = 60
+    local duration = distance / speed
+    local startTime = tick()
+
+    while tick() - startTime < duration do
+        if not LocalPlayer.Character or isRespawning then return end
+        local elapsed = tick() - startTime
+        local alpha = elapsed / duration
+        local newPos = startPos:Lerp(targetPosition, alpha)
+        root.CFrame = CFrame.lookAt(newPos, Vector3.new(targetPosition.X, newPos.Y, targetPosition.Z))
+        task.wait()
+    end
+end
+
+-- ==============================================================================
+-- CHECKPOINT SYSTEM
+-- ==============================================================================
+
+local function goToCheckpointSequence()
+    if isRespawning then return false end
+    print("[SYSTEM] Starting Checkpoint Sequence (0 -> 1 -> 2)")
+
+    if not walkToCheckpoint(Checkpoints[0], "Checkpoint 0") then return false end
+    print("[CHECKPOINT] Cooldown " .. CHECKPOINT_COOLDOWN .. "s...")
+    task.wait(CHECKPOINT_COOLDOWN)
+
+    if not walkToCheckpoint(Checkpoints[1], "Checkpoint 1") then return false end
+    print("[CHECKPOINT] Cooldown " .. CHECKPOINT_COOLDOWN .. "s...")
+    task.wait(CHECKPOINT_COOLDOWN)
+
+    if not walkToCheckpoint(Checkpoints[2], "Checkpoint 2") then return false end
+    print("[CHECKPOINT] Cooldown " .. CHECKPOINT_COOLDOWN .. "s...")
+    task.wait(CHECKPOINT_COOLDOWN)
+
+    return true
+end
+
+-- ==============================================================================
+-- MOB COMBAT SYSTEM (with ATTACK_MOB filter)
+-- ==============================================================================
+
+local function isValidMob(mobName)
+    -- Check if mob name matches any in ATTACK_MOB list
+    for allowedMob, _ in pairs(ATTACK_MOB_LOOKUP) do
+        if string.find(mobName, allowedMob) then
+            return true
+        end
+    end
+    return false
+end
+
+local function getClosestMob()
+    local char, root, hum = waitForCharacter()
+    if not char then return nil end
+
+    local closest = nil
+    local minDist = math.huge
+
+    for _, mob in pairs(LivingFolder:GetChildren()) do
+        -- Check if mob is in ATTACK_MOB list
+        if isValidMob(mob.Name) then
+            local success, err = pcall(function()
+                local mRoot = mob:FindFirstChild("HumanoidRootPart")
+                local mHum = mob:FindFirstChild("Humanoid")
+                if mRoot and mHum and mHum.Health > 0 then
+                    local dist = (root.Position - mRoot.Position).Magnitude
+                    if dist < minDist then
+                        minDist = dist
+                        closest = mob
+                    end
+                end
+            end)
+        end
+    end
+    return closest
+end
+
+local function hitMob(mob)
+    print("[COMBAT] Attacking: " .. mob.Name)
+    enableNoClip()
+
+    local hum = mob:FindFirstChild("Humanoid")
+    local mRoot = mob:FindFirstChild("HumanoidRootPart")
+    local initialHealth = hum and hum.Health or 0
+
+    while mob.Parent and hum and hum.Health > 0 do
+        if isRespawning then break end
+
+        local char, root, myHum = waitForCharacter()
+        if not char then break end
+
+        if mRoot and root then
+            local dist = (root.Position - mRoot.Position).Magnitude
+            if dist > 8 then break end
+            root.CFrame = CFrame.lookAt(root.Position, Vector3.new(mRoot.Position.X, root.Position.Y, mRoot.Position.Z))
+        end
+
+        pcall(function() ToolEvent:InvokeServer("Weapon") end)
+        task.wait(0.4)
+    end
+
+    -- Check if mob was killed (health went to 0)
+    if hum and hum.Health <= 0 then
+        zombieKillCount = zombieKillCount + 1
+        print("[COMBAT] Killed! Total: " .. zombieKillCount .. "/" .. Config.FOCUS_ZOMBIE)
+    end
+end
+
+-- ==============================================================================
+-- ROCK MINING SYSTEM (with MINE_ROCK filter)
+-- ==============================================================================
+
+local function hitRock()
+    ToolEvent:InvokeServer("Pickaxe")
+end
+
+local function isValidRock(rockName)
+    return MINE_ROCK_LOOKUP[rockName] == true
+end
+
+local function getAvailableRocks()
+    local rocks = {}
+
+    -- Scan all rock folders
+    local rockFolder = workspace:FindFirstChild("Rocks")
+    if rockFolder then
+        for _, area in pairs(rockFolder:GetChildren()) do
+            for _, spawnLocation in pairs(area:GetChildren()) do
+                if #spawnLocation:GetChildren() > 0 then
+                    for _, rock in pairs(spawnLocation:GetChildren()) do
+                        -- Check if rock name is in MINE_ROCK list
+                        if isValidRock(rock.Name) then
+                            local health = rock:GetAttribute("Health")
+                            if health and health > 0 then
+                                table.insert(rocks, {
+                                    spawnLocation = spawnLocation,
+                                    rock = rock,
+                                    name = rock.Name
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return rocks
+end
+
+local function isRockValid(rockData)
+    if not rockData.spawnLocation or not rockData.spawnLocation.Parent then
+        return false
+    end
+
+    if not rockData.rock or not rockData.rock.Parent then
+        return false
+    end
+
+    local rockHealth = rockData.rock:GetAttribute("Health")
+    if rockHealth == 0 or rockHealth == nil then
+        return false
+    end
+
+    return true
+end
+
+-- ==============================================================================
+-- AUTO SELL SYSTEM
+-- ==============================================================================
+
+local function walkToNPCForSell()
+    local char, root, hum = waitForCharacter()
+    if not char then return false end
+
+    print("[AUTO SELL] Walking to NPC...")
+    enableNoClip()
+
+    local startPos = root.Position
+    local distance = (NPC_POSITION - startPos).Magnitude
+    local duration = distance / WALK_SPEED_SELL
+    local startTime = tick()
+
+    while tick() - startTime < duration do
+        if not LocalPlayer.Character then
+            disableNoClip()
+            return false
+        end
+
+        local elapsed = tick() - startTime
+        local alpha = elapsed / duration
+        local newPos = startPos:Lerp(NPC_POSITION, alpha)
+        local lookPos = Vector3.new(NPC_POSITION.X, newPos.Y, NPC_POSITION.Z)
+        root.CFrame = CFrame.lookAt(newPos, lookPos)
+
+        task.wait()
+    end
+
+    root.CFrame = NPC_CFRAME
+    print("[AUTO SELL] Arrived at NPC")
+    return true
+end
+
+local function ScanInventoryForSell()
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local Menu = PlayerGui:WaitForChild("Menu", 5)
+    if not Menu then return {} end
+
+    local Background = nil
+    pcall(function()
+        Background = Menu.Frame.Frame.Menus.Stash.Background
+    end)
+
+    if not Background then
+        local Stash = Menu:FindFirstChild("Stash", true)
+        if Stash then Background = Stash:FindFirstChild("Background") end
+    end
+
+    if not Background then return {} end
+
+    local inventoryData = {}
+    for _, itemFrame in pairs(Background:GetChildren()) do
+        if itemFrame:IsA("Frame") and itemFrame.Name ~= "Capacity" then
+            local mainFrame = itemFrame:FindFirstChild("Main")
+            if mainFrame then
+                local quantityLabel = mainFrame:FindFirstChild("Quantity")
+                if quantityLabel then
+                    local rawText = quantityLabel.Text
+                    local amountString = string.match(rawText, "%d+")
+                    local amount = tonumber(amountString) or 1
+                    inventoryData[itemFrame.Name] = amount
+                end
+            end
+        end
+    end
+
+    return inventoryData
+end
+
+local function TriggerShopInteraction()
+    local TargetNPC = nil
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj.Name == NPC_NAME and obj:FindFirstChild("HumanoidRootPart") then
+            TargetNPC = obj
+            break
+        end
+    end
+
+    if not TargetNPC then return false end
+
+    local prompt = TargetNPC:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if prompt then
+        fireproximityprompt(prompt)
+        task.wait(1)
+        return true
+    end
+
+    pcall(function()
+        DialogueRemote:InvokeServer("ToggleDialogue", { NPC = TargetNPC })
+    end)
+    task.wait(1.5)
+    return true
+end
+
+local function ProcessAutoSellItems()
+    TriggerShopInteraction()
+
+    local currentItems = ScanInventoryForSell()
+    local basketToSell = {}
+    local hasItemsToSell = false
+
+    for itemName, quantity in pairs(currentItems) do
+        if not SellWhitelist[itemName] then
+            basketToSell[itemName] = quantity
+            hasItemsToSell = true
+        end
+    end
+
+    if hasItemsToSell then
+        pcall(function()
+            DialogueRemote:InvokeServer("SellConfirm", { Basket = basketToSell })
+        end)
+        print("[AUTO SELL] Sold items!")
+    end
+end
+
+local function CloseDialogueAfterSell()
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local DialogueUI = PlayerGui:WaitForChild("DialogueUI", 5)
+    if not DialogueUI then return end
+
+    local Billboard = DialogueUI:WaitForChild("ResponseBillboard", 5)
+    if not Billboard then return end
+
+    local validOptions = {}
+    for _, child in pairs(Billboard:GetChildren()) do
+        if child:IsA("GuiObject") and child.Visible then
+            table.insert(validOptions, child)
+        end
+    end
+
+    table.sort(validOptions, function(a, b)
+        return a.LayoutOrder < b.LayoutOrder
+    end)
+
+    local targetButton = nil
+    for _, container in ipairs(validOptions) do
+        local btn = container:FindFirstChild("Button")
+        if btn and btn:IsA("GuiButton") then
+            local text = string.lower(btn.Text)
+            if string.find(text, "no") or string.find(text, "bye") or string.find(text, "leave") then
+                targetButton = btn
+                break
+            end
+        end
+    end
+
+    if not targetButton and #validOptions > 0 then
+        targetButton = validOptions[#validOptions]:FindFirstChild("Button")
+    end
+
+    if targetButton then
+        local x = targetButton.AbsolutePosition.X + (targetButton.AbsoluteSize.X / 2)
+        local y = targetButton.AbsolutePosition.Y + (targetButton.AbsoluteSize.Y / 2)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+        task.wait(0.05)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+    end
+end
+
+local function ExecuteAutoSell()
+    print("[AUTO SELL] === STARTING AUTO SELL ===")
+
+    isAutoSelling = true
+    task.wait(3.3)
+
+    walkToNPCForSell()
+    task.wait(0.5)
+
+    ProcessAutoSellItems()
+
+    for i = 5, 1, -1 do
+        print("[AUTO SELL] " .. i .. "...")
+        task.wait(1)
+    end
+    task.wait(0.5)
+
+    CloseDialogueAfterSell()
+
+    disableNoClip()
+    isAutoSelling = false
+    stashFullDetected = false
+
+    print("[AUTO SELL] === COMPLETED ===")
+end
+
+-- ==============================================================================
+-- FARMING FUNCTIONS
+-- ==============================================================================
+
+local function farmRock()
+    local rocks = getAvailableRocks()
+
+    if #rocks == 0 then
+        print("[ROCK] No valid rocks found! (Looking for: " .. table.concat(Config.MINE_ROCK, ", ") .. ")")
+        task.wait(2)
+        return
+    end
+
+    for _, rockData in ipairs(rocks) do
+        if stashFullDetected then break end
+        if currentMode ~= "ROCK" then break end  -- Mode changed
+
+        if isRockValid(rockData) then
+            print("[ROCK] Walking to: " .. rockData.name)
+
+            enableNoClip()
+            walkToPositionLerp(rockData.spawnLocation.CFrame, WALK_SPEED)
+
+            hitErrorDetected = false
+            local hitAttempts = 0
+            local lastHealthChangeTime = tick()
+            local lastKnownHealth = rockData.rock:GetAttribute("Health")
+            local initialHealth = lastKnownHealth
+
+            while isRockValid(rockData) do
+                if stashFullDetected then break end
+                if currentMode ~= "ROCK" then break end
+
+                local currentTime = tick()
+                local currentHealth = rockData.rock:GetAttribute("Health")
+
+                if currentHealth and currentHealth ~= lastKnownHealth then
+                    lastHealthChangeTime = currentTime
+                    lastKnownHealth = currentHealth
+                end
+
+                if currentTime - lastHealthChangeTime >= GHOST_HIT_TIMEOUT then
+                    print("[GHOST HIT] Timeout! Skipping rock...")
+                    break
+                end
+
+                if hitErrorDetected then
+                    hitAttempts = hitAttempts + 1
+                    if hitAttempts >= 3 then
+                        hitErrorDetected = false
+                        break
+                    end
+                    hitErrorDetected = false
+                    task.wait(0.5)
+                end
+
+                if isRockValid(rockData) then
+                    hitRock()
+                end
+                task.wait(0.6)
+            end
+
+            -- Check if rock was destroyed
+            if not isRockValid(rockData) then
+                rockMineCount = rockMineCount + 1
+                print("[ROCK] Mined! Total: " .. rockMineCount .. "/" .. Config.FOCUS_ROCK)
+            end
+
+            hitErrorDetected = false
+            updateFarmMode()  -- Check if should switch mode
+        end
+    end
+end
+
+local function farmMob()
+    local target = getClosestMob()
+
+    if target then
+        local tRoot = target:FindFirstChild("HumanoidRootPart")
+        if tRoot then
+            local char, root, hum = waitForCharacter()
+            if char then
+                local dist = (root.Position - tRoot.Position).Magnitude
+                if dist > 6 then
+                    walkToTarget(tRoot.Position)
+                end
+                hitMob(target)
+                updateFarmMode()  -- Check if should switch mode
+            end
+        end
+    else
+        print("[MOB] Searching for mobs... (Looking for: " .. table.concat(Config.ATTACK_MOB, ", ") .. ")")
+        task.wait(1)
+    end
+end
+
+-- ==============================================================================
+-- MAIN LOOP
+-- ==============================================================================
+
+local function StartFarm()
+    print("==============================================")
+    print("  THEFORGE MAIN v1.2 - CONFIG LOADER EDITION")
+    print("==============================================")
+    print("[CONFIG] FOCUS_ZOMBIE: " .. Config.FOCUS_ZOMBIE)
+    print("[CONFIG] FOCUS_ROCK: " .. Config.FOCUS_ROCK)
+    print("[CONFIG] MINE_ROCK: " .. table.concat(Config.MINE_ROCK, ", "))
+    print("[CONFIG] ATTACK_MOB: " .. table.concat(Config.ATTACK_MOB, ", "))
+    print("==============================================")
+    print("[MODE] Starting in ZOMBIE mode")
+    print("==============================================")
+
+    setupNotifyListener()
+
+    while true do
+        -- Check respawn
+        if isRespawning then
+            print("[SYSTEM] Waiting for respawn...")
+            task.wait(1.5)
+
+        -- Check auto sell
+        elseif stashFullDetected and not isAutoSelling then
+            print("[SYSTEM] Stash full! Starting auto sell...")
+            ExecuteAutoSell()
+
+        -- Check auto selling
+        elseif isAutoSelling then
+            task.wait(0.5)
+
+        else
+            local char, root, hum = waitForCharacter()
+
+            if char then
+                -- Check if at spawn (reset checkpoint)
+                local distToSpawn = (root.Position - SPAWN_LOCATION).Magnitude
+                if distToSpawn < 30 and checkpointSequenceCompleted then
+                    print("[SYSTEM] Detected at spawn. Resetting checkpoint status.")
+                    checkpointSequenceCompleted = false
+                end
+
+                -- Checkpoint sequence (if not completed)
+                if not checkpointSequenceCompleted then
+                    local success = goToCheckpointSequence()
+                    if success then
+                        checkpointSequenceCompleted = true
+                        print("[SYSTEM] Checkpoint sequence completed!")
+                    else
+                        print("[SYSTEM] Checkpoint failed (interrupted)")
+                        task.wait(1)
+                    end
+                else
+                    -- Farm based on current mode
+                    print("[MODE] Current: " .. currentMode .. " | Zombies: " .. zombieKillCount .. "/" .. Config.FOCUS_ZOMBIE .. " | Rocks: " .. rockMineCount .. "/" .. Config.FOCUS_ROCK)
+
+                    if currentMode == "ZOMBIE" then
+                        farmMob()
+                    elseif currentMode == "ROCK" then
+                        farmRock()
+                    end
+                end
+            else
+                task.wait(0.5)
+            end
+        end
+
+        if not noClipEnabled and not isRespawning then
+            enableNoClip()
+        end
+
+        task.wait(0.1)
+    end
+end
+
+-- Start
+StartFarm()
